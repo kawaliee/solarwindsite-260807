@@ -75,12 +75,14 @@ def search_documents(query: str, project_id: str = None, top_k: int = 15) -> dic
     # 3. Qdrant 검색 (하이브리드 + 메타데이터 Pre-filtering)
     try:
         from services.qdrant_service import search
-        # 1차 후보로 20개를 뽑아 Recall 강화 후 Reranker에서 상세 정밀 정렬
+        # 1차 후보를 넉넉히(120개) 확보해 Recall을 강화한다.
+        # 가격/단가 등 특정 조항 청크는 Qdrant 유사도에서 100위권으로 밀리는 경우가 있어
+        # 후보 폭을 넓혀 Cross-Encoder Reranker가 실제 텍스트를 읽고 정밀 승격하도록 위임한다.
         raw_results = search(
             query_dense, query_sparse,
             project_id=project_id,
             metadata_filters=metadata_filters,
-            top_k=50
+            top_k=120
         )
     except Exception as e:
         logger.warning(f'Qdrant search failed: {e}')

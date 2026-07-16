@@ -53,6 +53,10 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-re_user}:${POSTGRES_PASSWORD:-re_pass}@postgres:5432/${POSTGRES_DB:-re_agent}
       QDRANT_URL: http://qdrant:6333
       REDIS_URL: redis://redis:6379/0
+      # Reranker(BAAI/bge-reranker-v2-m3) 로드 시 HuggingFace HEAD 요청 타임아웃으로
+      # 로컬 캐시 폴백 없이 로드 실패하는 문제 방지 — 캐시(hf_cache 볼륨)에서만 로드
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
     ports:
       - "8000:8000"
     volumes:
