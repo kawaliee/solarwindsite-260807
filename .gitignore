@@ -1,0 +1,49 @@
+# =====================================================================
+# 재생E AI Agent — Git Ignore 설정
+# =====================================================================
+
+# 의존성 패키지 디렉토리 배제 (가장 중요)
+node_modules/
+jspm_packages/
+web_modules/
+
+# 로컬 DB 및 미디어 파일 저장 볼륨 배제
+/db/
+/backend/media/
+db.sqlite3
+
+# 파이썬 캐시 및 가상환경 배제
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# 환경 변수 파일 배제 (보안 비밀)
+.env
+.env*.local
+
+# 로그 및 임시 파일 배제
+*.log
+.DS_Store
+Thumbs.db
+
+# API Key 및 자격증명 텍스트 파일 배제 (보안 배제 정책)
+*api key*.txt
+*API KEY*.txt
+*.txt
+
+# IDE 및 도구 임시 설정 배제
+.gemini/
+.agents/
+.idea/
+.vscode/
+
+# 스크래치/생성물 배제 (계약 초안 등 실명 산출물이 커밋되지 않도록)
+/backend/scratch/
+
+# 데이터 백업 번들 배제 (media+.env 기밀 포함, 저장소에 올리지 않음)
+*.tar
+*.zip
+260618_backup/

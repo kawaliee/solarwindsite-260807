@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>재생E AI Agent</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+
+:root{
+  --bg:#F4F7F4;
+  --surface:#FFFFFF;
+  --surface-2:#FBFCFB;
+  --ink:#14201B;
+  --ink-soft:#5E6E66;
+  --ink-faint:#8A988F;
+  --line:#E4EAE5;
+  --line-soft:#EEF2EE;
+  --green-900:#0C261F;
+  --green-800:#123A30;
+  --brand:#153F35;
+  --green-600:#1E5645;
+  --green-accent:#2F8268;
+  --mint:#5FBF9B;
+  --mint-soft:#E5F4EE;
+  --amber:#B9831F;
+  --amber-soft:#FAF1DD;
+  --red:#BC4B38;
+  --red-soft:#FBEAE5;
+  --radius:14px;
+  --radius-sm:10px;
+  --shadow:0 1px 2px rgba(12,38,31,.04), 0 8px 24px rgba(12,38,31,.06);
+  --font:"Pretendard","Pretendard Variable",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--font);
+  background:var(--bg);
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  display:flex;
+  font-size:14px;
+  line-height:1.5;
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea,select{font-family:inherit;font-size:inherit;color:inherit}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#cdd8d1;border-radius:8px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ---------- SIDEBAR ---------- */
+.sidebar{
+  width:264px;flex:0 0 264px;height:100vh;
+  background:linear-gradient(180deg,var(--green-900),var(--brand));
+  color:#E8F0EC;display:flex;flex-direction:column;
+  padding:20px 14px;gap:6px;position:relative;
+}
+.brand{display:flex;align-items:center;gap:11px;padding:6px 8px 18px}
+.brand .mark{
+  width:38px;height:38px;border-radius:11px;flex:0 0 38px;
+  background:radial-gradient(120% 120% at 30% 20%,#3a8b72,#153f35);
+  display:grid;place-items:center;border:1px solid rgba(255,255,255,.18);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18);
+}
+.brand .mark svg{width:21px;height:21px}
+.brand .txt b{display:block;font-size:15px;letter-spacing:-.2px;color:#fff;font-weight:700}
+.brand .txt span{font-size:11px;color:#9EBDB0;letter-spacing:.4px}
+
+.nav-label{font-size:10.5px;color:#7FA496;letter-spacing:1.2px;font-weight:600;padding:14px 10px 6px;text-transform:uppercase}
+.nav-item{
+  display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+  padding:11px 12px;border-radius:11px;color:#C7D9D0;font-size:14px;font-weight:500;
+  transition:background .15s,color .15s;letter-spacing:-.1px;
+}
+.nav-item svg{width:19px;height:19px;flex:0 0 19px;opacity:.85}
+.nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
+.nav-item.active{background:rgba(255,255,255,.13);color:#fff;font-weight:600}
+.nav-item.active svg{opacity:1}
+
+.history{margin-top:14px;flex:1;overflow-y:auto;display:none;flex-direction:column;gap:2px}
+.history.show{display:flex}
+.history .h-row{
+  display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:9px;
+  color:#AEC6BB;font-size:13px;cursor:pointer;transition:background .15s;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.history .h-row svg{width:14px;height:14px;flex:0 0 14px;opacity:.6}
+.history .h-row:hover{background:rgba(255,255,255,.06);color:#fff}
+.history .h-row.active{background:rgba(95,191,155,.16);color:#EAF7F1}
+.new-chat{
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  margin:6px 2px 4px;padding:10px;border-radius:10px;font-size:13px;font-weight:600;
+  background:rgba(255,255,255,.09);color:#EAF4EF;border:1px solid rgba(255,255,255,.12);
+  transition:background .15s;
+}
+.new-chat:hover{background:rgba(255,255,255,.16)}
+.new-chat svg{width:15px;height:15px}
+
+.side-foot{margin-top:auto;padding:12px 8px 2px;border-top:1px solid rgba(255,255,255,.1)}
+.user-chip{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px}
+.user-chip .av{width:32px;height:32px;border-radius:9px;background:#2F8268;display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff}
+.user-chip .u-txt b{display:block;font-size:13px;color:#fff;font-weight:600}
+.user-chip .u-txt span{font-size:11px;color:#8FB0A3}
+
+/* ---------- MAIN ---------- */
+.main{flex:1;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.topbar{
+  height:62px;flex:0 0 62px;border-bottom:1px solid var(--line);
+  background:rgba(255,255,255,.82);backdrop-filter:blur(8px);
+  display:flex;align-items:center;justify-content:space-between;padding:0 26px;
+}
+.topbar .t-title{display:flex;align-items:center;gap:11px}
+.topbar .t-title h1{font-size:16px;font-weight:700;letter-spacing:-.3px}
+.topbar .t-title .t-ic{width:30px;height:30px;border-radius:9px;background:var(--mint-soft);display:grid;place-items:center}
+.topbar .t-title .t-ic svg{width:17px;height:17px;color:var(--brand)}
+.topbar .t-sub{font-size:12.5px;color:var(--ink-faint)}
+.admin-badge{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-soft);background:var(--surface);border:1px solid var(--line);padding:7px 13px;border-radius:20px;font-weight:500}
+.admin-badge .dot{width:7px;height:7px;border-radius:50%;background:var(--mint)}
+
+.view{flex:1;overflow-y:auto;display:none}
+.view.show{display:flex;flex-direction:column}
+
+/* tabs */
+.tabs{display:flex;gap:4px;padding:18px 26px 0;border-bottom:1px solid var(--line);background:var(--surface)}
+.tab{padding:11px 16px;font-size:13.5px;font-weight:600;color:var(--ink-faint);border-bottom:2.5px solid transparent;transition:color .15s,border-color .15s;margin-bottom:-1px}
+.tab:hover{color:var(--ink-soft)}
+.tab.active{color:var(--brand);border-color:var(--brand)}
+.pane{display:none;padding:26px;animation:fade .25s ease}
+.pane.show{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+.section-head{margin-bottom:18px}
+.section-head h2{font-size:18px;font-weight:700;letter-spacing:-.4px;margin-bottom:4px}
+.section-head p{font-size:13px;color:var(--ink-soft)}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.btn-primary{display:inline-flex;align-items:center;gap:8px;background:var(--brand);color:#fff;padding:11px 18px;border-radius:11px;font-weight:600;font-size:13.5px;transition:background .15s,transform .05s}
+.btn-primary:hover{background:var(--green-600)}
+.btn-primary:active{transform:scale(.98)}
+.btn-primary svg{width:16px;height:16px}
+.btn-ghost{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);padding:10px 15px;border-radius:11px;font-weight:600;font-size:13px;transition:border-color .15s,color .15s}
+.btn-ghost:hover{border-color:var(--green-accent);color:var(--brand)}
+.btn-ghost svg{width:15px;height:15px}
+
+label.fld{display:block;margin-bottom:14px}
+label.fld .lab{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px}
+.inp,select.inp,textarea.inp{
+  width:100%;border:1px solid var(--line);background:var(--surface-2);border-radius:10px;
+  padding:11px 13px;font-size:13.5px;transition:border-color .15s,box-shadow .15s;
+}
+.inp:focus,textarea.inp:focus,select.inp:focus{outline:none;border-color:var(--green-accent);box-shadow:0 0 0 3px var(--mint-soft);background:#fff}
+textarea.inp{resize:vertical;min-height:84px;line-height:1.55}
+
+/* ---------- CHAT ---------- */
+.chat-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.chat-scroll{flex:1;overflow-y:auto;padding:30px 0}
+.chat-inner{max-width:820px;margin:0 auto;padding:0 26px;display:flex;flex-direction:column;gap:26px}
+.msg{display:flex;gap:14px}
+.msg .ava{width:32px;height:32px;border-radius:9px;flex:0 0 32px;display:grid;place-items:center;font-size:12px;font-weight:700}
+.msg.user .ava{background:#E7EDE9;color:var(--brand)}
+.msg.ai .ava{background:var(--brand);color:#fff}
+.msg.ai .ava svg{width:18px;height:18px}
+.msg .body{padding-top:4px;min-width:0}
+.msg .who{font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:5px;display:flex;align-items:center;gap:8px}
+.msg .who .ref-tag{font-weight:600;font-size:10.5px;color:var(--green-accent);background:var(--mint-soft);padding:2px 8px;border-radius:20px}
+.msg .text{font-size:14.5px;line-height:1.7;color:var(--ink)}
+.msg .text p{margin-bottom:10px}
+.msg .text ul{margin:4px 0 10px;padding-left:18px}
+.msg .text li{margin-bottom:5px}
+.sources{margin-top:14px;padding-top:13px;border-top:1px dashed var(--line)}
+.sources .s-lab{font-size:11px;font-weight:600;color:var(--ink-faint);letter-spacing:.3px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.sources .s-lab svg{width:13px;height:13px}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{
+  position:relative;display:inline-flex;align-items:center;gap:6px;
+  background:var(--surface-2);border:1px solid var(--line);border-radius:8px;
+  padding:6px 10px;font-size:12px;font-weight:600;color:var(--brand);cursor:default;
+  transition:border-color .15s,background .15s;
+}
+.chip:hover{border-color:var(--green-accent);background:#fff}
+.chip .dot{width:6px;height:6px;border-radius:50%;background:var(--mint)}
+.chip .tip{
+  position:absolute;bottom:calc(100% + 9px);left:50%;transform:translateX(-50%) translateY(4px);
+  background:var(--green-900);color:#fff;font-size:11.5px;font-weight:500;letter-spacing:-.1px;
+  padding:9px 12px;border-radius:9px;white-space:nowrap;max-width:340px;white-space:normal;width:max-content;
+  opacity:0;visibility:hidden;transition:opacity .15s,transform .15s;z-index:30;
+  box-shadow:0 8px 24px rgba(12,38,31,.25);line-height:1.45;
+}
+.chip .tip::after{content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);border:6px solid transparent;border-top-color:var(--green-900)}
+.chip:hover .tip{opacity:1;visibility:visible;transform:translateX(-50%) translateY(0)}
+.chip .tip .tp-meta{display:block;color:#8FB0A3;font-size:10.5px;margin-top:3px}
+
+/* composer */
+.composer{border-top:1px solid var(--line);background:var(--surface);padding:14px 0 18px}
+.composer-inner{max-width:820px;margin:0 auto;padding:0 26px}
+.ref-toggle{display:flex;align-items:center;gap:10px;margin-bottom:11px}
+.switch{position:relative;width:38px;height:22px;flex:0 0 38px}
+.switch input{display:none}
+.switch .track{position:absolute;inset:0;background:#D5DED8;border-radius:20px;transition:background .2s}
+.switch .knob{position:absolute;top:2px;left:2px;width:18px;height:18px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.switch input:checked + .track{background:var(--green-accent)}
+.switch input:checked + .track + .knob{transform:translateX(16px)}
+.ref-toggle .rt-txt{font-size:13px;font-weight:600;color:var(--ink)}
+.ref-toggle .rt-sub{font-size:11.5px;color:var(--ink-faint)}
+.input-box{
+  display:flex;align-items:flex-end;gap:10px;border:1px solid var(--line);border-radius:16px;
+  background:var(--surface-2);padding:8px 8px 8px 16px;transition:border-color .15s,box-shadow .15s;
+}
+.input-box:focus-within{border-color:var(--green-accent);box-shadow:0 0 0 3px var(--mint-soft);background:#fff}
+.input-box textarea{flex:1;border:none;background:none;resize:none;font-size:14.5px;padding:8px 0;max-height:120px;line-height:1.5}
+.input-box textarea:focus{outline:none}
+.icon-btn{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;color:var(--ink-faint);transition:background .15s,color .15s}
+.icon-btn:hover{background:var(--line-soft);color:var(--ink-soft)}
+.icon-btn svg{width:19px;height:19px}
+.send-btn{width:40px;height:40px;border-radius:12px;background:var(--brand);color:#fff;display:grid;place-items:center;transition:background .15s}
+.send-btn:hover{background:var(--green-600)}
+.send-btn svg{width:18px;height:18px}
+.composer-foot{text-align:center;font-size:11px;color:var(--ink-faint);margin-top:9px}
+
+/* ---------- generic blocks ---------- */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.grid-2.lean{grid-template-columns:1.05fr .95fr}
+.block{padding:22px}
+.block h3{font-size:14px;font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:8px}
+.block h3 .num{width:22px;height:22px;border-radius:7px;background:var(--mint-soft);color:var(--brand);font-size:12px;display:grid;place-items:center;font-weight:700}
+.block .h-sub{font-size:12px;color:var(--ink-faint);margin-bottom:18px}
+
+.drop{
+  border:1.5px dashed var(--line);border-radius:13px;background:var(--surface-2);
+  padding:34px 20px;text-align:center;transition:border-color .15s,background .15s;cursor:pointer;
+}
+.drop:hover{border-color:var(--green-accent);background:var(--mint-soft)}
+.drop .d-ic{width:46px;height:46px;border-radius:13px;background:#fff;border:1px solid var(--line);display:grid;place-items:center;margin:0 auto 13px}
+.drop .d-ic svg{width:22px;height:22px;color:var(--green-accent)}
+.drop b{display:block;font-size:13.5px;margin-bottom:4px}
+.drop span{font-size:12px;color:var(--ink-faint)}
+.file-pill{display:inline-flex;align-items:center;gap:9px;background:var(--mint-soft);border:1px solid #CDE7DC;border-radius:10px;padding:9px 13px;font-size:13px;font-weight:600;color:var(--brand);margin-top:13px}
+.file-pill svg{width:16px;height:16px}
+.file-pill .x{margin-left:4px;color:var(--ink-faint);cursor:pointer}
+
+.result-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.result-head .rh-l{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:700}
+.result-head .rh-l .badge{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;background:var(--mint-soft);color:var(--green-accent)}
+.doc-preview{background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:20px;font-size:12.5px;color:var(--ink-soft);line-height:1.75;max-height:300px;overflow-y:auto}
+.doc-preview h4{font-size:13px;color:var(--ink);font-weight:700;margin:14px 0 7px}
+.doc-preview h4:first-child{margin-top:0}
+.doc-preview .clause{padding-left:14px;border-left:2px solid var(--line-soft);margin-bottom:9px}
+
+/* table */
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl th{text-align:left;font-weight:600;color:var(--ink-faint);font-size:11px;letter-spacing:.3px;padding:9px 12px;border-bottom:1px solid var(--line);text-transform:uppercase}
+.tbl td{padding:11px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top;color:var(--ink)}
+.tbl tr:last-child td{border-bottom:none}
+.tbl .cell-ref{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;font-weight:700;color:var(--brand);background:var(--mint-soft);padding:2px 7px;border-radius:6px}
+.sev{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px}
+.sev.high{background:var(--red-soft);color:var(--red)}
+.sev.mid{background:var(--amber-soft);color:var(--amber)}
+.sev.low{background:var(--mint-soft);color:var(--green-accent)}
+
+/* dashboard */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 19px;box-shadow:var(--shadow)}
+.kpi .k-lab{font-size:12px;color:var(--ink-faint);font-weight:600;display:flex;align-items:center;gap:7px;margin-bottom:11px}
+.kpi .k-lab svg{width:15px;height:15px;color:var(--green-accent)}
+.kpi .k-val{font-size:26px;font-weight:800;letter-spacing:-1px;line-height:1}
+.kpi .k-val .u{font-size:14px;font-weight:600;color:var(--ink-soft);margin-left:3px}
+.kpi .k-sub{font-size:11.5px;margin-top:8px;font-weight:600}
+.kpi .k-sub.up{color:var(--green-accent)}
+.kpi .k-sub.down{color:var(--red)}
+
+.chart-card{padding:22px}
+.chart-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.chart-head h3{font-size:14px;font-weight:700}
+.legend{display:flex;gap:14px;font-size:11.5px;color:var(--ink-soft)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle}
+.bars{display:flex;align-items:flex-end;gap:10px;height:180px;padding-top:10px}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end}
+.bar-stack{width:100%;max-width:34px;display:flex;flex-direction:column;justify-content:flex-end;height:100%;gap:3px}
+.bar{width:100%;border-radius:5px 5px 0 0;transition:opacity .15s}
+.bar:hover{opacity:.82}
+.bar.actual{background:linear-gradient(180deg,var(--green-accent),var(--brand))}
+.bar.plan{background:#CFE3DA}
+.bar-x{font-size:11px;color:var(--ink-faint);font-weight:600}
+
+.event-row{display:flex;gap:13px;padding:13px 0;border-bottom:1px solid var(--line-soft)}
+.event-row:last-child{border-bottom:none}
+.event-row .ev-ic{width:34px;height:34px;border-radius:10px;flex:0 0 34px;display:grid;place-items:center}
+.event-row .ev-ic svg{width:16px;height:16px}
+.ev-ic.warn{background:var(--amber-soft);color:var(--amber)}
+.ev-ic.ok{background:var(--mint-soft);color:var(--green-accent)}
+.ev-ic.info{background:#E9EFF4;color:#3D6B8E}
+.event-row .ev-body b{font-size:13px;display:block;margin-bottom:2px}
+.event-row .ev-body .ev-meta{font-size:11.5px;color:var(--ink-faint)}
+.event-row .ev-pjt{margin-left:auto;font-size:11px;font-weight:600;color:var(--ink-soft);background:var(--surface-2);border:1px solid var(--line);padding:4px 10px;border-radius:7px;white-space:nowrap;align-self:center}
+
+.proj-tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.proj-chip{padding:9px 15px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-size:13px;font-weight:600;color:var(--ink-soft);transition:all .15s}
+.proj-chip:hover{border-color:var(--green-accent);color:var(--brand)}
+.proj-chip.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+
+.cctv-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cctv{aspect-ratio:16/10;border-radius:11px;background:linear-gradient(135deg,#1a2b26,#0c1815);position:relative;overflow:hidden;display:grid;place-items:center}
+.cctv::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(255,255,255,.015) 3px,rgba(255,255,255,.015) 4px)}
+.cctv .cc-ic{color:rgba(255,255,255,.2)}
+.cctv .cc-ic svg{width:30px;height:30px}
+.cctv .cc-lab{position:absolute;bottom:9px;left:11px;font-size:11px;color:rgba(255,255,255,.8);font-weight:600;display:flex;align-items:center;gap:6px}
+.cctv .cc-lab .live{width:7px;height:7px;border-radius:50%;background:#ff5a4d;box-shadow:0 0 0 0 rgba(255,90,77,.5);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,90,77,.5)}70%{box-shadow:0 0 0 7px rgba(255,90,77,0)}100%{box-shadow:0 0 0 0 rgba(255,90,77,0)}}
+.cctv .cc-time{position:absolute;top:9px;right:11px;font-size:10.5px;color:rgba(255,255,255,.55);font-family:ui-monospace,monospace}
+
+.db-row{display:flex;align-items:center;gap:13px;padding:12px 14px;border:1px solid var(--line);border-radius:11px;margin-bottom:9px;transition:border-color .15s,background .15s;cursor:pointer}
+.db-row:hover{border-color:var(--green-accent);background:var(--surface-2)}
+.db-row .f-ic{width:36px;height:36px;border-radius:9px;flex:0 0 36px;display:grid;place-items:center;font-size:10px;font-weight:800;color:#fff}
+.f-ic.pdf{background:#C0533F}.f-ic.xls{background:#2F8268}.f-ic.doc{background:#3D6B8E}
+.db-row .f-body b{font-size:13px;display:block;margin-bottom:2px}
+.db-row .f-body span{font-size:11.5px;color:var(--ink-faint)}
+.db-row .f-dl{margin-left:auto;color:var(--ink-faint)}
+.db-row .f-dl svg{width:17px;height:17px}
+.db-row:hover .f-dl{color:var(--green-accent)}
+
+.metrics-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.metric{background:var(--surface);padding:16px 18px}
+.metric .m-lab{font-size:11.5px;color:var(--ink-faint);font-weight:600;margin-bottom:7px}
+.metric .m-val{font-size:20px;font-weight:800;letter-spacing:-.5px}
+.metric .m-val .u{font-size:12px;color:var(--ink-soft);font-weight:600}
+
+.note{display:flex;gap:10px;background:var(--mint-soft);border:1px solid #CDE7DC;border-radius:11px;padding:13px 15px;font-size:12.5px;color:var(--green-800);line-height:1.6}
+.note svg{width:17px;height:17px;flex:0 0 17px;margin-top:1px;color:var(--green-accent)}
+
+@media (max-width:880px){
+  .grid-2,.grid-2.lean{grid-template-columns:1fr}
+  .kpi-row{grid-template-columns:1fr 1fr}
+  .metrics-grid{grid-template-columns:1fr}
+  .cctv-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="brand">
+    <div class="mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#EAF7F1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 3 2 5 4 7l3 6 3-6c2-2 4-4 4-7a7 7 0 0 0-7-7Z"/><path d="M12 9v0"/><path d="M9 9c1.5-1.5 4.5-1.5 6 0"/></svg>
+    </div>
+    <div class="txt"><b>재생E AI Agent</b><span>RENEWABLE ENERGY</span></div>
+  </div>
+
+  <div class="nav-label">메뉴</div>
+  <button class="nav-item active" data-view="chat" onclick="go('chat',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/></svg>
+    대화
+  </button>
+  <button class="nav-item" data-view="contract" onclick="go('contract',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>
+    계약
+  </button>
+  <button class="nav-item" data-view="finance" onclick="go('finance',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l3-3 3 3 5-6"/></svg>
+    재무모델
+  </button>
+  <button class="nav-item" data-view="ops" onclick="go('ops',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+    운영관리 Dashboard
+  </button>
+
+  <!-- chat history (only on chat view) -->
+  <div class="history show" id="history">
+    <button class="new-chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>새 대화</button>
+    <div class="nav-label" style="padding-top:8px">대화 기록</div>
+    <div class="h-row active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>새만금 태양광 인허가 리스크</div>
+    <div class="h-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>풍력 PPA 단가 협상 사례</div>
+    <div class="h-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>SPC 회계처리 기준 문의</div>
+    <div class="h-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>고창 사업권 인수 실사 체크</div>
+  </div>
+
+  <div class="side-foot">
+    <div class="user-chip">
+      <div class="av">관</div>
+      <div class="u-txt"><b>AI Agent 관리자</b><span>재생E 사업개발실</span></div>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="t-title">
+      <div class="t-ic" id="topIc"></div>
+      <div>
+        <h1 id="topTitle">대화</h1>
+        <div class="t-sub" id="topSub">사내 자료 기반 질의응답</div>
+      </div>
+    </div>
+    <div class="admin-badge"><span class="dot"></span>관리자 모드</div>
+  </div>
+
+  <!-- ============ CHAT ============ -->
+  <section class="view show" id="view-chat">
+    <div class="chat-wrap">
+      <div class="chat-scroll">
+        <div class="chat-inner">
+
+          <div class="msg user">
+            <div class="ava">관</div>
+            <div class="body">
+              <div class="who">관리자</div>
+              <div class="text"><p>새만금 태양광 사업에서 발전사업허가 단계에 통상적으로 발생하는 인허가 리스크가 뭐였어? 과거 우리 부서 사례 기준으로 정리해줘.</p></div>
+            </div>
+          </div>
+
+          <div class="msg ai">
+            <div class="ava"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 3 2 5 4 7l3 6 3-6c2-2 4-4 4-7a7 7 0 0 0-7-7Z"/></svg></div>
+            <div class="body">
+              <div class="who">재생E AI Agent <span class="ref-tag">사내 문서 참조</span></div>
+              <div class="text">
+                <p>과거 부서 PJT 기록을 기준으로, 발전사업허가 단계에서 반복적으로 나타난 인허가 리스크는 크게 세 가지입니다.</p>
+                <ul>
+                  <li><b>계통연계 용량 부족</b> — 인근 변전소 여유용량 소진으로 연계 지연·접속 보류된 사례가 다수였습니다.</li>
+                  <li><b>주민 수용성</b> — 어업권·경관 민원으로 사업허가 심의가 1회 이상 보류된 사례가 확인됩니다.</li>
+                  <li><b>군사·환경 규제 중첩</b> — 비행안전구역 및 보전지역 검토 누락 시 재신청으로 평균 3~4개월 지연되었습니다.</li>
+                </ul>
+                <p>특히 새만금 권역은 계통연계 이슈가 가장 빈번했으므로, 사업허가 신청 전 한전 접속 사전검토를 우선 진행하시길 권장드립니다.</p>
+              </div>
+              <div class="sources">
+                <div class="s-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>참조한 사내 자료 4건</div>
+                <div class="chips">
+                  <span class="chip"><span class="dot"></span>새만금태…<span class="tip">새만금 태양광 발전사업허가 검토보고서_v3.pdf<span class="tp-meta">사업개발실 · 2023.08 · PDF</span></span></span>
+                  <span class="chip"><span class="dot"></span>인허가리…<span class="tip">인허가 리스크 통합관리 대장_2024.xlsx<span class="tp-meta">사업개발실 · 2024.01 · Excel</span></span></span>
+                  <span class="chip"><span class="dot"></span>계통연계…<span class="tip">계통연계 사전검토 결과 회신_한전.pdf<span class="tp-meta">계통연계 · 2023.05 · PDF</span></span></span>
+                  <span class="chip"><span class="dot"></span>주민수용…<span class="tip">주민수용성 대응 사례집_재생E.docx<span class="tp-meta">사업개발실 · 2022.11 · Word</span></span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="composer">
+        <div class="composer-inner">
+          <div class="ref-toggle">
+            <label class="switch"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></label>
+            <div>
+              <span class="rt-txt">사내 문서 참조</span>
+              <span class="rt-sub"> · 이 대화에서 부서 자료를 검색해 답변에 반영합니다</span>
+            </div>
+          </div>
+          <div class="input-box">
+            <textarea rows="1" placeholder="질문을 입력하세요. 예: 풍력 PPA 계약에서 우리가 관철했던 핵심 조건은?"></textarea>
+            <button class="icon-btn" title="파일 첨부 (PDF · Word · Excel)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
+            <button class="send-btn" title="전송"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></button>
+          </div>
+          <div class="composer-foot">답변은 참조 자료에 근거하며, 중요한 의사결정 전 원본 확인을 권장합니다.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CONTRACT ============ -->
+  <section class="view" id="view-contract">
+    <div class="tabs">
+      <button class="tab active" onclick="tab('ct',0,this)">계약서 신규 생성</button>
+      <button class="tab" onclick="tab('ct',1,this)">계약서 검토</button>
+    </div>
+
+    <!-- contract: generate -->
+    <div class="pane show" id="ct-0">
+      <div class="section-head"><h2>계약서 신규 생성</h2><p>핵심 조건(Key-term)을 입력하면 표준 계약서 양식을 바탕으로 초안을 생성합니다.</p></div>
+      <div class="grid-2 lean">
+        <div class="card block">
+          <h3><span class="num">1</span>핵심 조건 입력</h3>
+          <div class="h-sub">계약의 주요 Key-term을 입력하세요.</div>
+          <label class="fld"><span class="lab">계약 유형</span>
+            <select class="inp"><option>전력판매계약 (PPA)</option><option>EPC 도급계약</option><option>O&amp;M 위탁계약</option><option>사업권 양수도계약</option><option>토지 임대차계약</option></select>
+          </label>
+          <label class="fld"><span class="lab">계약 당사자</span><input class="inp" value="(주)재생E파워 / ○○에너지(주)"></label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <label class="fld"><span class="lab">계약 용량</span><input class="inp" value="80 MW"></label>
+            <label class="fld"><span class="lab">계약 기간</span><input class="inp" value="20년"></label>
+          </div>
+          <label class="fld"><span class="lab">매매 단가 / 정산 조건</span><input class="inp" value="SMP+REC 연동, 가중치 1.2"></label>
+          <label class="fld"><span class="lab">기타 관철 조건 (자유 입력)</span><textarea class="inp" placeholder="예: 계통 접속 지연 시 책임소재, 불가항력 범위, 위약금 상한 등">계통 접속 지연 책임은 매수인 부담, 위약금 상한 계약금액의 10%, 불가항력에 정전·천재지변 포함</textarea></label>
+          <button class="btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 3 2 5 4 7l3 6 3-6c2-2 4-4 4-7a7 7 0 0 0-7-7Z"/></svg>계약서 초안 생성</button>
+        </div>
+
+        <div class="card block">
+          <div class="result-head">
+            <div class="rh-l">생성된 초안 <span class="badge">미리보기</span></div>
+            <button class="btn-ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>Word 다운로드</button>
+          </div>
+          <div class="doc-preview">
+            <h4>전력판매계약서 (Power Purchase Agreement)</h4>
+            <div class="clause">본 계약은 (주)재생E파워(이하 "매도인")와 ○○에너지(주)(이하 "매수인") 간 체결한다.</div>
+            <h4>제1조 (목적)</h4>
+            <div class="clause">매도인이 운영하는 80MW 태양광 발전설비에서 생산된 전력의 매매에 관한 권리·의무를 정한다.</div>
+            <h4>제2조 (계약 기간)</h4>
+            <div class="clause">상업운전 개시일로부터 20년으로 하며, 만료 1년 전 협의로 갱신할 수 있다.</div>
+            <h4>제3조 (정산)</h4>
+            <div class="clause">매매대금은 SMP에 REC(가중치 1.2)를 연동하여 월 단위로 정산한다.</div>
+            <h4>제7조 (계통 접속 지연)</h4>
+            <div class="clause">계통 접속 지연으로 인한 손실은 매수인이 부담하며, 위약금은 계약금액의 10%를 상한으로 한다.</div>
+          </div>
+          <div class="note" style="margin-top:14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>입력한 Key-term은 부서 표준 PPA 양식의 해당 조항에 자동 매핑되었습니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- contract: review -->
+    <div class="pane" id="ct-1">
+      <div class="section-head"><h2>계약서 검토</h2><p>검토 중인 계약서 또는 Key-term을 업로드하면, 지시에 따라 조항별 검토 의견을 제시합니다.</p></div>
+      <div class="grid-2 lean">
+        <div class="card block">
+          <h3><span class="num">1</span>검토 대상 업로드</h3>
+          <div class="h-sub">PDF · Word 파일을 올리세요.</div>
+          <div class="drop">
+            <div class="d-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg></div>
+            <b>파일을 끌어다 놓거나 클릭하여 업로드</b><span>PDF, Word · 최대 50MB</span>
+          </div>
+          <div class="file-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>EPC도급계약서_상대방초안.docx<span class="x">✕</span></div>
+          <label class="fld" style="margin-top:18px"><span class="lab">검토 지시</span><textarea class="inp" placeholder="예: 우리가 매수인 입장일 때 불리한 조항을 찾아주고, 협상에서 관철할 수정안을 제시해줘">매수인 입장에서 불리한 조항을 찾고, 표준 양식 대비 누락·독소 조항을 표시해줘.</textarea></label>
+          <button class="btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>계약서 검토 실행</button>
+        </div>
+
+        <div class="card block">
+          <div class="result-head">
+            <div class="rh-l">검토 결과 <span class="badge">조항 3건 지적</span></div>
+            <button class="btn-ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>Word 다운로드</button>
+          </div>
+          <table class="tbl">
+            <thead><tr><th>조항</th><th>위험도</th><th>지적 내용 · 수정 방향</th></tr></thead>
+            <tbody>
+              <tr><td><span class="cell-ref">제12조</span></td><td><span class="sev high">독소</span></td><td>지체상금 상한 없음 → 계약금액의 10% 상한 신설 제안</td></tr>
+              <tr><td><span class="cell-ref">제18조</span></td><td><span class="sev mid">불리</span></td><td>하자담보 책임 5년 → 표준 2년 대비 과도, 단축 협상 필요</td></tr>
+              <tr><td><span class="cell-ref">—</span></td><td><span class="sev low">누락</span></td><td>불가항력 조항 부재 → 표준 양식 제24조 삽입 권장</td></tr>
+            </tbody>
+          </table>
+          <div class="note" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>과거 EPC 협상 사례 7건에서 동일 쟁점이 관철된 이력이 있어 협상 우선순위로 표시했습니다.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FINANCE ============ -->
+  <section class="view" id="view-finance">
+    <div class="tabs">
+      <button class="tab active" onclick="tab('fn',0,this)">재무모델 생성</button>
+      <button class="tab" onclick="tab('fn',1,this)">재무모델 검토</button>
+    </div>
+
+    <!-- finance: generate -->
+    <div class="pane show" id="fn-0">
+      <div class="section-head"><h2>재무모델 생성</h2><p>주요 가정사항을 입력하면 재무모델이 자동으로 생성됩니다.</p></div>
+      <div class="grid-2 lean">
+        <div class="card block">
+          <h3><span class="num">1</span>주요 가정사항</h3>
+          <div class="h-sub">사업 가정을 입력하세요.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <label class="fld"><span class="lab">설비 용량</span><input class="inp" value="80 MW"></label>
+            <label class="fld"><span class="lab">이용률</span><input class="inp" value="15.8 %"></label>
+            <label class="fld"><span class="lab">총 사업비 (CAPEX)</span><input class="inp" value="1,120 억원"></label>
+            <label class="fld"><span class="lab">운영비 (OPEX)</span><input class="inp" value="연 28 억원"></label>
+            <label class="fld"><span class="lab">차입 비율</span><input class="inp" value="75 %"></label>
+            <label class="fld"><span class="lab">차입 금리</span><input class="inp" value="5.2 %"></label>
+            <label class="fld"><span class="lab">매출 단가</span><input class="inp" value="SMP+REC 165 원/kWh"></label>
+            <label class="fld"><span class="lab">사업 기간</span><input class="inp" value="20년"></label>
+          </div>
+          <button class="btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l3-3 3 3 5-6"/></svg>재무모델 자동 생성</button>
+        </div>
+
+        <div class="card block">
+          <div class="result-head">
+            <div class="rh-l">생성 결과 <span class="badge">요약 지표</span></div>
+            <button class="btn-ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>Excel 다운로드</button>
+          </div>
+          <div class="metrics-grid" style="margin-bottom:18px">
+            <div class="metric"><div class="m-lab">Equity IRR</div><div class="m-val">8.7<span class="u">%</span></div></div>
+            <div class="metric"><div class="m-lab">Project IRR</div><div class="m-val">6.4<span class="u">%</span></div></div>
+            <div class="metric"><div class="m-lab">NPV</div><div class="m-val">142<span class="u">억</span></div></div>
+            <div class="metric"><div class="m-lab">최소 DSCR</div><div class="m-val">1.28<span class="u">x</span></div></div>
+            <div class="metric"><div class="m-lab">투자비 회수</div><div class="m-val">11.2<span class="u">년</span></div></div>
+            <div class="metric"><div class="m-lab">LCOE</div><div class="m-val">138<span class="u">원</span></div></div>
+          </div>
+          <div class="chart-head"><h3 style="font-size:13px">연도별 잉여현금흐름 (FCF)</h3></div>
+          <div class="bars" style="height:130px">
+            <div class="bar-col"><div class="bar-stack"><div class="bar actual" style="height:22%"></div></div><div class="bar-x">1Y</div></div>
+            <div class="bar-col"><div class="bar-stack"><div class="bar actual" style="height:38%"></div></div><div class="bar-x">4Y</div></div>
+            <div class="bar-col"><div class="bar-stack"><div class="bar actual" style="height:52%"></div></div><div class="bar-x">8Y</div></div>
+            <div class="bar-col"><div class="bar-stack"><div class="bar actual" style="height:74%"></div></div><div class="bar-x">12Y</div></div>
+            <div class="bar-col"><div class="bar-stack"><div class="bar actual" style="height:88%"></div></div><div class="bar-x">16Y</div></div>
+            <div class="bar-col"><div class="bar-stack"><div class="bar actual" style="height:100%"></div></div><div class="bar-x">20Y</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- finance: review -->
+    <div class="pane" id="fn-1">
+      <div class="section-head"><h2>재무모델 검토</h2><p>업로드한 재무모델의 수식 오류 등을 검토하고, 셀 위치·이상 내용·수정 방향을 표로 제시합니다.</p></div>
+      <div class="grid-2 lean">
+        <div class="card block">
+          <h3><span class="num">1</span>재무모델 업로드</h3>
+          <div class="h-sub">Excel 파일을 올리세요.</div>
+          <div class="drop">
+            <div class="d-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg></div>
+            <b>파일을 끌어다 놓거나 클릭하여 업로드</b><span>Excel (.xlsx) · 최대 50MB</span>
+          </div>
+          <div class="file-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>새만금태양광_재무모델_v5.xlsx<span class="x">✕</span></div>
+          <button class="btn-primary" style="margin-top:18px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>수식 오류 검토</button>
+          <div class="note" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>순환참조, 하드코딩, 부호 오류, 시트 간 연결 끊김을 중점 점검합니다.</div>
+        </div>
+
+        <div class="card block">
+          <div class="result-head">
+            <div class="rh-l">검토 결과 <span class="badge">이상 4건 발견</span></div>
+            <button class="btn-ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>Excel 다운로드</button>
+          </div>
+          <table class="tbl">
+            <thead><tr><th>셀 위치</th><th>유형</th><th>이상 내용 · 수정 방향</th></tr></thead>
+            <tbody>
+              <tr><td><span class="cell-ref">CF!D24</span></td><td><span class="sev high">오류</span></td><td>차입 원리금 부호 반대 → 음수(-)로 수정 필요</td></tr>
+              <tr><td><span class="cell-ref">Rev!F12</span></td><td><span class="sev mid">하드코딩</span></td><td>REC 단가 직접 입력 → 가정 시트 참조로 변경</td></tr>
+              <tr><td><span class="cell-ref">Debt!H8</span></td><td><span class="sev high">순환참조</span></td><td>이자·잔액 상호참조 → 반복계산 또는 구조 분리</td></tr>
+              <tr><td><span class="cell-ref">CF!M30</span></td><td><span class="sev low">경고</span></td><td>잔존가치 누락 → 사업 종료연도 반영 권장</td></tr>
+            </tbody>
+          </table>
+          <div class="note" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 9v4M12 17h.01M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg>CF!D24의 부호 오류는 Equity IRR을 약 1.4%p 과대계상시키는 핵심 오류입니다.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ OPS DASHBOARD ============ -->
+  <section class="view" id="view-ops">
+    <div class="tabs">
+      <button class="tab active" onclick="tab('op',0,this)">종합</button>
+      <button class="tab" onclick="tab('op',1,this)">PJT별 상세</button>
+    </div>
+
+    <!-- ops: overview -->
+    <div class="pane show" id="op-0">
+      <div class="section-head"><h2>운영 종합 현황</h2><p>가동 중인 발전 자산의 통합 현황입니다.</p></div>
+      <div class="kpi-row">
+        <div class="kpi"><div class="k-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg>총 설비용량</div><div class="k-val">412<span class="u">MW</span></div><div class="k-sub up">▲ 신규 2개소 준공</div></div>
+        <div class="kpi"><div class="k-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"/><path d="M7 14l3-3 3 3 5-6"/></svg>금월 발전량</div><div class="k-val">58.4<span class="u">GWh</span></div><div class="k-sub up">▲ 계획 대비 103%</div></div>
+        <div class="kpi"><div class="k-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/></svg>운영 사업장</div><div class="k-val">14<span class="u">개소</span></div><div class="k-sub up">태양광 11 · 풍력 3</div></div>
+        <div class="kpi"><div class="k-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg>미해결 이슈</div><div class="k-val">3<span class="u">건</span></div><div class="k-sub down">▲ 점검 필요 1건</div></div>
+      </div>
+
+      <div class="grid-2 lean">
+        <div class="card chart-card">
+          <div class="chart-head">
+            <h3>월별 발전량 (계획 vs 실적)</h3>
+            <div class="legend"><span><i style="background:#CFE3DA"></i>계획</span><span><i style="background:var(--brand)"></i>실적</span></div>
+          </div>
+          <div class="bars">
+            <div class="bar-col"><div class="bar-stack" style="flex-direction:row;align-items:flex-end;gap:3px"><div class="bar plan" style="height:62%;width:50%"></div><div class="bar actual" style="height:68%;width:50%"></div></div><div class="bar-x">1월</div></div>
+            <div class="bar-col"><div class="bar-stack" style="flex-direction:row;align-items:flex-end;gap:3px"><div class="bar plan" style="height:70%;width:50%"></div><div class="bar actual" style="height:66%;width:50%"></div></div><div class="bar-x">2월</div></div>
+            <div class="bar-col"><div class="bar-stack" style="flex-direction:row;align-items:flex-end;gap:3px"><div class="bar plan" style="height:80%;width:50%"></div><div class="bar actual" style="height:86%;width:50%"></div></div><div class="bar-x">3월</div></div>
+            <div class="bar-col"><div class="bar-stack" style="flex-direction:row;align-items:flex-end;gap:3px"><div class="bar plan" style="height:88%;width:50%"></div><div class="bar actual" style="height:92%;width:50%"></div></div><div class="bar-x">4월</div></div>
+            <div class="bar-col"><div class="bar-stack" style="flex-direction:row;align-items:flex-end;gap:3px"><div class="bar plan" style="height:94%;width:50%"></div><div class="bar actual" style="height:100%;width:50%"></div></div><div class="bar-x">5월</div></div>
+            <div class="bar-col"><div class="bar-stack" style="flex-direction:row;align-items:flex-end;gap:3px"><div class="bar plan" style="height:90%;width:50%"></div><div class="bar actual" style="height:97%;width:50%"></div></div><div class="bar-x">6월</div></div>
+          </div>
+        </div>
+
+        <div class="card block">
+          <h3 style="margin-bottom:4px">PJT별 주요 Event</h3>
+          <div class="h-sub">최근 발생한 운영 이벤트 요약</div>
+          <div class="event-row"><div class="ev-ic warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></div><div class="ev-body"><b>인버터 #3 출력 저하 경보</b><div class="ev-meta">2시간 전 · 현장 점검 배정 대기</div></div><span class="ev-pjt">새만금 태양광</span></div>
+          <div class="event-row"><div class="ev-ic ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4"/></svg></div><div class="ev-body"><b>정기 예방정비 완료</b><div class="ev-meta">오늘 09:20 · 가동 정상 복귀</div></div><span class="ev-pjt">영광 풍력</span></div>
+          <div class="event-row"><div class="ev-ic info"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></div><div class="ev-body"><b>월간 O&amp;M 보고서 등록</b><div class="ev-meta">어제 · 5월 실적 반영</div></div><span class="ev-pjt">고창 태양광</span></div>
+          <div class="event-row"><div class="ev-ic warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></div><div class="ev-body"><b>일사량 센서 통신 단절</b><div class="ev-meta">1일 전 · 모니터링 일시 누락</div></div><span class="ev-pjt">해남 태양광</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ops: project detail -->
+    <div class="pane" id="op-1">
+      <div class="section-head"><h2>PJT별 상세</h2><p>개별 사업장의 운영 데이터와 자료를 조회합니다.</p></div>
+      <div class="proj-tabs">
+        <button class="proj-chip active">새만금 태양광</button>
+        <button class="proj-chip">영광 풍력</button>
+        <button class="proj-chip">고창 태양광</button>
+        <button class="proj-chip">해남 태양광</button>
+      </div>
+
+      <div class="kpi-row" style="grid-template-columns:repeat(3,1fr)">
+        <div class="kpi"><div class="k-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg>설비용량</div><div class="k-val">80<span class="u">MW</span></div><div class="k-sub up">태양광 · 2023 준공</div></div>
+        <div class="kpi"><div class="k-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"/><path d="M7 14l3-3 3 3 5-6"/></svg>금월 발전량</div><div class="k-val">11.2<span class="u">GWh</span></div><div class="k-sub up">▲ 계획 대비 101%</div></div>
+        <div class="kpi"><div class="k-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>금일 일사량</div><div class="k-val">5.1<span class="u">kWh/㎡</span></div><div class="k-sub up">양호</div></div>
+      </div>
+
+      <div class="grid-2 lean" style="margin-bottom:20px">
+        <div class="card chart-card">
+          <div class="chart-head"><h3>일별 발전량 (최근 7일)</h3><div class="legend"><span><i style="background:var(--brand)"></i>실적</span></div></div>
+          <div class="bars" style="height:150px">
+            <div class="bar-col"><div class="bar-stack"><div class="bar actual" style="height:72%"></div></div><div class="bar-x">월</div></div>
+            <div class="bar-col"><div class="bar-stack"><div class="bar actual" style="height:88%"></div></div><div class="bar-x">화</div></div>
+            <div class="bar-col"><div class="bar-stack"><div class="bar actual" style="height:60%"></div></div><div class="bar-x">수</div></div>
+            <div class="bar-col"><div class="bar-stack"><div class="bar actual" style="height:94%"></div></div><div class="bar-x">목</div></div>
+            <div class="bar-col"><div class="bar-stack"><div class="bar actual" style="height:100%"></div></div><div class="bar-x">금</div></div>
+            <div class="bar-col"><div class="bar-stack"><div class="bar actual" style="height:82%"></div></div><div class="bar-x">토</div></div>
+            <div class="bar-col"><div class="bar-stack"><div class="bar actual" style="height:78%"></div></div><div class="bar-x">일</div></div>
+          </div>
+        </div>
+
+        <div class="card block">
+          <h3 style="margin-bottom:4px">CCTV 실시간</h3>
+          <div class="h-sub">현장 모니터링 (4채널)</div>
+          <div class="cctv-grid">
+            <div class="cctv"><div class="cc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div><div class="cc-time">14:32:08</div><div class="cc-lab"><span class="live"></span>정문 게이트</div></div>
+            <div class="cctv"><div class="cc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div><div class="cc-time">14:32:08</div><div class="cc-lab"><span class="live"></span>모듈 A구역</div></div>
+            <div class="cctv"><div class="cc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div><div class="cc-time">14:32:08</div><div class="cc-lab"><span class="live"></span>인버터실</div></div>
+            <div class="cctv"><div class="cc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div><div class="cc-time">14:32:08</div><div class="cc-lab"><span class="live"></span>변전설비</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card block">
+        <h3 style="margin-bottom:4px">Database</h3>
+        <div class="h-sub">O&amp;M 보고서 · 이슈 Report 열람</div>
+        <div class="db-row"><div class="f-ic pdf">PDF</div><div class="f-body"><b>2025년 5월 O&amp;M 월간보고서</b><span>O&amp;M 보고서 · 2.4MB · 2025.06.02</span></div><div class="f-dl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg></div></div>
+        <div class="db-row"><div class="f-ic doc">DOC</div><div class="f-body"><b>인버터 #3 출력저하 이슈 Report</b><span>이슈 Report · 0.8MB · 2025.06.16</span></div><div class="f-dl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg></div></div>
+        <div class="db-row"><div class="f-ic xls">XLS</div><div class="f-body"><b>발전실적 원시데이터 (5월)</b><span>실적 데이터 · 5.1MB · 2025.06.01</span></div><div class="f-dl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg></div></div>
+        <div class="db-row"><div class="f-ic pdf">PDF</div><div class="f-body"><b>정기 안전점검 결과서 (2Q)</b><span>O&amp;M 보고서 · 1.7MB · 2025.05.28</span></div><div class="f-dl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg></div></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+const META = {
+  chat:    {title:'대화', sub:'사내 자료 기반 질의응답', ic:'<svg viewBox="0 0 24 24" fill="none" stroke="#153F35" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/></svg>'},
+  contract:{title:'계약', sub:'계약서 생성 및 검토', ic:'<svg viewBox="0 0 24 24" fill="none" stroke="#153F35" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>'},
+  finance: {title:'재무모델', sub:'재무모델 생성 및 검토', ic:'<svg viewBox="0 0 24 24" fill="none" stroke="#153F35" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l3-3 3 3 5-6"/></svg>'},
+  ops:     {title:'운영관리 Dashboard', sub:'발전 자산 통합 모니터링', ic:'<svg viewBox="0 0 24 24" fill="none" stroke="#153F35" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>'}
+};
+function go(view, el){
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('show'));
+  document.getElementById('view-'+view).classList.add('show');
+  document.getElementById('history').classList.toggle('show', view==='chat');
+  const m = META[view];
+  document.getElementById('topTitle').textContent = m.title;
+  document.getElementById('topSub').textContent = m.sub;
+  document.getElementById('topIc').innerHTML = m.ic;
+}
+function tab(group, idx, el){
+  el.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('[id^="'+group+'-"]').forEach(p=>p.classList.remove('show'));
+  document.getElementById(group+'-'+idx).classList.add('show');
+}
+// init top icon
+document.getElementById('topIc').innerHTML = META.chat.ic;
+// project chip toggle (detail view)
+document.querySelectorAll('.proj-chip').forEach(c=>c.addEventListener('click',()=>{
+  document.querySelectorAll('.proj-chip').forEach(x=>x.classList.remove('active'));
+  c.classList.add('active');
+}));
+// textarea auto-grow
+const ta = document.querySelector('.input-box textarea');
+if(ta){ta.addEventListener('input',()=>{ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,120)+'px';});}
+</script>
+</body>
+</html>

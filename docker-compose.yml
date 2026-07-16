@@ -1,0 +1,115 @@
+# =====================================================================
+# 재생E AI Agent — Docker Compose
+# 서비스: PostgreSQL(Main DB) · Qdrant(벡터) · Django(backend) · React(frontend)
+#        + Redis · Celery worker (비동기 문서 수집/임베딩)
+# =====================================================================
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: re_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-re_agent}
+      POSTGRES_USER: ${POSTGRES_USER:-re_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-re_pass}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    networks:
+      - re_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-re_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: re_qdrant
+    ports:
+      - "6333:6333"   # REST
+      - "6334:6334"   # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - re_net
+
+  redis:
+    image: redis:7
+    container_name: re_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - re_net
+
+  backend:
+    build: ./backend
+    container_name: re_backend
+    command: python manage.py runserver 0.0.0.0:8000
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-re_user}:${POSTGRES_PASSWORD:-re_pass}@postgres:5432/${POSTGRES_DB:-re_agent}
+      QDRANT_URL: http://qdrant:6333
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./backend/media:/app/media
+      - hf_cache:/root/.cache/huggingface
+    networks:
+      - re_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_started
+
+  worker:
+    build: ./backend
+    container_name: re_worker
+    command: celery -A config worker -l info
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-re_user}:${POSTGRES_PASSWORD:-re_pass}@postgres:5432/${POSTGRES_DB:-re_agent}
+      QDRANT_URL: http://qdrant:6333
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+      - ./backend/media:/app/media
+      - hf_cache:/root/.cache/huggingface
+    networks:
+      - re_net
+    depends_on:
+      - backend
+      - redis
+
+  frontend:
+    build: ./frontend
+    container_name: re_frontend
+    command: npm run dev -- --host 0.0.0.0
+    environment:
+      VITE_API_BASE: http://localhost:8000/api
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - re_net
+    depends_on:
+      - backend
+
+networks:
+  re_net:
+    driver: bridge
+
+volumes:
+  pg_data:
+  qdrant_data:
+  media_data:
+  hf_cache:
