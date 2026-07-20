@@ -17,7 +17,9 @@ def _get_reranker_model():
             from sentence_transformers import CrossEncoder
             # 다국어 지원 BGE-Reranker-v2-M3 모델 사용
             logger.info("Reranker 모델(BAAI/bge-reranker-v2-m3)을 메모리에 로드 중...")
-            _reranker_model = CrossEncoder('BAAI/bge-reranker-v2-m3')
+            # max_length=512: 지연이 시퀀스 길이에 급증(1500자 10s/쌍 → 512자 2.3s/쌍)하므로
+            # 토큰 길이를 512로 제한한다(리랭커는 512토큰 초과 시 정확도도 저하되는 것이 정설).
+            _reranker_model = CrossEncoder('BAAI/bge-reranker-v2-m3', max_length=512)
             logger.info("Reranker 모델 로드 완료")
         except Exception as e:
             logger.error(f"Reranker 로드 실패: {e}")
@@ -50,8 +52,9 @@ def rerank_results(query: str, chunks: list, top_k: int = 5) -> list:
         for chunk in chunks:
             # chunk가 payload dict인 경우
             content = chunk.get('content', '') if isinstance(chunk, dict) else getattr(chunk, 'content', '')
-            # Parent 청크의 세부 정보와 숫자가 유실되지 않도록 1500자로 확장하여 Rerank 연산 수행
-            pairs.append((query, content[:1500]))
+            # max_length=512 토큰 제한과 맞물려 앞부분 위주로 평가(지연 급감). 조항 서두에
+            # 핵심 단가/주제가 오므로 관련성 판정에는 충분하다.
+            pairs.append((query, content[:900]))
 
         # 예측 스코어 계산
         scores = model.predict(pairs)

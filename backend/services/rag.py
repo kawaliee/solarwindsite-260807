@@ -174,12 +174,15 @@ def search_documents(query: str, project_id: str = None, top_k: int = 15) -> dic
     # (CPU Cross-Encoder는 후보 수에 비례해 느리므로 무작정 넓히지 않는다.)
     # Tier3: 가격 질문이면 topic_role='가격' 청크는 캡과 무관하게 반드시 재랭킹 대상에 포함해
     #        리랭커가 실제 관련성으로 승격할 기회를 보장한다.
-    RERANK_POOL = 50
+    # CPU Cross-Encoder는 쌍당 ~2.3초(하한)라 지연이 후보 수에 선형 비례한다.
+    # 컨텍스추얼 검색으로 1차 recall이 좋아졌으므로 재랭킹 대상을 14개로 좁혀 지연을 줄이되,
+    # 가격 질의면 topic_role='가격' 청크(최대 5개)를 반드시 포함해 품질을 지킨다.
+    RERANK_POOL = 14
     candidate_list.sort(key=lambda p: (p.get('hybrid_score') or 0), reverse=True)
     if price_hit:
         price_c = [p for p in candidate_list if p.get('topic_role') == '가격']
         rest = [p for p in candidate_list if p.get('topic_role') != '가격']
-        candidate_list = (price_c[:10] + rest)[:RERANK_POOL]
+        candidate_list = (price_c[:5] + rest)[:RERANK_POOL]
     else:
         candidate_list = candidate_list[:RERANK_POOL]
 
