@@ -194,6 +194,8 @@ class Command(BaseCommand):
         parser.add_argument('--dry-run', action='store_true', help='파일 목록만 출력 (적재 안 함)')
         parser.add_argument('--reset', action='store_true', help='Qdrant 컬렉션 리셋 후 재적재')
         parser.add_argument('--dir', type=str, default=None, help='특정 최상위 폴더명만 처리')
+        parser.add_argument('--file', type=str, default=None,
+                            help='단일 파일 경로만 강제 재인제스트 (파일럿/재청킹용, skip-existing 무시)')
         parser.add_argument('--skip-existing', action='store_true', default=True,
                             help='이미 indexed 상태인 문서 건너뜀 (기본: True)')
 
@@ -210,6 +212,7 @@ class Command(BaseCommand):
         dry_run = options['dry_run']
         reset = options['reset']
         filter_dir = options.get('dir')
+        single_file = options.get('file')
 
         self.stdout.write(self.style.SUCCESS('=== 재생E AI Agent — RAG 파이프라인 인덱싱 시작 ==='))
 
@@ -239,7 +242,18 @@ class Command(BaseCommand):
         ensure_collection()
 
         # ── 파일 수집 ─────────────────────────────────────────
-        files, temp_dirs = _collect_files(media_dir, filter_dir)
+        if single_file:
+            # 단일 파일 강제 재인제스트 (파일럿/재청킹): 상위 폴더명으로 프로젝트 매핑
+            sf = _get_safe_path(single_file)
+            if not os.path.exists(sf):
+                self.stdout.write(self.style.ERROR(f'파일을 찾을 수 없습니다: {single_file}'))
+                return
+            top_dir_name = os.path.relpath(sf, media_dir).split(os.sep)[0]
+            files, temp_dirs = [(sf, top_dir_name)], []
+            options['skip_existing'] = False  # 강제 재적재
+            self.stdout.write(self.style.WARNING(f'[단일 파일 강제 재인제스트] {os.path.relpath(sf, media_dir)}'))
+        else:
+            files, temp_dirs = _collect_files(media_dir, filter_dir)
         self.stdout.write(f'총 {len(files)}개 파일 발견')
 
         if dry_run:
@@ -362,8 +376,20 @@ class Command(BaseCommand):
                         'is_anomalous': len(clause_chunks) < 3 or avg_len < 100
                     })
 
-                    # 기존 청크 삭제 후 재생성
+                    # 기존 청크 삭제 후 재생성 (DB + Qdrant 오래된 포인트도 정리해 스테일 중복 방지)
                     doc.chunks.all().delete()
+                    try:
+                        from qdrant_client import QdrantClient
+                        from qdrant_client.models import Filter, FieldCondition, MatchValue
+                        _qc = QdrantClient(url=settings.QDRANT_URL)
+                        _qc.delete(
+                            collection_name=settings.QDRANT_COLLECTION,
+                            points_selector=Filter(must=[
+                                FieldCondition(key='document_id', match=MatchValue(value=str(doc.id)))
+                            ]),
+                        )
+                    except Exception as _de:
+                        logger.warning(f'Qdrant 기존 포인트 삭제 실패({doc.id}): {_de}')
 
                     # ── 3. DB 청크 저장 및 Parent-Child 매핑 ─────────────
                     chunk_objects = []
@@ -432,20 +458,42 @@ class Command(BaseCommand):
                     doc.metadata = doc_meta_data
                     doc.save(update_fields=['status', 'page_count', 'metadata'])
 
-                    self.stdout.write(f'  → 임베딩 중 (API 호출)...')
-                    
-                    # Contextual Retrieval Prepend 적용
+                    self.stdout.write(f'  → 청크별 맥락 생성(Contextual Retrieval) 및 임베딩 준비...')
+
+                    # Tier1: 청크별(chunk-specific) 맥락을 LLM으로 생성해 prepend.
+                    #        (문서 단위 요약을 모든 청크에 동일 주입하면 청크를 구별 못 해
+                    #         가격/보증 같은 특정 조항 청크가 검색에서 밀리므로 청크 단위로 상황화)
+                    # Tier3: 동시에 청크 주제 역할(가격/보증/정산 등)을 태깅해 검색 라우팅/부스트에 활용.
+                    from services.llm import generate_chunk_context
+                    import time as _time
                     texts_for_embedding = []
                     for chunk_obj in chunk_objects:
-                        loc_label = chunk_obj.section_title or ""
                         proj_label = chunk_obj.project_name or "전사공용"
-                        
-                        context_prefix = f"[문서 맥락: {proj_label} - {doc.title}"
+                        loc_label = chunk_obj.section_title or ""
+                        try:
+                            cc = generate_chunk_context(doc.title, doc_summary, chunk_obj.content)
+                        except Exception:
+                            cc = {'context': '', 'role': '일반'}
+                        chunk_ctx = cc.get('context') or ''
+                        role = cc.get('role') or '일반'
+                        if chunk_obj.metadata is None:
+                            chunk_obj.metadata = {}
+                        chunk_obj.metadata['topic_role'] = role
+
+                        prefix = f"[{proj_label} · {doc.title}"
                         if loc_label:
-                            context_prefix += f" / 위치: {loc_label}"
-                        context_prefix += f"]\n(문서 개요: {doc_summary})\n\n[본문]\n"
-                        
-                        texts_for_embedding.append(context_prefix + chunk_obj.content)
+                            prefix += f" / {loc_label}"
+                        prefix += "]"
+                        if chunk_ctx:
+                            prefix += f" {chunk_ctx}"
+                        texts_for_embedding.append(prefix + "\n\n" + chunk_obj.content)
+                        _time.sleep(0.15)  # LLM rate limit 배려
+
+                    # 역할 태그 DB 반영
+                    try:
+                        DocumentChunk.objects.bulk_update(chunk_objects, ['metadata'], batch_size=200)
+                    except Exception as ue:
+                        logger.warning(f'chunk role bulk_update failed: {ue}')
 
                     # 배치 50개씩 처리 및 0.5초 대기 (API Rate limit 배려)
                     all_dense_embeddings = []

@@ -37,6 +37,7 @@ def generate_answer(question: str, context: str = '', history: list = None,
 - **제공된 [내부 참조 자료]에 질문에 대한 구체적이고 신뢰할 수 있는 사실 관계나 수치(예: 특정 계약 금액, 금리, 대주단 등)가 명확하게 기재되어 있지 않다면, 절대로 어설프게 추측하거나 임의로 지어내어(Hallucination) 답변하지 마십시오.**
 - **제대로 확인되지 않는 정보에 대해서는 반드시 "제공된 내부 DB 문서에서 관련 정보를 정확하게 찾지 못했습니다."라는 취지로 명확하고 정중하게 선을 그어 사용자에게 안내하십시오. 다만, 비록 단일 숫자로 바로 정의되지 않더라도 문서 내에 조건별 정산단가·기준가격 등이나 관련 보증 발전시간 계산 조건 등의 명확한 수식/수치 기준이 실재한다면 이를 누락하지 말고 상세히 발췌하여 설명하십시오.**
 - **계약가격·정산단가·보증사항(보장 발전시간, 연간 보장공급량, 감소기준 등)처럼 계약서·합의서에 수치나 수식 기준이 존재하는 항목은, 반드시 [내부 참조 자료]에 실제로 제시된 값·조건만을 근거로 정확히 발췌하여 답변하십시오. 자료에 없는 수치는 임의로 단정하지 말고, 조건부 단가(예: SMP 연동, 초과 시 별도 단가 등)나 서면합의 예정 등 유보 조건이 문서에 있으면 그대로 함께 밝히십시오. 프로젝트 별칭과 정식 법인명이 다를 수 있으니 [내부 참조 자료] 상단의 동의어 사전을 참고하여 명칭 불일치로 정보를 누락·기각하지 마십시오.**
+- **[내부 참조 자료]에 '거래단가/기준가격/계약단가 = N원/kWh'(예: 169.8원/kWh) 같은 구체적인 단가 수치가 실재한다면, 조항 번호(예: 제5.2조)만 인용하고 넘어가지 말고 그 수치(N원/kWh)를 답변에 명시적으로 제시하십시오. 단, 그 수치가 자료에 없으면 지어내지 마십시오.**
 
 [CRITICAL RULE FOR TOOL CALLS - 필수 지침]
 - 제공된 [내부 참조 자료]에 사용자의 질문과 직접적으로 관련된 구체적인 정보(예: 계약 금액, 프로젝트 명칭, 일정, 계약 조건 등)가 일부라도 포함되어 있다면, **절대로 `search_web_via_tavily` 도구를 호출해서는 안 됩니다.**
@@ -168,6 +169,7 @@ def generate_answer_stream(question: str, context: str = '', history: list = Non
 - **제공된 [내부 참조 자료]에 질문에 대한 구체적이고 신뢰할 수 있는 사실 관계나 수치(예: 특정 계약 금액, 금리, 대주단 등)가 명확하게 기재되어 있지 않다면, 절대로 어설프게 추측하거나 임의로 지어내어(Hallucination) 답변하지 마십시오.**
 - **제대로 확인되지 않는 정보에 대해서는 반드시 "제공된 내부 DB 문서에서 관련 정보를 정확하게 찾지 못했습니다."라는 취지로 명확하고 정중하게 선을 그어 사용자에게 안내하십시오. 다만, 비록 단일 숫자로 바로 정의되지 않더라도 문서 내에 조건별 정산단가·기준가격 등이나 관련 보증 발전시간 계산 조건 등의 명확한 수식/수치 기준이 실재한다면 이를 누락하지 말고 상세히 발췌하여 설명하십시오.**
 - **계약가격·정산단가·보증사항(보장 발전시간, 연간 보장공급량, 감소기준 등)처럼 계약서·합의서에 수치나 수식 기준이 존재하는 항목은, 반드시 [내부 참조 자료]에 실제로 제시된 값·조건만을 근거로 정확히 발췌하여 답변하십시오. 자료에 없는 수치는 임의로 단정하지 말고, 조건부 단가(예: SMP 연동, 초과 시 별도 단가 등)나 서면합의 예정 등 유보 조건이 문서에 있으면 그대로 함께 밝히십시오. 프로젝트 별칭과 정식 법인명이 다를 수 있으니 [내부 참조 자료] 상단의 동의어 사전을 참고하여 명칭 불일치로 정보를 누락·기각하지 마십시오.**
+- **[내부 참조 자료]에 '거래단가/기준가격/계약단가 = N원/kWh'(예: 169.8원/kWh) 같은 구체적인 단가 수치가 실재한다면, 조항 번호(예: 제5.2조)만 인용하고 넘어가지 말고 그 수치(N원/kWh)를 답변에 명시적으로 제시하십시오. 단, 그 수치가 자료에 없으면 지어내지 마십시오.**
 
 [Operational Workflow & Routing Rules]
 Step 1: 내부 벡터 DB 우선 검색 (Internal Vector DB Search)
@@ -741,3 +743,58 @@ def generate_document_summary(title: str, text: str) -> str:
     except Exception as e:
         logger.warning(f"Document summary generation failed: {e}")
         return f"{title} 문서는 사내 비즈니스 관련 참고 자료입니다."
+
+
+# 청크 역할 분류 라벨 (Tier 3 — 국면별 라우팅/부스트용)
+CHUNK_ROLE_LABELS = ['가격', '보증', '정산', '당사자', '기간', '해지', '담보', '일반']
+
+
+def generate_chunk_context(doc_title: str, doc_summary: str, chunk_content: str) -> dict:
+    """
+    Anthropic Contextual Retrieval — 청크별(chunk-specific) 맥락 + 역할 태그 생성.
+    문서 단위 요약을 모든 청크에 동일 prepend하던 방식은 청크를 구별하지 못하므로,
+    각 청크가 문서 내에서 '무엇을 담은' 부분인지 1~2문장(50~100토큰)으로 상황화한다.
+    한 번의 LLM 호출로 {context, role}을 함께 반환한다.
+
+    Returns: {'context': str, 'role': str}
+    """
+    client = _get_client()
+    if not client or not chunk_content:
+        return {'context': '', 'role': '일반'}
+
+    prompt = f"""아래는 '{doc_title}' 문서의 한 청크(부분)입니다.
+검색 시스템이 이 청크를 정확히 찾을 수 있도록, 이 청크가 문서 전체에서 어떤 주제·조항·수치를 담고 있는지
+1~2문장(50~100토큰)의 간결한 '맥락 설명'을 작성하십시오.
+반드시 청크에 담긴 핵심 고유값(예: PPA 거래단가 169.8원/kWh, 연간 보장공급량, SMP 정산 조건, 계약 당사자명 등)을 구체적으로 명시하십시오.
+또한 이 청크의 주제를 다음 중 하나로 분류하십시오: {', '.join(CHUNK_ROLE_LABELS)}.
+
+[문서 개요]
+{doc_summary}
+
+[청크 본문]
+{chunk_content[:2500]}
+
+아래 JSON 형식으로만 출력(코드블록 없이):
+{{"context": "<맥락 설명 1~2문장>", "role": "<위 분류 중 하나>"}}"""
+
+    try:
+        res = client.chat.completions.create(
+            model=settings.LLM_MODEL,
+            messages=[
+                {"role": "system", "content": "당신은 RAG 검색 품질을 높이기 위해 각 문단을 정밀하게 상황화하는 분석가입니다. 오직 약속된 JSON만 출력합니다."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.1,
+            max_tokens=200,
+        )
+        raw = res.choices[0].message.content.strip()
+        raw = re.sub(r'```json|```', '', raw).strip()
+        data = json.loads(raw)
+        ctx = str(data.get('context', '')).strip()
+        role = str(data.get('role', '일반')).strip()
+        if role not in CHUNK_ROLE_LABELS:
+            role = '일반'
+        return {'context': ctx, 'role': role}
+    except Exception as e:
+        logger.warning(f"Chunk context generation failed: {e}")
+        return {'context': '', 'role': '일반'}

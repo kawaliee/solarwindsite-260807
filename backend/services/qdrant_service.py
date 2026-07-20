@@ -109,6 +109,7 @@ def upsert_chunks(document, chunk_objects, dense_embeddings, sparse_embeddings):
                 'article_title': chunk.metadata.get('article_title', '') if chunk.metadata else '',
                 
                 # 조항 RAG 분류용 메타데이터
+                'topic_role': chunk.metadata.get('topic_role', '일반') if chunk.metadata else '일반',
                 'article_type': chunk.metadata.get('article_type', '기타') if chunk.metadata else '기타',
                 'governing_law': chunk.metadata.get('governing_law', '대한민국') if chunk.metadata else '대한민국',
                 'language': chunk.metadata.get('language', 'ko') if chunk.metadata else 'ko',

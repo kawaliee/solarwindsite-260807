@@ -65,14 +65,14 @@ def rerank_results(query: str, chunks: list, top_k: int = 5) -> list:
                 qdrant_score = getattr(chunk, 'hybrid_score', None) or getattr(chunk, 'score', 0.0) or 0.0
                 
             final_score = float(score)
-            
-            # [지능형 Reranker 랭킹 복원 가드]
-            # Qdrant 단계에서 최상위 랭킹 부스트를 받았던 중요 청크(예: 대주단/출자금 표 요약)는
-            # Reranker가 기호/표 구조의 한계로 점수를 박하게 주었더라도 최종 검색 컨텍스트에서 탈락하지 않도록
-            # Rerank 예측 스코어에 강력한 부스트를 인가함
+
+            # [Reranker 랭킹 복원 가드 — 약한 tie-break]
+            # Qdrant 상위 청크(표/기호 구조라 Cross-Encoder가 박하게 볼 수 있는 것)에 소폭 가점만 준다.
+            # 과거 +5.0은 Cross-Encoder 점수(0~1)를 완전히 압도해 리랭커 판단을 무력화했으므로
+            # 실제 관련성(Cross-Encoder)이 최종 순위를 결정하도록 약한 부스트(+0.15)로 낮춘다.
             if qdrant_score >= 0.050:
-                final_score += 5.0
-                
+                final_score += 0.15
+
             scored_chunks.append((final_score, chunk))
             
         scored_chunks.sort(key=lambda x: x[0], reverse=True)

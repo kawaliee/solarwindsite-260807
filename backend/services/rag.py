@@ -41,53 +41,76 @@ def search_documents(query: str, project_id: str = None, top_k: int = 15) -> dic
         logger.warning(f'Query analysis failed: {e}')
         metadata_filters = None
 
-    # 영어 문서 매칭을 위한 쿼리 확장 (Query Expansion)
-    extended_query = query
+    # ── 경량 멀티쿼리 검색 ──
+    # 복합 질문("가격+보증")을 한 벡터로 임베딩하면 가격/단가 청크가 보증 어휘에 희석되어
+    # Qdrant 순위 100위 밖으로 밀린다. (실측: '원/kWh 거래단가' 토큰을 넣으면 8위, 빼면 탈락)
+    # → 가격 국면 서브쿼리를 분리하고 프로젝트 정식 법인명(SPC)을 주입해 결과를 합집합한다.
+    PROJECT_SPC_SYNONYMS = {
+        '태평': '신안증도태양광 신안증도',
+        '당진 1단계': '당진행복솔라',
+        '당진 2단계': '당진행복솔라 대호솔라',
+        '홍성': '홍성빛나래솔라 홍성빛나래',
+    }
     query_lower = query.lower()
-    if '금리' in query_lower or '이자' in query_lower:
-        extended_query += " interest rate fees"
-    if '대주단' in query_lower or '대주' in query_lower:
-        extended_query += " lenders lender"
-    if '대출금액' in query_lower or '대출' in query_lower or '차입' in query_lower:
-        extended_query += " loan amount financing debt"
-    if '계약금액' in query_lower or '공사비' in query_lower or '가격' in query_lower or '계약가격' in query_lower:
-        extended_query += " contract price amount cost 단가 계약단가 정산단가 기준가격"
-    if '상대방' in query_lower or '당사자' in query_lower or '계약자' in query_lower:
-        extended_query += " 갑지 계약당사자 체결 발주자 이하"
-    if 'ppa' in query_lower:
-        extended_query += " 재생에너지 전력거래 virtual 직접 ppa"
-    if '보증' in query_lower or '발전시간' in query_lower:
-        extended_query += " 보장공급량 보장 감소기준 발전시간 배상"
+    proj_syn = ''
+    if metadata_filters and metadata_filters.get('project_names'):
+        proj_syn = ' '.join(
+            PROJECT_SPC_SYNONYMS.get(p, '') for p in metadata_filters['project_names']
+        ).strip()
 
-    # 2. 질문 임베딩 (Dense + Sparse)
+    # 공통(영문/일반/보증) 확장 — 베이스 서브쿼리
+    base_ext = query
+    if '금리' in query_lower or '이자' in query_lower:
+        base_ext += " interest rate fees"
+    if '대주단' in query_lower or '대주' in query_lower:
+        base_ext += " lenders lender"
+    if '대출금액' in query_lower or '대출' in query_lower or '차입' in query_lower:
+        base_ext += " loan amount financing debt"
+    if '상대방' in query_lower or '당사자' in query_lower or '계약자' in query_lower:
+        base_ext += " 갑지 계약당사자 체결 발주자 이하"
+    if '보증' in query_lower or '보장' in query_lower or '발전시간' in query_lower:
+        base_ext += " 보장공급량 보장 감소기준 발전시간 배상"
+    if 'ppa' in query_lower:
+        base_ext += " 재생에너지 전력거래 virtual 직접 ppa"
+
+    subqueries = [f"{base_ext} {proj_syn}".strip()]
+    price_hit = any(k in query_lower for k in ['가격', '단가', '계약금액', '공사비', 'ppa', '정산', '금액'])
+    if price_hit:
+        # 가격/단가 청크는 '거래단가·기준가격·원/kWh' 토큰에 강하게 반응(실측)
+        subqueries.append(
+            f"{query} {proj_syn} 직접 PPA Virtual PPA 거래단가 기준가격 계약단가 정산단가 원/kWh".strip()
+        )
+
     try:
         from services.embedding import get_single_embedding, get_single_sparse_embedding
-        query_dense = get_single_embedding(extended_query)
-        query_sparse = get_single_sparse_embedding(extended_query)
-    except Exception as e:
-        logger.warning(f'Embedding failed: {e}')
-        query_dense = None
-        query_sparse = None
-
-    if query_dense is None or query_sparse is None:
-        return {'context': '', 'sources': []}
-
-    # 3. Qdrant 검색 (하이브리드 + 메타데이터 Pre-filtering)
-    try:
         from services.qdrant_service import search
-        # 1차 후보를 넉넉히(120개) 확보해 Recall을 강화한다.
-        # 가격/단가 등 특정 조항 청크는 Qdrant 유사도에서 100위권으로 밀리는 경우가 있어
-        # 후보 폭을 넓혀 Cross-Encoder Reranker가 실제 텍스트를 읽고 정밀 승격하도록 위임한다.
-        raw_results = search(
-            query_dense, query_sparse,
-            project_id=project_id,
-            metadata_filters=metadata_filters,
-            top_k=120
-        )
     except Exception as e:
-        logger.warning(f'Qdrant search failed: {e}')
+        logger.warning(f'Embedding/search import failed: {e}')
         return {'context': '', 'sources': []}
 
+    SUB_TOP_K = 60
+    merged = {}
+    for sq in subqueries:
+        try:
+            qd = get_single_embedding(sq)
+            qs = get_single_sparse_embedding(sq)
+            if qd is None or qs is None:
+                continue
+            res = search(
+                qd, qs,
+                project_id=project_id,
+                metadata_filters=metadata_filters,
+                top_k=SUB_TOP_K,
+            )
+        except Exception as e:
+            logger.warning(f"Sub-query search failed: {e}")
+            continue
+        for r in res:
+            pid = str(r.id)
+            if pid not in merged or (r.score or 0) > (merged[pid].score or 0):
+                merged[pid] = r
+
+    raw_results = sorted(merged.values(), key=lambda x: (x.score or 0), reverse=True)
     if not raw_results:
         return {'context': '', 'sources': []}
 
@@ -146,6 +169,19 @@ def search_documents(query: str, project_id: str = None, top_k: int = 15) -> dic
             unique_candidates[key] = payload
 
     candidate_list = list(unique_candidates.values())
+
+    # Reranker 지연을 줄이기 위해 hybrid_score 상위 RERANK_POOL개만 재랭킹 대상으로 캡한다.
+    # (CPU Cross-Encoder는 후보 수에 비례해 느리므로 무작정 넓히지 않는다.)
+    # Tier3: 가격 질문이면 topic_role='가격' 청크는 캡과 무관하게 반드시 재랭킹 대상에 포함해
+    #        리랭커가 실제 관련성으로 승격할 기회를 보장한다.
+    RERANK_POOL = 50
+    candidate_list.sort(key=lambda p: (p.get('hybrid_score') or 0), reverse=True)
+    if price_hit:
+        price_c = [p for p in candidate_list if p.get('topic_role') == '가격']
+        rest = [p for p in candidate_list if p.get('topic_role') != '가격']
+        candidate_list = (price_c[:10] + rest)[:RERANK_POOL]
+    else:
+        candidate_list = candidate_list[:RERANK_POOL]
 
     # 4. Reranker 적용 (최상위 top_k 추출)
     try:
