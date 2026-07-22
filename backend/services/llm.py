@@ -337,6 +337,20 @@ def mask_confidential_info(text: str) -> str:
     return text
 
 
+def _is_refusal(text: str) -> bool:
+    """LLM이 계약 생성을 거부('I'm sorry, I can't assist...')한 응답인지 감지."""
+    if not text:
+        return True
+    t = text.strip().lower()
+    markers = [
+        "i'm sorry", "i am sorry", "can't assist", "cannot assist", "can not assist",
+        "unable to assist", "i can't help", "i cannot help",
+        "죄송하지만", "도와드릴 수 없", "요청을 처리할 수 없", "작성해 드릴 수 없",
+    ]
+    # 짧은 응답에서 거부 마커가 나오면 거부로 판단(정상 계약 본문은 길고 마커가 없음)
+    return len(text.strip()) < 160 and any(m in t for m in markers)
+
+
 CONTRACT_DRAFTER_SYSTEM = """당신은 20년 이상의 경력을 가진 법률 자문가이자 재생에너지(태양광·풍력) 계약 전문 변호사입니다.
 당신의 목표는 제공된 [표준 계약서 양식], [Key-Term 및 일정], [필수 검토 체크리스트], [사내 실제 계약 사례]를 바탕으로
 즉시 법무 검토·날인이 가능한 수준의 완결된 한국어 계약서를 작성하는 것입니다.
@@ -540,6 +554,9 @@ def generate_contract_draft(template, key_terms: dict) -> dict:
                 max_tokens=2048
             )
             article_content = res.choices[0].message.content.strip()
+            if _is_refusal(article_content):
+                logger.warning(f"조항 생성 거부 감지 → 플레이스홀더 대체: {title}")
+                article_content = f"## {title}\n\n① 본 조항의 세부 내용은 [별도 협의]로 정한다. (자동 생성이 제한되어 표준 문구로 대체됨 — 법률 검토 필요)"
             generated_articles.append(article_content)
             logger.info(f"   - {title} 생성 완료 ({len(article_content)}자)")
         except Exception as e:
@@ -569,7 +586,7 @@ def generate_contract_draft(template, key_terms: dict) -> dict:
 
 [검증/보완 지시사항]
 1. 위 [필수 점검 체크리스트]의 각 항목을 하나씩 대조하여 실제 대응 조항에서 충분히 다뤄지는지 확인하고, 누락·미흡한 항목이 있으면 해당 표준 조항을 신설하거나 보강하여 계약서 내에 편입시키십시오.
-2. 각 조항 중 지나치게 짧거나 개조식 요약 형태로 서술된 조항이 있다면, 실제 실무 계약서의 상세한 항과 단서조항을 추가하여 3배 이상 확장된 법률 문장으로 재작성하십시오.
+2. 지나치게 짧거나 개조식으로 서술된 조항만 실무 수준의 상세한 항·단서조항으로 보강하십시오. 이미 충분히 상세한 조항은 원문을 최대한 유지하고, 계약서 전체를 불필요하게 통째로 재작성하지 마십시오.
 3. 문서 최상단에는 반드시 아래의 안내 문구를 명시하십시오:
    "※ 본 생성물은 AI가 작성한 초안이며, 법률 자문을 대체하지 않습니다. 최종 서명 전 반드시 법률 전문가의 검토를 거치시기 바랍니다."{fallback_warning}
 4. 설명이나 도입부 멘트 없이, 오직 완성된 최종 전체 계약서 본문만을 출력해 주십시오.
@@ -589,9 +606,24 @@ def generate_contract_draft(template, key_terms: dict) -> dict:
         # LLM이 전체를 ```markdown ... ``` 코드펜스로 감싸는 경우 제거 (docx/화면 출력 정돈)
         final_content = re.sub(r'^```[a-zA-Z]*\s*\n?', '', final_content)
         final_content = re.sub(r'\n?```\s*$', '', final_content).strip()
+        # ★ Critic이 거부('I'm sorry...')하거나 비정상적으로 축소한 경우, 이미 완성된 조항 병합본으로 폴백.
+        #   (과거: Critic 거부문 44자가 15개 완성 조항을 통째로 덮어써 초안이 사실상 실패하던 버그)
+        if _is_refusal(final_content) or len(final_content) < len(merged_contract_text) * 0.5:
+            logger.warning(
+                f"Critic 거부/축소 감지(len={len(final_content)} vs 병합본={len(merged_contract_text)}) "
+                f"→ 병합 조항본으로 폴백"
+            )
+            final_content = merged_contract_text
     except Exception as e:
         logger.error(f"Critic pass failed: {e}")
         final_content = merged_contract_text
+
+    # 고지문 보장 (Critic 폴백/실패 시에도 반드시 최상단에 포함)
+    if "AI가 작성한 초안" not in final_content:
+        final_content = (
+            "※ 본 생성물은 AI가 작성한 초안이며, 법률 자문을 대체하지 않습니다. "
+            "최종 서명 전 반드시 법률 전문가의 검토를 거치시기 바랍니다.\n\n"
+        ) + final_content
 
     return {
         'content': final_content,
