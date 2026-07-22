@@ -324,43 +324,6 @@ def _mock_answer(question: str, context: str = '', use_internal_docs: bool = Tru
     }
 
 
-def generate_contract_draft(template, key_terms: dict) -> dict:
-    """
-    계약서 신규 생성 (K-1) - RAG 연동 고도화
-    """
-    client = _get_client()
-
-    if client is None:
-        return {'content': _mock_contract_draft(template, key_terms)}
-
-    # 1. RAG 검색 수행 (실제 DB의 유사 계약서 조회)
-    try:
-        from services.rag import search_contracts_for_drafting
-        rag_result = search_contracts_for_drafting(template.code, key_terms, top_k=5)
-        reference_context = rag_result.get('context', '')
-        sources = rag_result.get('sources', [])
-    except Exception as e:
-        logger.error(f'RAG search for drafting failed: {e}')
-        reference_context = ''
-        sources = []
-
-    # 2. 종류별 필수/표준 조항 체크리스트 정의
-    checklists = {
-        'SHA': "이사 지명권, 우선매수권(ROFR), 동반매도권(tag-along), 강제매도권(drag-along), 의결권 약정, 신주인수권, 교착상태(deadlock) 해소, 진술·보장, 경업금지, 주식양도 제한",
-        'SPA': "매매대금 및 대금조정(price adjustment), 선행조건(CP), 진술·보장, 손해배상(indemnification), 경업금지, 완결(closing) 절차, 해제 사유(termination), MAC/MAE 조항",
-        'NDA': "비밀정보 정의·범위, 사용 목적 제한, 유지기간, 예외사유, 반환·파기 의무, 잔존의무(residual), 위반 시 구제수단",
-        'JDA': "개발 범위(scope of work)·역할 분담, 비용·자원 분담, 지식재산권(IP) 귀속 및 실시권, 배경 IP vs 성과 IP 구분, 마일스톤·산출물, 성과 활용·상업화 권리, 비밀유지, 종료 시 처리",
-        'MOU': "목적, 협력 범위, 구속력 유무(binding/non-binding 명시), 독점·비독점 여부, 유효기간, 비용 부담, 후속 본계약 전환 조항",
-        'DSA': "용역 범위(scope of work)·산출물(deliverables) 정의, 개발 일정·마일스톤, 검수(acceptance) 기준 및 절차, 용역대금 및 지급 조건(마일스톤·검수 연동), 지식재산권 귀속(성과물 IP), 배경 IP·오픈소스·제3자 IP 처리, 소스코드·산출물 인도 및 이관, 변경관리(change order), 하자보수·유지보수 기간 및 책임, 재위탁(하도급) 제한, 투입 인력·핵심인력 교체 제한, 비밀유지, 손해배상·책임제한, 검수 지연·개발 지연 시 처리(지연배상), 종료 시 산출물 처리",
-        'SLA': "서비스 지표(가용성·응답시간 등) 정의, 목표 수준(SLO), 측정 방법, 서비스 크레딧/페널티, 제외 사유(exclusions), 보고·리뷰 주기, 에스컬레이션 절차",
-        'LEASE': "임대목적물 특정, 보증금·차임·관리비, 계약기간·갱신, 원상복구, 수선·유지보수 책임 분담, 전대 제한, 제세공과금, 해지 사유, 명도·연체 시 처리, 확정일자/대항력 관련",
-        'EPC': "업무 범위·설계 책임, 완공·인도 일정, 지연배상(LD), 성능보증·성능시험, 하자보수·하자담보(warranty), 변경(variation/change order), 대금지급 마일스톤, 불가항력, 위험부담·소유권 이전, 보험, 준거법·분쟁해결",
-        'OM': "운영·유지보수 범위, KPI/가용성 보증, 정기·비정기 정비, 예비품·소모품 부담, 성능보증 및 페널티/보너스, 보고 의무, 계약기간·갱신, 책임제한, 인수인계",
-        'PPA_REC': "계약전력·공급량, 가격 구조(고정/변동/에스컬레이션), 인수·인도지점, take-or-pay 여부, 계량·정산, 공급개시일(COD), 성능·가용성 보증, 불가항력, 정부정책 변경(change in law), 신용보강·담보, 해지 및 정산"
-    }
-    
-    checklist_prompt = checklists.get(template.code, "해당 계약의 통상적인 필수 및 표준 조항 일체")
-
 def mask_confidential_info(text: str) -> str:
     """참조 조항 내의 특정 기업명, 계약금액, 기밀일자 등 민감 정보를 마스킹 및 일반화"""
     # 1. 기업명/기관명 마스킹
@@ -374,30 +337,57 @@ def mask_confidential_info(text: str) -> str:
     return text
 
 
+CONTRACT_DRAFTER_SYSTEM = """당신은 20년 이상의 경력을 가진 법률 자문가이자 재생에너지(태양광·풍력) 계약 전문 변호사입니다.
+당신의 목표는 제공된 [표준 계약서 양식], [Key-Term 및 일정], [필수 검토 체크리스트], [사내 실제 계약 사례]를 바탕으로
+즉시 법무 검토·날인이 가능한 수준의 완결된 한국어 계약서를 작성하는 것입니다.
+
+[필수 작성 규칙]
+1. 필수 조항 생략 금지: 요약본/간이 계약서를 만들지 말고, 사용자가 명시하지 않았더라도 상거래·건설/인허가 관행상 필수인
+   법적 보호 조항(비밀유지, 불가항력, 계약 해제/해지, 손해배상 및 책임 한도, 지체상금, 준거법·관할, 분쟁해결 등)을
+   풀버전(Full-Text)으로 포함한다.
+2. 엄격한 법률 구조: 대한민국 표준 상거래 계약서 구조(전문·정의·주요 조건·대금/일정·위험분담/손배/보증/해지·일반조항·날인란)를 따른다.
+3. Key-Term/일정 반영: 입력된 금액·용량·일정은 관련 조항 및 별첨에 정밀 매핑하고, 일정은 단순 날짜 표기에 그치지 말고
+   '공정표 제출 의무·이행 지연 시 통지 및 대책·공기 연장 신청 조건·지체상금 산정 및 공제 방식'으로 구체화한다.
+4. 환각 금지(중요): 사용자가 입력하지 않은 구체 수치(금액·요율·기간·이율 등)를 임의로 지어내지 말고 반드시 '[●]' 또는
+   '[별도 협의]'로 공란 표기한다. 단, 표준 디폴트 조항의 정성적 법률 문구는 완결된 문장으로 작성한다.
+5. 문체·서식: 격식 있는 법률 문체('~하여야 한다', '~로 한다')를 쓰고, 생략(...) 없이 완결된 문장으로 마크다운만 출력한다.
+6. 보안: 참조한 사내 실제 계약 사례의 회사 실명·실제 금액·일자 등 고유값은 그대로 옮기지 말고 일반화('발주자','수급인','[회사 A]','[●]')한다."""
+
+
+def _format_review_checklist(template) -> str:
+    """DB의 review_checklist(JSON: [{id, clause, check_point}]) → 프롬프트용 텍스트.
+    비어 있으면 일반 문구로 폴백한다."""
+    items = getattr(template, 'review_checklist', None) or []
+    lines = []
+    for it in items:
+        if isinstance(it, dict):
+            cid = it.get('id', '')
+            clause = it.get('clause', '')
+            cp = it.get('check_point', '')
+            lines.append(f"- ({cid}) [{clause}] {cp}")
+        else:
+            lines.append(f"- {it}")
+    return "\n".join(lines) if lines else "해당 계약 유형의 통상적인 필수·표준 조항 일체를 빠짐없이 포함할 것"
+
+
 def generate_contract_draft(template, key_terms: dict) -> dict:
     """
-    계약서 신규 생성 (K-1) - 2단계 생성(Outline -> Clause-by-Clause) 및 Critic Pass 고도화
+    계약서 신규 생성 (K-1) — DB 템플릿(template_body·standard_clauses·review_checklist) 기반
+    2단계 생성(Outline → Clause-by-Clause) + RAG few-shot + 체크리스트 검증 Critic Pass.
     """
     client = _get_client()
 
     if client is None:
         return {'content': _mock_contract_draft(template, key_terms), 'sources': []}
 
-    # 1. 종류별 필수/표준 조항 체크리스트 정의
-    checklists = {
-        'SHA': "이사 지명권, 우선매수권(ROFR), 동반매도권(tag-along), 강제매도권(drag-along), 의결권 약정, 신주인수권, 교착상태(deadlock) 해소, 진술·보장, 경업금지, 주식양도 제한",
-        'SPA': "매매대금 및 대금조정(price adjustment), 선행조건(CP), 진술·보장, 손해배상(indemnification), 경업금지, 완결(closing) 절차, 해제 사유(termination), MAC/MAE 조항",
-        'NDA': "비밀정보 정의·범위, 사용 목적 제한, 유지기간, 예외사유, 반환·파기 의무, 잔존의무(residual), 위반 시 구제수단",
-        'JDA': "개발 범위(scope of work)·역할 분담, 비용·자원 분담, 지식재산권(IP) 귀속 및 실시권, 배경 IP vs 성과 IP 구분, 마일스톤·산출물, 성과 활용·상업화 권리, 비밀유지, 종료 시 처리",
-        'MOU': "목적, 협력 범위, 구속력 유무(binding/non-binding 명시), 독점·비독점 여부, 유효기간, 비용 부담, 후속 본계약 전환 조항",
-        'DSA': "용역 범위(scope of work)·산출물(deliverables) 정의, 개발 일정·마일스톤, 검수(acceptance) 기준 및 절차, 용역대금 및 지급 조건(마일스톤·검수 연동), 지식재산권 귀속(성과물 IP), 배경 IP·오픈소스·제3자 IP 처리, 소스코드·산출물 인도 및 이관, 변경관리(change order), 하자보수·유지보수 기간 및 책임, 재위탁(하도급) 제한, 투입 인력·핵심인력 교체 제한, 비밀유지, 손해배상·책임제한, 검수 지연·개발 지연 시 처리(지연배상), 종료 시 산출물 처리",
-        'SLA': "서비스 지표(가용성·응답시간 등) 정의, 목표 수준(SLO), 측정 방법, 서비스 크레딧/페널티, 제외 사유(exclusions), 보고·리뷰 주기, 에스컬레이션 절차",
-        'LEASE': "임대목적물 특정, 보증금·차임·관리비, 계약기간·갱신, 원상복구, 수선·유지보수 책임 분담, 전대 제한, 제세공과금, 해지 사유, 명도·연체 시 처리, 확정일자/대항력 관련",
-        'EPC': "업무 범위·설계 책임, 완공·인도 일정, 지연배상(LD), 성능보증·성능시험, 하자보수·하자담보(warranty), 변경(variation/change order), 대금지급 마일스톤, 불가항력, 위험부담·소유권 이전, 보험, 준거법·분쟁해결",
-        'OM': "운영·유지보수 범위, KPI/가용성 보증, 정기·비정기 정비, 예비품·소모품 부담, 성능보증 및 페널티/보너스, 보고 의무, 계약기간·갱신, 책임제한, 인수인계",
-        'PPA_REC': "계약전력·공급량, 가격 구조(고정/변동/에스컬레이션), 인수·인도지점, take-or-pay 여부, 계량·정산, 공급개시일(COD), 성능·가용성 보증, 불가항력, 정부정책 변경(change in law), 신용보강·담보, 해지 및 정산"
-    }
-    checklist_prompt = checklists.get(template.code, "해당 계약의 통상적인 필수 및 표준 조항 일체")
+    # DB 필드 기반 컨텍스트 (하드코딩 대신 시드된 표준 데이터 활용)
+    checklist_prompt = _format_review_checklist(template)
+    skeleton = (getattr(template, 'template_body', '') or '').strip()
+    standard_clauses = getattr(template, 'standard_clauses', None) or []
+    standard_clauses_text = "\n".join(
+        f"- {c.get('section', '')} {c.get('title', '')}: {c.get('content', '')}"
+        for c in standard_clauses if isinstance(c, dict)
+    ) or "(표준 조항 정의 없음 — 계약 유형에 맞는 표준 조항을 구성할 것)"
 
     # ──────────────────────────────────────────────────────────
     # [1단계] 목차(Outline) 및 정의어(Definitions) 생성
@@ -409,11 +399,21 @@ def generate_contract_draft(template, key_terms: dict) -> dict:
 - 유형: {template.name_ko} ({template.name_en})
 - 카테고리: {template.category}
 
+[표준 계약서 골격(Skeleton) — 이 구조와 조항 순서를 기반으로 확장할 것]
+{skeleton or "(표준 골격 없음 — 계약 유형에 맞는 표준 구조를 구성할 것)"}
+
+[표준 조항 목록 — 각각 독립 조항으로 편성할 것]
+{standard_clauses_text}
+
+[필수 검토 체크리스트 — 아래 각 항목이 반드시 대응 조항으로 다뤄지도록 목차에 포함할 것]
+{checklist_prompt}
+
 [사용자 입력 Key-term]
 {_format_key_terms(key_terms)}
 
 [요구사항]
-- 목차는 조항의 논리적 흐름에 맞춰 제1조부터 최종조까지 정교하게 구성하십시오.
+- 골격(Skeleton)의 조항 순서를 유지하되, 위 표준 조항 목록과 필수 체크리스트를 빠짐없이 반영하여 제1조부터 최종조까지 정교하게 구성하십시오.
+- 전문(당사자·목적)과 정의 조항, 그리고 비밀유지·불가항력·손해배상 및 책임한도·지체상금·해제/해지·준거법 및 관할·분쟁해결 등 일반 법률 조항을 반드시 포함하십시오.
 - 각 조항에 대해 아래 분류 중 가장 적절한 조항 유형(article_type)을 반드시 하나 매핑해 주십시오:
   '비밀유지', '손해배상', '준거법', '분쟁해결', 'IP귀속', '용역대금', '검수', '계약기간/갱신', '해제/해지', '불가항력', '권리의무양도', '하도급제한', '하자보수', '이사지명권', '우선매수권', '동반매도권', '강제매도권', '교착상태', '진술보장', '경업금지', '선행조건', '기타'
 
@@ -523,6 +523,8 @@ def generate_contract_draft(template, key_terms: dict) -> dict:
 2. 조항의 세부 내용(①, ②, ③ 등의 항 구분과 구체적 단서조항, 예외 규정)을 반드시 포함하여 법률적 분량이 풍부하고 꼼꼼하게 나오도록 작성하십시오.
 3. [공통 정의어 목록]의 용어를 해당 단어가 들어갈 위치에 그대로 적용하여 일치시키십시오.
 4. 특정 회사 실명 등 민감한 고유값이 포함되어 있다면 모두 일반화(예: '발주자', '수급인') 또는 마스킹('[회사 A]') 처리하십시오.
+5. 입력된 Key-term(금액·용량·일정 등)이 이 조항과 관련되면 정확히 반영하고, 일정 관련 조항이면 '공정표 제출·지연 통지 및 대책·공기 연장 신청 조건·지체상금 산정 및 공제'까지 구체화하십시오.
+6. 사용자가 입력하지 않은 구체 수치는 임의로 지어내지 말고 '[●]' 또는 '[별도 협의]'로 공란 표기하되, 표준 조항의 정성적 법률 문구는 완결하십시오.
 """
         
         try:
@@ -531,7 +533,7 @@ def generate_contract_draft(template, key_terms: dict) -> dict:
             res = client.chat.completions.create(
                 model=settings.LLM_MODEL,
                 messages=[
-                    {"role": "system", "content": "당신은 타협하지 않고 가장 디테일하고 정교하게 계약서를 작성하는 최고 법률 대리인입니다. 설명 없이 오직 계약 조항 텍스트만 출력하십시오."},
+                    {"role": "system", "content": CONTRACT_DRAFTER_SYSTEM + "\n\n[출력 형식] 설명·머리말 없이 해당 조항 본문(조항 제목 포함)만 완결된 문장으로 출력한다."},
                     {"role": "user", "content": clause_prompt}
                 ],
                 temperature=0.2,
@@ -566,7 +568,7 @@ def generate_contract_draft(template, key_terms: dict) -> dict:
 {checklist_prompt}
 
 [검증/보완 지시사항]
-1. 위 체크리스트 중 누락된 표준 조항이 있다면 해당 조항을 생성하여 계약서 내에 편입시키십시오.
+1. 위 [필수 점검 체크리스트]의 각 항목을 하나씩 대조하여 실제 대응 조항에서 충분히 다뤄지는지 확인하고, 누락·미흡한 항목이 있으면 해당 표준 조항을 신설하거나 보강하여 계약서 내에 편입시키십시오.
 2. 각 조항 중 지나치게 짧거나 개조식 요약 형태로 서술된 조항이 있다면, 실제 실무 계약서의 상세한 항과 단서조항을 추가하여 3배 이상 확장된 법률 문장으로 재작성하십시오.
 3. 문서 최상단에는 반드시 아래의 안내 문구를 명시하십시오:
    "※ 본 생성물은 AI가 작성한 초안이며, 법률 자문을 대체하지 않습니다. 최종 서명 전 반드시 법률 전문가의 검토를 거치시기 바랍니다."{fallback_warning}
@@ -577,13 +579,16 @@ def generate_contract_draft(template, key_terms: dict) -> dict:
         res = client.chat.completions.create(
             model=settings.LLM_MODEL,
             messages=[
-                {"role": "system", "content": "당신은 계약서 품질과 무결성을 철저하게 보완하는 수석 법무 검토관입니다. 보완 멘트 없이 최종 정렬된 계약서 본문만 출력하십시오."},
+                {"role": "system", "content": CONTRACT_DRAFTER_SYSTEM + "\n\n[역할] 당신은 위 원칙을 준수하는지 검증·보완하는 수석 법무 검토관이다. 보완 멘트 없이 최종 정렬된 계약서 본문만 출력한다."},
                 {"role": "user", "content": critic_prompt}
             ],
             temperature=0.3,
             max_tokens=8192
         )
         final_content = res.choices[0].message.content.strip()
+        # LLM이 전체를 ```markdown ... ``` 코드펜스로 감싸는 경우 제거 (docx/화면 출력 정돈)
+        final_content = re.sub(r'^```[a-zA-Z]*\s*\n?', '', final_content)
+        final_content = re.sub(r'\n?```\s*$', '', final_content).strip()
     except Exception as e:
         logger.error(f"Critic pass failed: {e}")
         final_content = merged_contract_text
