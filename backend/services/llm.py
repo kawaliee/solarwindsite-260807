@@ -592,31 +592,38 @@ def generate_contract_draft(template, key_terms: dict) -> dict:
 4. 설명이나 도입부 멘트 없이, 오직 완성된 최종 전체 계약서 본문만을 출력해 주십시오.
 """
 
-    try:
-        res = client.chat.completions.create(
-            model=settings.LLM_MODEL,
-            messages=[
-                {"role": "system", "content": CONTRACT_DRAFTER_SYSTEM + "\n\n[역할] 당신은 위 원칙을 준수하는지 검증·보완하는 수석 법무 검토관이다. 보완 멘트 없이 최종 정렬된 계약서 본문만 출력한다."},
-                {"role": "user", "content": critic_prompt}
-            ],
-            temperature=0.3,
-            max_tokens=8192
-        )
-        final_content = res.choices[0].message.content.strip()
-        # LLM이 전체를 ```markdown ... ``` 코드펜스로 감싸는 경우 제거 (docx/화면 출력 정돈)
-        final_content = re.sub(r'^```[a-zA-Z]*\s*\n?', '', final_content)
-        final_content = re.sub(r'\n?```\s*$', '', final_content).strip()
-        # ★ Critic이 거부('I'm sorry...')하거나 비정상적으로 축소한 경우, 이미 완성된 조항 병합본으로 폴백.
-        #   (과거: Critic 거부문 44자가 15개 완성 조항을 통째로 덮어써 초안이 사실상 실패하던 버그)
-        if _is_refusal(final_content) or len(final_content) < len(merged_contract_text) * 0.5:
-            logger.warning(
-                f"Critic 거부/축소 감지(len={len(final_content)} vs 병합본={len(merged_contract_text)}) "
-                f"→ 병합 조항본으로 폴백"
-            )
-            final_content = merged_contract_text
-    except Exception as e:
-        logger.error(f"Critic pass failed: {e}")
+    # 대형 계약(병합본이 임계값 초과)은 이미 조항이 충분히 완성되어, Critic의 전체 재작성 요구가
+    # gpt-4o에서 거부되기 쉽고(무의미) 지연만 ~25초 늘어난다. 이 경우 Critic을 생략하고 완성된
+    # 병합본을 그대로 사용한다 — 거부 시 폴백과 결과가 동일하므로 품질 손실 없이 지연만 줄인다.
+    # (소형 계약은 Critic이 성공하여 체크리스트 보강/짧은 조항 확장 이점이 있으므로 그대로 수행)
+    SKIP_CRITIC_OVER_CHARS = 9000
+    if len(merged_contract_text) > SKIP_CRITIC_OVER_CHARS:
+        logger.info(f"병합본 {len(merged_contract_text)}자 > {SKIP_CRITIC_OVER_CHARS} → Critic 생략(이미 완성, 지연 절감)")
         final_content = merged_contract_text
+    else:
+        try:
+            res = client.chat.completions.create(
+                model=settings.LLM_MODEL,
+                messages=[
+                    {"role": "system", "content": CONTRACT_DRAFTER_SYSTEM + "\n\n[역할] 당신은 위 원칙을 준수하는지 검증·보완하는 수석 법무 검토관이다. 보완 멘트 없이 최종 정렬된 계약서 본문만 출력한다."},
+                    {"role": "user", "content": critic_prompt}
+                ],
+                temperature=0.3,
+                max_tokens=8192
+            )
+            final_content = res.choices[0].message.content.strip()
+            # LLM이 전체를 ```markdown ... ``` 코드펜스로 감싸는 경우 제거 (docx/화면 출력 정돈)
+            final_content = re.sub(r'^```[a-zA-Z]*\s*\n?', '', final_content)
+            final_content = re.sub(r'\n?```\s*$', '', final_content).strip()
+            # ★ Critic이 거부('I'm sorry...')하거나 비정상적으로 축소한 경우, 완성된 조항 병합본으로 폴백.
+            if _is_refusal(final_content) or len(final_content) < len(merged_contract_text) * 0.5:
+                logger.warning(
+                    f"Critic 거부/축소 감지(len={len(final_content)} vs 병합본={len(merged_contract_text)}) → 병합본 폴백"
+                )
+                final_content = merged_contract_text
+        except Exception as e:
+            logger.error(f"Critic pass failed: {e}")
+            final_content = merged_contract_text
 
     # 고지문 보장 (Critic 폴백/실패 시에도 반드시 최상단에 포함)
     if "AI가 작성한 초안" not in final_content:
