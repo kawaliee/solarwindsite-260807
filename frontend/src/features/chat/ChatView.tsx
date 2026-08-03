@@ -172,7 +172,7 @@ export default function ChatView({ conversationId, onConversationCreated }: Chat
                 <div className="ava">관</div>
               ) : (
                 <div className="ava">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 2a7 7 0 0 0-7 7c0 3 2 5 4 7l3 6 3-6c2-2 4-4 4-7a7 7 0 0 0-7-7Z"/>
                   </svg>
                 </div>
@@ -234,7 +234,7 @@ export default function ChatView({ conversationId, onConversationCreated }: Chat
           {isLoading && (
             <div className="msg ai fade-in">
               <div className="ava">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 2a7 7 0 0 0-7 7c0 3 2 5 4 7l3 6 3-6c2-2 4-4 4-7a7 7 0 0 0-7-7Z"/>
                 </svg>
               </div>

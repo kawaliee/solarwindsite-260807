@@ -36,7 +36,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       <div style={styles.card} className="fade-in">
         <div style={styles.logoSection}>
           <div style={styles.mark}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="#EAF7F1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={styles.svg}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#03121a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={styles.svg}>
               <path d="M12 2a7 7 0 0 0-7 7c0 3 2 5 4 7l3 6 3-6c2-2 4-4 4-7a7 7 0 0 0-7-7Z" />
               <path d="M12 9v0" />
               <path d="M9 9c1.5-1.5 4.5-1.5 6 0" />
@@ -138,11 +138,11 @@ const styles = {
     width: '40px',
     height: '40px',
     borderRadius: '11px',
-    background: 'radial-gradient(120% 120% at 30% 20%, #3a8b72, #153f35)',
+    background: 'linear-gradient(135deg, var(--brand), #0a6ed1)',
     display: 'grid',
     placeItems: 'center',
-    border: '1px solid rgba(255,255,255,.18)',
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,.18)',
+    border: '1px solid rgba(57,211,230,.35)',
+    boxShadow: '0 0 18px rgba(57,211,230,.35)',
   },
   svg: {
     width: '22px',
@@ -167,7 +167,7 @@ const styles = {
   title: {
     fontSize: '22px',
     fontWeight: '700',
-    color: 'var(--green-900)',
+    color: 'var(--ink)',
     letterSpacing: '-.5px',
     marginBottom: '6px',
     textAlign: 'center' as const,
@@ -206,7 +206,7 @@ const styles = {
   button: {
     width: '100%',
     backgroundColor: 'var(--brand)',
-    color: '#ffffff',
+    color: 'var(--on-brand)',
     padding: '12px',
     borderRadius: '11px',
     fontSize: '14px',
