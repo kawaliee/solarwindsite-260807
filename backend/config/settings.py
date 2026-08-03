@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'apps.documents',
     'apps.chat',
     'apps.contracts',
+    'apps.windsite',
 ]
 
 MIDDLEWARE = [
@@ -118,6 +119,31 @@ EMBEDDING_API_KEY = os.environ.get('EMBEDDING_API_KEY', '')
 LLM_API_BASE = os.environ.get('LLM_API_BASE', '')
 LLM_API_KEY = os.environ.get('LLM_API_KEY', '')
 LLM_MODEL = os.environ.get('LLM_MODEL', 'mock')
+
+# ───── 풍력 입지·인허가 검토 (windsite) ─────
+# 각 공공 API 인증키. 비어 있으면 해당 항목은 자동으로 UNKNOWN(확인 필요) 판정된다.
+# 발급처는 docs/WINDSITE_API_KEYS.md 참고.
+VWORLD_API_KEY = os.environ.get('VWORLD_API_KEY', '')
+VWORLD_DOMAIN = os.environ.get('VWORLD_DOMAIN', 'localhost')
+
+# 공공데이터포털(data.go.kr) 일반 인증키
+DATA_GO_KR_KEY = os.environ.get('DATA_GO_KR_KEY', '')
+
+# 환경공간정보서비스(EGIS) — 엔드포인트가 확인되면 URL도 함께 설정
+EGIS_API_KEY = os.environ.get('EGIS_API_KEY', '')
+EGIS_ECOMAP_URL = os.environ.get('EGIS_ECOMAP_URL', '')
+EGIS_PROTECTED_URL = os.environ.get('EGIS_PROTECTED_URL', '')
+
+# 산림청 (산사태위험등급)
+FOREST_API_KEY = os.environ.get('FOREST_API_KEY', '')
+FOREST_LANDSLIDE_URL = os.environ.get('FOREST_LANDSLIDE_URL', '')
+
+# 국가유산청
+HERITAGE_API_KEY = os.environ.get('HERITAGE_API_KEY', '')
+HERITAGE_URL = os.environ.get('HERITAGE_URL', '')
+
+# 기상청 ASOS
+KMA_API_KEY = os.environ.get('KMA_API_KEY', '')
 
 # ───── File Storage ─────
 MEDIA_ROOT = BASE_DIR / 'media'

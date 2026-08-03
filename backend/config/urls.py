@@ -13,6 +13,7 @@ urlpatterns = [
     path('api/', include('apps.documents.urls')),
     path('api/', include('apps.chat.urls')),
     path('api/', include('apps.contracts.urls')),
+    path('api/windsite/', include('apps.windsite.urls')),
 ]
 
 if settings.DEBUG:
