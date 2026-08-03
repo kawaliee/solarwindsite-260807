@@ -9,6 +9,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .engine import evaluate
+from .geocode import geocode, reverse_geocode
 from .models import LawReference, LocalOrdinance, PermitStep, SiteEvaluation
 from .permits import build_roadmap, collect_laws
 
@@ -26,12 +27,23 @@ def evaluate_site(request):
         "sido": "경상북도", "sigungu": "청도군" }
     """
     d = request.data or {}
+    # 1) 좌표 파싱 — 없으면 address 를 V-World 지오코딩해서 좌표 확보
+    lat = lng = None
     try:
         lat = float(d['lat'])
         lng = float(d['lng'])
     except (KeyError, TypeError, ValueError):
-        return Response({'detail': 'lat, lng는 필수이며 숫자여야 합니다.'},
-                        status=http.HTTP_400_BAD_REQUEST)
+        addr = (d.get('address') or '').strip()
+        if addr:
+            g = geocode(addr)
+            if g:
+                lat, lng = g['lat'], g['lng']
+
+    if lat is None or lng is None:
+        return Response(
+            {'detail': 'lat/lng 또는 지오코딩 가능한 address 가 필요합니다. '
+                       '(address 지오코딩은 V-World 인증키가 필요합니다.)'},
+            status=http.HTTP_400_BAD_REQUEST)
 
     if not (33.0 <= lat <= 38.7 and 124.5 <= lng <= 132.0):
         return Response({'detail': '대한민국 영역 밖의 좌표입니다.'},
@@ -49,20 +61,37 @@ def evaluate_site(request):
     except (TypeError, ValueError):
         capacity = None
 
+    sido = (d.get('sido') or '').strip()
+    sigungu = (d.get('sigungu') or '').strip()
+    address = (d.get('address') or '').strip()
+
+    # 2) 행정구역 미입력 시 좌표를 역지오코딩해 자동 채움 → 지자체 이격거리 조례 조회가 자동으로 걸린다
+    if not sido or not sigungu:
+        rg = reverse_geocode(lat, lng)
+        if rg:
+            sido = sido or rg.get('sido', '')
+            sigungu = sigungu or rg.get('sigungu', '')
+            if not address:
+                address = rg.get('address', '')
+
     result = evaluate(
         lat=lat, lng=lng, radius_m=radius_m,
-        address=(d.get('address') or '').strip(),
+        address=address,
         capacity_mw=capacity,
-        sido=(d.get('sido') or '').strip(),
-        sigungu=(d.get('sigungu') or '').strip(),
+        sido=sido,
+        sigungu=sigungu,
     )
     payload = result.to_dict()
+    # 자동 판별된 행정구역/좌표를 응답에 함께 실어 프론트가 표시할 수 있게 한다
+    if isinstance(payload.get('site_info'), dict):
+        payload['site_info'].setdefault('sido', sido)
+        payload['site_info'].setdefault('sigungu', sigungu)
 
     # 이력 저장 (실패해도 응답은 정상 반환)
     try:
         SiteEvaluation.objects.create(
             address=result.site_info.address, lat=lat, lng=lng, radius_m=radius_m,
-            capacity_mw=capacity, sido=d.get('sido', ''), sigungu=d.get('sigungu', ''),
+            capacity_mw=capacity, sido=sido, sigungu=sigungu,
             score=result.overall_feasibility.score,
             grade=result.overall_feasibility.grade,
             summary=result.overall_feasibility.summary,
@@ -73,6 +102,40 @@ def evaluate_site(request):
         logger.exception('입지 검토 이력 저장 실패')
 
     return Response(payload)
+
+
+@api_view(['POST'])
+def geocode_view(request):
+    """지오코딩 — 주소↔좌표 + 행정구역.
+
+    body: { "address": "..." }  → 좌표 + 시도/시군구
+       또는 { "lat": .., "lng": .. } → 시도/시군구
+    """
+    d = request.data or {}
+    addr = (d.get('address') or '').strip()
+    if addr:
+        g = geocode(addr)
+        if not g:
+            return Response(
+                {'detail': 'V-World 지오코딩에 실패했습니다(인증키 미설정 또는 주소 미매칭).'},
+                status=http.HTTP_404_NOT_FOUND)
+        rg = reverse_geocode(g['lat'], g['lng']) or {}
+        return Response({
+            'lat': g['lat'], 'lng': g['lng'], 'matched': g['matched'],
+            'sido': rg.get('sido', ''), 'sigungu': rg.get('sigungu', ''),
+        })
+
+    try:
+        lat = float(d['lat'])
+        lng = float(d['lng'])
+    except (KeyError, TypeError, ValueError):
+        return Response({'detail': 'address 또는 lat/lng 가 필요합니다.'},
+                        status=http.HTTP_400_BAD_REQUEST)
+    rg = reverse_geocode(lat, lng)
+    if not rg:
+        return Response({'detail': 'V-World 역지오코딩에 실패했습니다(인증키 미설정).'},
+                        status=http.HTTP_404_NOT_FOUND)
+    return Response({'lat': lat, 'lng': lng, **rg})
 
 
 @api_view(['GET'])
