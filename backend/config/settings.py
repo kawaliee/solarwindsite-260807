@@ -145,6 +145,10 @@ HERITAGE_URL = os.environ.get('HERITAGE_URL', '')
 # 기상청 ASOS
 KMA_API_KEY = os.environ.get('KMA_API_KEY', '')
 
+# OpenStreetMap Overpass — 변전소·송전선로·정온시설 탐색 (인증키 불필요).
+# 공개 인스턴스는 사용량 제한이 있으므로 필요 시 자체 인스턴스 URL로 교체한다.
+OVERPASS_URL = os.environ.get('OVERPASS_URL', 'https://overpass-api.de/api/interpreter')
+
 # ───── File Storage ─────
 MEDIA_ROOT = BASE_DIR / 'media'
 MEDIA_URL = '/media/'
