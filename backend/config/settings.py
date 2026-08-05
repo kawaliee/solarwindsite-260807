@@ -146,6 +146,11 @@ HERITAGE_URL = os.environ.get('HERITAGE_URL', '')
 # 기상청 ASOS
 KMA_API_KEY = os.environ.get('KMA_API_KEY', '')
 
+# 국가법령정보 공동활용 OPEN API (법제처) — 법령·자치법규 원문 대조용.
+# 값은 신청 이메일의 ID(@ 앞부분). 비우면 공용 데모 계정 'test'로 동작하나
+# 사용량 제한이 있어 운영에는 자체 발급 값을 넣는다. 발급: https://open.law.go.kr
+LAW_API_OC = os.environ.get('LAW_API_OC', '')
+
 # OpenStreetMap Overpass — 변전소·송전선로·정온시설 탐색 (인증키 불필요).
 # 공개 인스턴스는 사용량 제한이 있으므로 필요 시 자체 인스턴스 URL로 교체한다.
 OVERPASS_URL = os.environ.get('OVERPASS_URL', 'https://overpass-api.de/api/interpreter')

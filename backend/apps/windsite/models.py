@@ -47,6 +47,46 @@ class LawReference(models.Model):
         return self.name
 
 
+class LawArticle(models.Model):
+    """
+    국가법령정보 OPEN API로 받아온 **조문 원문 캐시**.
+
+    판정 근거를 "어디선가 본 숫자"가 아니라 원문으로 되돌릴 수 있게 보관한다.
+    보고서에 조문을 인용할 때도 이 값을 쓴다.
+    """
+    SOURCE_CHOICES = [('LAW', '법령'), ('ORDINANCE', '자치법규')]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    source_type = models.CharField('구분', max_length=12, choices=SOURCE_CHOICES, default='LAW')
+    law_name = models.CharField('법령·조례명', max_length=200, db_index=True)
+    org = models.CharField('지자체/소관부처', max_length=100, blank=True)
+    law_id = models.CharField('법령ID', max_length=30, blank=True)
+    mst = models.CharField('일련번호', max_length=30, blank=True)
+
+    article_label = models.CharField('조문 표기', max_length=100, db_index=True)  # '제61조'
+    article_no = models.CharField('조번호', max_length=10, blank=True)
+    article_sub_no = models.CharField('가지번호', max_length=10, blank=True)
+    article_title = models.CharField('조제목', max_length=300, blank=True)
+    article_text = models.TextField('조문 원문', blank=True)
+
+    effective_date = models.CharField('시행일자', max_length=10, blank=True)
+    promulgated_date = models.CharField('공포일자', max_length=10, blank=True)
+    source_url = models.URLField(blank=True)
+    #: 공용 데모 계정(OC=test)으로 받은 값인지 — 운영 전 자체 인증값으로 재수집 권장
+    via_demo_account = models.BooleanField(default=False)
+    fetched_at = models.DateTimeField('수집 일시', auto_now=True)
+
+    class Meta:
+        db_table = 'windsite_law_article'
+        verbose_name = '법령 조문 원문'
+        verbose_name_plural = '법령 조문 원문'
+        unique_together = [('law_name', 'article_label')]
+        ordering = ['law_name', 'article_no']
+
+    def __str__(self):
+        return f'{self.law_name} {self.article_label}'
+
+
 class RegulationLayer(models.Model):
     """
     조회 대상 공간 레이어 정의.
