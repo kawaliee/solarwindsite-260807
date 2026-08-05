@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:gml="http://www.opengis.net/gml" xmlns:sop="https://www.vworld.kr" elementFormDefault="qualified" targetNamespace="https://www.vworld.kr">
+  <xsd:import namespace="http://www.opengis.net/gml" schemaLocation="http://10.10.21.6:8080/geoserver/schemas/gml/3.1.1/base/gml.xsd"/>
+  <xsd:complexType name="dt_d160Type">
+    <xsd:complexContent>
+      <xsd:extension base="gml:AbstractFeatureType">
+        <xsd:sequence>
+          <xsd:element maxOccurs="1" minOccurs="0" name="pnu" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ld_cpsg_code" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ld_emd_li_code" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="regstr_se_code" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="mnnm" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="slno" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="lnm_lndcgr_smbol" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="posesn_se_code" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="cnrs_psn_co" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="agrde_se_code" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="resdnc_se_code" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="nation_instt_se_code" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ownship_chg_cause_code" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ownship_chg_de" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="lndcgr_code" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="lbl" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="lndpcl_ar" nillable="true" type="xsd:decimal">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="frst_regist_dt" nillable="true" type="xsd:date">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="src_signgu_code" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ag_geom" nillable="true" type="gml:MultiSurfacePropertyType">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+        </xsd:sequence>
+      </xsd:extension>
+    </xsd:complexContent>
+  </xsd:complexType>
+  <xsd:element name="dt_d160" substitutionGroup="gml:_Feature" type="sop:dt_d160Type"/>
+</xsd:schema>

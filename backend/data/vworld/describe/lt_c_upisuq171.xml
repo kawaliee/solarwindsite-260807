@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:gml="http://www.opengis.net/gml" xmlns:sop="https://www.vworld.kr" elementFormDefault="qualified" targetNamespace="https://www.vworld.kr">
+  <xsd:import namespace="http://www.opengis.net/gml" schemaLocation="http://10.10.21.6:8080/geoserver/schemas/gml/3.1.1/base/gml.xsd"/>
+  <xsd:complexType name="lt_c_upisuq171Type">
+    <xsd:complexContent>
+      <xsd:extension base="gml:AbstractFeatureType">
+        <xsd:sequence>
+          <xsd:element maxOccurs="1" minOccurs="0" name="present_sn" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>PRESENT_SN</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="lclas_cl" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>도형대분류코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="mlsfc_cl" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>도형중분류코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="sclas_cl" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>도형소분류코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="atrb_se" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>도형속성코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="wtnnc_sn" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>조서관리코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ntfc_sn" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>결정고시관리코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="dgm_nm" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>라벨명</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="dgm_ar" nillable="true" type="xsd:decimal">
+            <xsd:annotation>
+              <xsd:documentation>면적(도형)</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="dgm_lt" nillable="true" type="xsd:decimal">
+            <xsd:annotation>
+              <xsd:documentation>길이(도형)</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="signgu_se" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>지자체관리코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="sig_nam" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>시군구명</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="lcl_nam" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>도형대분류명</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="mls_nam" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>도형중분류명</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="scl_nam" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>도형소분류명</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="atr_nam" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>도형속성명</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="pmi_nam" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>도로기능명</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="exc_nam" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>집행상태명</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ag_geom" nillable="true" type="gml:MultiSurfacePropertyType">
+            <xsd:annotation>
+              <xsd:documentation>지오메트리</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+        </xsd:sequence>
+      </xsd:extension>
+    </xsd:complexContent>
+  </xsd:complexType>
+  <xsd:element name="lt_c_upisuq171" substitutionGroup="gml:_Feature" type="sop:lt_c_upisuq171Type"/>
+</xsd:schema>

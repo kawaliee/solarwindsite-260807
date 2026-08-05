@@ -1,0 +1,887 @@
+[
+  {
+    "name": "lt_c_aistmac",
+    "title": "접근관제구역",
+    "abstract": "접근관제구역"
+  },
+  {
+    "name": "lt_c_up201",
+    "title": "재해위험지구",
+    "abstract": "재해위험지구"
+  },
+  {
+    "name": "lt_c_lhzone",
+    "title": "사업지구경계도",
+    "abstract": "사업지구경계도"
+  },
+  {
+    "name": "lt_c_aisdngc",
+    "title": "위험구역",
+    "abstract": "위험구역"
+  },
+  {
+    "name": "lt_c_wgisnpdo",
+    "title": "도립자연공원",
+    "abstract": "도립자연공원"
+  },
+  {
+    "name": "lt_c_upisuq153",
+    "title": "도시계획(공간시설)",
+    "abstract": "도시계획(공간시설)"
+  },
+  {
+    "name": "lt_c_landinfobasemap",
+    "title": "LX맵",
+    "abstract": "LX맵"
+  },
+  {
+    "name": "lt_c_wgisiedosi",
+    "title": "첨단산업단지",
+    "abstract": "첨단산업단지"
+  },
+  {
+    "name": "lt_c_desch",
+    "title": "초등학교통학구역",
+    "abstract": "초등학교통학구역"
+  },
+  {
+    "name": "lt_c_a3drivewaysection",
+    "title": "차도구간",
+    "abstract": "차도구간"
+  },
+  {
+    "name": "lt_l_aisvfrpath",
+    "title": "시계비행로",
+    "abstract": "시계비행로"
+  },
+  {
+    "name": "lt_p_aisvfrpath",
+    "title": "시계비행로",
+    "abstract": "시계비행로"
+  },
+  {
+    "name": "lt_p_moctnode",
+    "title": "교통노드",
+    "abstract": "교통노드"
+  },
+  {
+    "name": "lt_c_aisfirc",
+    "title": "비행정보구역",
+    "abstract": "비행정보구역"
+  },
+  {
+    "name": "lt_c_um301",
+    "title": "대기환경규제지역",
+    "abstract": "대기환경규제지역"
+  },
+  {
+    "name": "lt_c_dmsch",
+    "title": "중학교학교군",
+    "abstract": "중학교학교군"
+  },
+  {
+    "name": "lt_c_dgmainbiz",
+    "title": "주요상권",
+    "abstract": "주요상권"
+  },
+  {
+    "name": "lt_l_frstclimb",
+    "title": "등산로",
+    "abstract": "등산로"
+  },
+  {
+    "name": "lt_p_climball",
+    "title": "등산로",
+    "abstract": "등산로"
+  },
+  {
+    "name": "lt_c_uq111",
+    "title": "도시지역",
+    "abstract": "도시지역"
+  },
+  {
+    "name": "lt_c_uq130",
+    "title": "특정용도제한지구",
+    "abstract": "특정용도제한지구"
+  },
+  {
+    "name": "lt_c_adsido",
+    "title": "광역시도",
+    "abstract": "광역시도"
+  },
+  {
+    "name": "lt_p_c1trafficlight",
+    "title": "신호등",
+    "abstract": "신호등"
+  },
+  {
+    "name": "lt_c_upisuq158",
+    "title": "도시계획(환경기초시설)",
+    "abstract": "도시계획(환경기초시설)"
+  },
+  {
+    "name": "lt_p_tradsijang",
+    "title": "전통시장현황",
+    "abstract": "전통시장현황"
+  },
+  {
+    "name": "lt_c_damyoj",
+    "title": "단지시설용지",
+    "abstract": "단지시설용지"
+  },
+  {
+    "name": "lt_c_upisuq151",
+    "title": "도시계획(도로)",
+    "abstract": "도시계획(도로)"
+  },
+  {
+    "name": "lt_c_upisuq152",
+    "title": "도시계획(교통시설)",
+    "abstract": "도시계획(교통시설)"
+  },
+  {
+    "name": "lt_c_wkmbbsn",
+    "title": "대권역",
+    "abstract": "대권역"
+  },
+  {
+    "name": "lt_c_aisfldc",
+    "title": "경량항공기이착륙장",
+    "abstract": "경량항공기이착륙장"
+  },
+  {
+    "name": "lt_c_wgisnpgun",
+    "title": "군립자연공원",
+    "abstract": "군립자연공원"
+  },
+  {
+    "name": "lt_c_uq126",
+    "title": "보호지구",
+    "abstract": "보호지구"
+  },
+  {
+    "name": "lt_c_asitsoildra",
+    "title": "배수등급",
+    "abstract": "배수등급"
+  },
+  {
+    "name": "lt_c_uo601",
+    "title": "관광지",
+    "abstract": "관광지"
+  },
+  {
+    "name": "lt_c_wgispl2abs",
+    "title": "(2차) 보전연안해역",
+    "abstract": "(2차) 보전연안해역"
+  },
+  {
+    "name": "lt_c_uh701",
+    "title": "벤처기업육성지역",
+    "abstract": "벤처기업육성지역"
+  },
+  {
+    "name": "lt_c_ud601",
+    "title": "주거환경개선지구도",
+    "abstract": "주거환경개선지구도"
+  },
+  {
+    "name": "lt_c_eadist",
+    "title": "교육행정구역",
+    "abstract": "교육행정구역"
+  },
+  {
+    "name": "lp_pa_cbnd_bubun",
+    "title": "연속지적도",
+    "abstract": "연속지적도"
+  },
+  {
+    "name": "lp_pa_cbnd_bonbun",
+    "title": "연속지적도",
+    "abstract": "연속지적도"
+  },
+  {
+    "name": "lt_c_uo101",
+    "title": "교육환경보호구역",
+    "abstract": "교육환경보호구역"
+  },
+  {
+    "name": "lt_p_weissitemd",
+    "title": "수질측정망농업용수지점",
+    "abstract": "수질측정망농업용수지점"
+  },
+  {
+    "name": "lt_c_agrixue101",
+    "title": "농업진흥지역도",
+    "abstract": "농업진흥지역도"
+  },
+  {
+    "name": "lt_c_uq114",
+    "title": "자연환경보전지역",
+    "abstract": "자연환경보전지역"
+  },
+  {
+    "name": "lt_c_upisuq156",
+    "title": "도시계획(방재시설)",
+    "abstract": "도시계획(방재시설)"
+  },
+  {
+    "name": "lt_c_aisaltc",
+    "title": "경계구역",
+    "abstract": "경계구역"
+  },
+  {
+    "name": "lt_c_uo501",
+    "title": "전통사찰보존",
+    "abstract": "전통사찰보존"
+  },
+  {
+    "name": "lt_p_smalllibrary",
+    "title": "작은도서관",
+    "abstract": "작은도서관"
+  },
+  {
+    "name": "lt_c_aisctrc",
+    "title": "관제권",
+    "abstract": "관제권"
+  },
+  {
+    "name": "lt_c_um000",
+    "title": "가축사육제한구역",
+    "abstract": "가축사육제한구역"
+  },
+  {
+    "name": "lt_c_uf151",
+    "title": "산림보호구역",
+    "abstract": "산림보호구역"
+  },
+  {
+    "name": "lt_c_uh501",
+    "title": "유통단지",
+    "abstract": "유통단지"
+  },
+  {
+    "name": "lt_l_b2surfacelinemark",
+    "title": "노면선표시",
+    "abstract": "노면선표시"
+  },
+  {
+    "name": "lt_c_fsdifrsts",
+    "title": "산림입지도",
+    "abstract": "산림입지도"
+  },
+  {
+    "name": "lt_p_bycracks",
+    "title": "자전거보관소",
+    "abstract": "자전거보관소"
+  },
+  {
+    "name": "lt_c_agrixue102",
+    "title": "영농여건불리농지도",
+    "abstract": "영농여건불리농지도"
+  },
+  {
+    "name": "lt_l_a2link",
+    "title": "주행경로링크",
+    "abstract": "주행경로링크"
+  },
+  {
+    "name": "lt_c_adsigg",
+    "title": "시군구",
+    "abstract": "시군구"
+  },
+  {
+    "name": "lt_p_weissitema",
+    "title": "수질측정망하천수지점",
+    "abstract": "수질측정망하천수지점"
+  },
+  {
+    "name": "lt_c_upisuq155",
+    "title": "도시계획(공공문화체육시설)",
+    "abstract": "도시계획(공공문화체육시설)"
+  },
+  {
+    "name": "lt_c_um710",
+    "title": "상수원보호",
+    "abstract": "상수원보호"
+  },
+  {
+    "name": "lt_c_aiscatc",
+    "title": "훈련구역",
+    "abstract": "훈련구역"
+  },
+  {
+    "name": "lt_c_b3surfacemark",
+    "title": "노면표시",
+    "abstract": "노면표시"
+  },
+  {
+    "name": "lt_c_a5parkinglot",
+    "title": "주차면",
+    "abstract": "주차면"
+  },
+  {
+    "name": "lt_c_wgisarwet",
+    "title": "습지보호구역",
+    "abstract": "습지보호구역"
+  },
+  {
+    "name": "lt_c_adri",
+    "title": "리",
+    "abstract": "리"
+  },
+  {
+    "name": "lt_c_wgisieilban",
+    "title": "일반산업단지",
+    "abstract": "일반산업단지"
+  },
+  {
+    "name": "lt_c_aisrflc",
+    "title": "공중급유구역",
+    "abstract": "공중급유구역"
+  },
+  {
+    "name": "lt_c_wkmstrm",
+    "title": "하천망",
+    "abstract": "하천망"
+  },
+  {
+    "name": "lt_c_um901",
+    "title": "습지보호지역",
+    "abstract": "습지보호지역"
+  },
+  {
+    "name": "lt_p_mgprtfb",
+    "title": "노인복지시설",
+    "abstract": "노인복지시설"
+  },
+  {
+    "name": "lt_p_mgprtfd",
+    "title": "기타보호시설",
+    "abstract": "기타보호시설"
+  },
+  {
+    "name": "lt_l_gimsec",
+    "title": "전기전도도",
+    "abstract": "전기전도도"
+  },
+  {
+    "name": "lt_c_upisuq159",
+    "title": "도시계획(기타기반시설)",
+    "abstract": "도시계획(기타기반시설)"
+  },
+  {
+    "name": "lt_c_wgispl2use",
+    "title": "(2차) 이용연안해역",
+    "abstract": "(2차) 이용연안해역"
+  },
+  {
+    "name": "lt_c_asitsoildep",
+    "title": "유효토심",
+    "abstract": "유효토심"
+  },
+  {
+    "name": "lt_c_upisuq171",
+    "title": "개발행위허가제한지역",
+    "abstract": "개발행위허가제한지역"
+  },
+  {
+    "name": "lt_p_nsnmssitenm",
+    "title": "국가지명",
+    "abstract": "국가지명"
+  },
+  {
+    "name": "lt_c_uq121",
+    "title": "경관지구",
+    "abstract": "경관지구"
+  },
+  {
+    "name": "lt_c_spbd",
+    "title": "도로명주소건물",
+    "abstract": "도로명주소건물"
+  },
+  {
+    "name": "lt_c_ud610",
+    "title": "국민임대주택",
+    "abstract": "국민임대주택"
+  },
+  {
+    "name": "lt_l_gimslinea",
+    "title": "지질구조선",
+    "abstract": "지질구조선"
+  },
+  {
+    "name": "lt_c_aisresc",
+    "title": "비행제한구역",
+    "abstract": "비행제한구역"
+  },
+  {
+    "name": "lt_c_b1safetysign",
+    "title": "안전표지",
+    "abstract": "안전표지"
+  },
+  {
+    "name": "lt_l_aispath",
+    "title": "항공로",
+    "abstract": "항공로"
+  },
+  {
+    "name": "lt_c_uq113",
+    "title": "농림지역",
+    "abstract": "농림지역"
+  },
+  {
+    "name": "lt_c_aistemp",
+    "title": "임시비행금지공역",
+    "abstract": "임시비행금지공역"
+  },
+  {
+    "name": "lt_l_aisrouteu",
+    "title": "제한고도",
+    "abstract": "제한고도"
+  },
+  {
+    "name": "lt_c_aisatzc",
+    "title": "비행장교통구역",
+    "abstract": "비행장교통구역"
+  },
+  {
+    "name": "lt_c_uq124",
+    "title": "방화지구",
+    "abstract": "방화지구"
+  },
+  {
+    "name": "lt_c_uq141",
+    "title": "국토계획구역",
+    "abstract": "국토계획구역"
+  },
+  {
+    "name": "lt_c_wkmmbsn",
+    "title": "중권역",
+    "abstract": "중권역"
+  },
+  {
+    "name": "lt_c_ademd",
+    "title": "읍면동",
+    "abstract": "읍면동"
+  },
+  {
+    "name": "lt_c_upisuq154",
+    "title": "도시계획(유통공급시설)",
+    "abstract": "도시계획(유통공급시설)"
+  },
+  {
+    "name": "lt_c_uj401",
+    "title": "온천지구",
+    "abstract": "온천지구"
+  },
+  {
+    "name": "lt_c_gimsscs",
+    "title": "토양도",
+    "abstract": "토양도"
+  },
+  {
+    "name": "lt_c_ud620",
+    "title": "보금자리주택",
+    "abstract": "보금자리주택"
+  },
+  {
+    "name": "lt_c_uq162",
+    "title": "도시자연공원구역",
+    "abstract": "도시자연공원구역"
+  },
+  {
+    "name": "lt_c_uf602",
+    "title": "임업 및 산촌 진흥권역",
+    "abstract": "임업 및 산촌 진흥권역"
+  },
+  {
+    "name": "lt_p_utiscctv",
+    "title": "교통CCTV",
+    "abstract": "교통CCTV"
+  },
+  {
+    "name": "lt_c_wgisienong",
+    "title": "농공단지",
+    "abstract": "농공단지"
+  },
+  {
+    "name": "lt_l_c3vehicleprotectionsafety",
+    "title": "차량방호안전시설",
+    "abstract": "차량방호안전시설"
+  },
+  {
+    "name": "lt_c_damdan",
+    "title": "단지경계",
+    "abstract": "단지경계"
+  },
+  {
+    "name": "lt_c_c4speedbump",
+    "title": "과속방지턱",
+    "abstract": "과속방지턱"
+  },
+  {
+    "name": "lt_p_dgmuseumart",
+    "title": "박물관미술관",
+    "abstract": "박물관미술관"
+  },
+  {
+    "name": "lt_c_gimshydro",
+    "title": "수문지질단위",
+    "abstract": "수문지질단위"
+  },
+  {
+    "name": "lt_c_um221",
+    "title": "야생동식물보호",
+    "abstract": "야생동식물보호"
+  },
+  {
+    "name": "lt_c_gimslinea",
+    "title": "지질구조밀도",
+    "abstract": "지질구조밀도"
+  },
+  {
+    "name": "lt_c_gimsstiff",
+    "title": "수질다이어그램",
+    "abstract": "수질다이어그램"
+  },
+  {
+    "name": "lt_c_kfdrssigugrade",
+    "title": "산불위험예측지도",
+    "abstract": "산불위험예측지도"
+  },
+  {
+    "name": "lt_c_up401",
+    "title": "급경사재해예방지역",
+    "abstract": "급경사재해예방지역"
+  },
+  {
+    "name": "lt_l_sprd",
+    "title": "도로명주소도로",
+    "abstract": "도로명주소도로"
+  },
+  {
+    "name": "lt_c_wgispl2con",
+    "title": "(2차) 관리연안해역",
+    "abstract": "(2차) 관리연안해역"
+  },
+  {
+    "name": "lt_c_a4subsidiarysection",
+    "title": "보도구간",
+    "abstract": "보도구간"
+  },
+  {
+    "name": "lt_c_uh402",
+    "title": "자유무역지역지정및운영",
+    "abstract": "자유무역지역지정및운영"
+  },
+  {
+    "name": "lt_c_uo301",
+    "title": "국가유산 지정/보호구역",
+    "abstract": "국가유산 지정/보호구역"
+  },
+  {
+    "name": "lt_c_aisdronezone",
+    "title": "드론시범사업구역",
+    "abstract": "드론시범사업구역"
+  },
+  {
+    "name": "lt_p_c2kilopost",
+    "title": "킬로포스트",
+    "abstract": "킬로포스트"
+  },
+  {
+    "name": "lt_l_gimsfault",
+    "title": "단층",
+    "abstract": "단층"
+  },
+  {
+    "name": "lt_l_gimspoten",
+    "title": "지하수등수위선",
+    "abstract": "지하수등수위선"
+  },
+  {
+    "name": "lt_c_aisacmc",
+    "title": "공중전투기동훈련장",
+    "abstract": "공중전투기동훈련장"
+  },
+  {
+    "name": "lt_c_damyuch",
+    "title": "단지유치업종",
+    "abstract": "단지유치업종"
+  },
+  {
+    "name": "lt_p_aishcstrip",
+    "title": "헬기장",
+    "abstract": "헬기장"
+  },
+  {
+    "name": "lt_c_tfismpa",
+    "title": "해양보호구역",
+    "abstract": "해양보호구역"
+  },
+  {
+    "name": "lt_c_damyod",
+    "title": "단지용도지역",
+    "abstract": "단지용도지역"
+  },
+  {
+    "name": "lt_l_gimsdepth",
+    "title": "지하수등수심선",
+    "abstract": "지하수등수심선"
+  },
+  {
+    "name": "lt_c_ub901",
+    "title": "시장정비구역",
+    "abstract": "시장정비구역"
+  },
+  {
+    "name": "lt_c_asitsurston",
+    "title": "자갈함량",
+    "abstract": "자갈함량"
+  },
+  {
+    "name": "lt_p_dgtouristinfo",
+    "title": "관광안내소",
+    "abstract": "관광안내소"
+  },
+  {
+    "name": "lt_c_uf901",
+    "title": "백두대간보호지역",
+    "abstract": "백두대간보호지역"
+  },
+  {
+    "name": "lt_c_asitdeepsoil",
+    "title": "심토토성",
+    "abstract": "심토토성"
+  },
+  {
+    "name": "lt_p_sgisgwchg",
+    "title": "지하수측정망(오염우려지역)",
+    "abstract": "지하수측정망(오염우려지역)"
+  },
+  {
+    "name": "lt_l_aissearchl",
+    "title": "수색비행장비행구역",
+    "abstract": "수색비행장비행구역"
+  },
+  {
+    "name": "lt_p_aissearchp",
+    "title": "수색비행장비행구역",
+    "abstract": "수색비행장비행구역"
+  },
+  {
+    "name": "lt_p_mgprtfc",
+    "title": "아동복지시설",
+    "abstract": "아동복지시설"
+  },
+  {
+    "name": "lt_c_wgisrecomp",
+    "title": "공유수면매립준공",
+    "abstract": "공유수면매립준공"
+  },
+  {
+    "name": "lt_c_upisuq157",
+    "title": "도시계획(보건위생시설)",
+    "abstract": "도시계획(보건위생시설)"
+  },
+  {
+    "name": "lt_p_weissiteme",
+    "title": "수질측정망공단배수지점",
+    "abstract": "수질측정망공단배수지점"
+  },
+  {
+    "name": "lt_l_c5heightbarrier",
+    "title": "높이장애물",
+    "abstract": "높이장애물"
+  },
+  {
+    "name": "lt_c_aismoac",
+    "title": "군작전구역",
+    "abstract": "군작전구역"
+  },
+  {
+    "name": "lt_c_aisadzc",
+    "title": "방공식별구역",
+    "abstract": "방공식별구역"
+  },
+  {
+    "name": "lt_c_uq125",
+    "title": "방재지구",
+    "abstract": "방재지구"
+  },
+  {
+    "name": "lt_p_sgisgolf",
+    "title": "골프장현황도",
+    "abstract": "골프장현황도"
+  },
+  {
+    "name": "lt_c_aisuac",
+    "title": "(UA)초경량비행장치공역",
+    "abstract": "(UA)초경량비행장치공역"
+  },
+  {
+    "name": "lt_l_moctlink",
+    "title": "교통링크",
+    "abstract": "교통링크"
+  },
+  {
+    "name": "lt_c_aisprhc",
+    "title": "비행금지구역",
+    "abstract": "비행금지구역"
+  },
+  {
+    "name": "lt_c_upisuq161",
+    "title": "지구단위계획",
+    "abstract": "지구단위계획"
+  },
+  {
+    "name": "lt_p_mgprtfa",
+    "title": "아동안전지킴이집",
+    "abstract": "아동안전지킴이집"
+  },
+  {
+    "name": "lt_p_weissitemf",
+    "title": "수질측정망도시관류지점",
+    "abstract": "수질측정망도시관류지점"
+  },
+  {
+    "name": "lt_c_ud801",
+    "title": "개발제한구역",
+    "abstract": "개발제한구역"
+  },
+  {
+    "name": "lt_p_b1safetysign",
+    "title": "안전표지(점)",
+    "abstract": "안전표지(점)"
+  },
+  {
+    "name": "lt_c_uq123",
+    "title": "고도지구",
+    "abstract": "고도지구"
+  },
+  {
+    "name": "lt_c_wkmsbsn",
+    "title": "표준권역",
+    "abstract": "표준권역"
+  },
+  {
+    "name": "lt_c_wgisnpgug",
+    "title": "국립자연공원",
+    "abstract": "국립자연공원"
+  },
+  {
+    "name": "lt_c_wgisiegug",
+    "title": "국가산업단지",
+    "abstract": "국가산업단지"
+  },
+  {
+    "name": "lt_c_wgispl2spa",
+    "title": "(2차) 특수연안해역",
+    "abstract": "(2차) 특수연안해역"
+  },
+  {
+    "name": "lt_p_busiincubator",
+    "title": "창업보육센터",
+    "abstract": "창업보육센터"
+  },
+  {
+    "name": "lt_c_uq112",
+    "title": "관리지역",
+    "abstract": "관리지역"
+  },
+  {
+    "name": "lt_c_dhsch",
+    "title": "고등학교학교군",
+    "abstract": "고등학교학교군"
+  },
+  {
+    "name": "lt_p_a1node",
+    "title": "주행경로노드",
+    "abstract": "주행경로노드"
+  },
+  {
+    "name": "lt_l_toisdepcntah",
+    "title": "해안선",
+    "abstract": "해안선"
+  },
+  {
+    "name": "lt_l_gimsdirec",
+    "title": "지하수유동방향",
+    "abstract": "지하수유동방향"
+  },
+  {
+    "name": "lt_c_usfsffb",
+    "title": "소방서관할구역",
+    "abstract": "소방서관할구역"
+  },
+  {
+    "name": "lt_c_uq129",
+    "title": "개발진흥지구",
+    "abstract": "개발진흥지구"
+  },
+  {
+    "name": "lt_c_uq128",
+    "title": "취락지구",
+    "abstract": "취락지구"
+  },
+  {
+    "name": "lt_c_lhblpn",
+    "title": "토지이용계획도",
+    "abstract": "토지이용계획도"
+  },
+  {
+    "name": "lt_c_wgisreplan",
+    "title": "공유수면매립기본계획",
+    "abstract": "공유수면매립기본계획"
+  },
+  {
+    "name": "lt_p_c6postpoint",
+    "title": "지주",
+    "abstract": "지주"
+  },
+  {
+    "name": "lt_p_weissitemb",
+    "title": "수질측정망호소수지점",
+    "abstract": "수질측정망호소수지점"
+  },
+  {
+    "name": "lt_l_aiscorrid_ys",
+    "title": "한강회랑",
+    "abstract": "한강회랑"
+  },
+  {
+    "name": "lt_l_aiscorrid_gj",
+    "title": "한강회랑",
+    "abstract": "한강회랑"
+  },
+  {
+    "name": "lt_p_aiscorrid_ys",
+    "title": "한강회랑",
+    "abstract": "한강회랑"
+  },
+  {
+    "name": "lt_p_aiscorrid_gj",
+    "title": "한강회랑",
+    "abstract": "한강회랑"
+  },
+  {
+    "name": "lt_c_cademd",
+    "title": "(센서스경계)행정동경계",
+    "abstract": "(센서스경계)행정동경계"
+  },
+  {
+    "name": "lt_l_n3a0020000",
+    "title": "도로중심선",
+    "abstract": "도로중심선"
+  },
+  {
+    "name": "dt_d160",
+    "title": "토지소유공간정보",
+    "abstract": "토지소유공간정보"
+  },
+  {
+    "name": "dt_d002",
+    "title": "연속지적도형정보",
+    "abstract": "연속지적도형정보"
+  }
+]

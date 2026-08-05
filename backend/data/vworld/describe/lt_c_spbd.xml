@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?><xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:gml="http://www.opengis.net/gml" xmlns:sop="https://www.vworld.kr" elementFormDefault="qualified" targetNamespace="https://www.vworld.kr">
+  <xsd:import namespace="http://www.opengis.net/gml" schemaLocation="http://10.10.21.6:8080/geoserver/schemas/gml/3.1.1/base/gml.xsd"/>
+  <xsd:complexType name="lt_c_spbdType">
+    <xsd:complexContent>
+      <xsd:extension base="gml:AbstractFeatureType">
+        <xsd:sequence>
+          <xsd:element maxOccurs="1" minOccurs="0" name="pk" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>관리번호</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="bd_mgt_sn" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>건물관리번호</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="sido" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>시도</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="sigungu" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>시군구</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="gu" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>읍면</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="rd_nm" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>도로명</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="bld_s" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>건물본번</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="bld_e" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>건물부번</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="buld_nm" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>건물명</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="buld_nm_dc" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>상세건물명</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="buld_se_cd" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>건물구분코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="bul_eng_nm" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>건물영문명</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="zip_cd" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>우편번호</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="gro_flo_co" nillable="true" type="xsd:decimal">
+            <xsd:annotation>
+              <xsd:documentation>지상층수</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="und_flo_co" nillable="true" type="xsd:decimal">
+            <xsd:annotation>
+              <xsd:documentation>지하층수</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="buld_no" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>건물번호</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="sig_cd" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>시군구코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="rn_cd" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>도로명코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="emd_cd" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>읍면동코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="pnu" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>토지코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="xpos" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>경도</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ypos" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>위도</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="poi_chk" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>주요건물여부</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ag_geom" nillable="true" type="gml:MultiSurfacePropertyType">
+            <xsd:annotation>
+              <xsd:documentation>지오메트리</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+        </xsd:sequence>
+      </xsd:extension>
+    </xsd:complexContent>
+  </xsd:complexType>
+  <xsd:element name="lt_c_spbd" substitutionGroup="gml:_Feature" type="sop:lt_c_spbdType"/>
+</xsd:schema>

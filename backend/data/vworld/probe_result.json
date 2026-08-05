@@ -1,0 +1,4438 @@
+{
+  "sample_points": [
+    {
+      "lat": 35.0648,
+      "lng": 126.9895,
+      "label": "광주 도심"
+    },
+    {
+      "lat": 35.057,
+      "lng": 126.986,
+      "label": "전남 화순 산간"
+    },
+    {
+      "lat": 35.647,
+      "lng": 128.734,
+      "label": "경북 청도 산간"
+    }
+  ],
+  "buffer_m": 2000,
+  "layer_total": 177,
+  "curated": {
+    "용도지역": [
+      "lt_c_uq111",
+      "lt_c_uq112",
+      "lt_c_uq113",
+      "lt_c_uq114"
+    ],
+    "용도지구": [
+      "lt_c_uq121",
+      "lt_c_uq123",
+      "lt_c_uq124",
+      "lt_c_uq125",
+      "lt_c_uq126",
+      "lt_c_uq128",
+      "lt_c_uq129",
+      "lt_c_uq130"
+    ],
+    "개발제한구역": [
+      "lt_c_ud801"
+    ],
+    "개발행위허가제한": [
+      "lt_c_upisuq171"
+    ],
+    "도시자연공원구역": [
+      "lt_c_uq162"
+    ],
+    "백두대간": [
+      "lt_c_uf901"
+    ],
+    "산림보호구역": [
+      "lt_c_uf151"
+    ],
+    "산림입지": [
+      "lt_c_fsdifrsts"
+    ],
+    "자연공원": [
+      "lt_c_wgisnpgug",
+      "lt_c_wgisnpdo",
+      "lt_c_wgisnpgun"
+    ],
+    "습지보호": [
+      "lt_c_um901",
+      "lt_c_wgisarwet"
+    ],
+    "야생생물보호": [
+      "lt_c_um221"
+    ],
+    "상수원보호": [
+      "lt_c_um710"
+    ],
+    "대기환경규제": [
+      "lt_c_um301"
+    ],
+    "해양보호구역": [
+      "lt_c_tfismpa"
+    ],
+    "농업진흥지역": [
+      "lt_c_agrixue101"
+    ],
+    "영농여건불리농지": [
+      "lt_c_agrixue102"
+    ],
+    "재해위험지구": [
+      "lt_c_up201"
+    ],
+    "급경사재해예방": [
+      "lt_c_up401"
+    ],
+    "산불위험": [
+      "lt_c_kfdrssigugrade"
+    ],
+    "국가유산보호구역": [
+      "lt_c_uo301"
+    ],
+    "전통사찰보존": [
+      "lt_c_uo501"
+    ],
+    "교육환경보호구역": [
+      "lt_c_uo101"
+    ],
+    "비행금지구역": [
+      "lt_c_aisprhc"
+    ],
+    "비행제한구역": [
+      "lt_c_aisresc"
+    ],
+    "관제권": [
+      "lt_c_aisctrc"
+    ],
+    "비행장교통구역": [
+      "lt_c_aisatzc"
+    ],
+    "군작전구역": [
+      "lt_c_aismoac"
+    ],
+    "훈련구역": [
+      "lt_c_aiscatc"
+    ],
+    "공중전투기동훈련장": [
+      "lt_c_aisacmc"
+    ],
+    "연속지적": [
+      "lp_pa_cbnd_bubun"
+    ],
+    "토지소유": [
+      "dt_d160"
+    ],
+    "토지이용계획": [
+      "lt_c_lhblpn"
+    ],
+    "건물": [
+      "lt_c_spbd"
+    ],
+    "도로": [
+      "lt_l_sprd"
+    ],
+    "행정구역": [
+      "lt_c_adsido",
+      "lt_c_adsigg",
+      "lt_c_ademd",
+      "lt_c_adri"
+    ]
+  },
+  "missing_from_capabilities": {},
+  "matched": {
+    "용도지역": [
+      {
+        "name": "lt_c_uq111",
+        "title": "도시지역",
+        "abstract": "도시지역"
+      },
+      {
+        "name": "lt_c_uq112",
+        "title": "관리지역",
+        "abstract": "관리지역"
+      },
+      {
+        "name": "lt_c_uq113",
+        "title": "농림지역",
+        "abstract": "농림지역"
+      },
+      {
+        "name": "lt_c_uq114",
+        "title": "자연환경보전지역",
+        "abstract": "자연환경보전지역"
+      }
+    ],
+    "용도지구": [
+      {
+        "name": "lt_c_uq121",
+        "title": "경관지구",
+        "abstract": "경관지구"
+      },
+      {
+        "name": "lt_c_uq123",
+        "title": "고도지구",
+        "abstract": "고도지구"
+      },
+      {
+        "name": "lt_c_uq124",
+        "title": "방화지구",
+        "abstract": "방화지구"
+      },
+      {
+        "name": "lt_c_uq125",
+        "title": "방재지구",
+        "abstract": "방재지구"
+      },
+      {
+        "name": "lt_c_uq126",
+        "title": "보호지구",
+        "abstract": "보호지구"
+      },
+      {
+        "name": "lt_c_uq128",
+        "title": "취락지구",
+        "abstract": "취락지구"
+      },
+      {
+        "name": "lt_c_uq129",
+        "title": "개발진흥지구",
+        "abstract": "개발진흥지구"
+      },
+      {
+        "name": "lt_c_uq130",
+        "title": "특정용도제한지구",
+        "abstract": "특정용도제한지구"
+      }
+    ],
+    "개발제한구역": [
+      {
+        "name": "lt_c_ud801",
+        "title": "개발제한구역",
+        "abstract": "개발제한구역"
+      }
+    ],
+    "개발행위허가제한": [
+      {
+        "name": "lt_c_upisuq171",
+        "title": "개발행위허가제한지역",
+        "abstract": "개발행위허가제한지역"
+      }
+    ],
+    "도시자연공원구역": [
+      {
+        "name": "lt_c_uq162",
+        "title": "도시자연공원구역",
+        "abstract": "도시자연공원구역"
+      }
+    ],
+    "백두대간": [
+      {
+        "name": "lt_c_uf901",
+        "title": "백두대간보호지역",
+        "abstract": "백두대간보호지역"
+      }
+    ],
+    "산림보호구역": [
+      {
+        "name": "lt_c_uf151",
+        "title": "산림보호구역",
+        "abstract": "산림보호구역"
+      }
+    ],
+    "산림입지": [
+      {
+        "name": "lt_c_fsdifrsts",
+        "title": "산림입지도",
+        "abstract": "산림입지도"
+      }
+    ],
+    "자연공원": [
+      {
+        "name": "lt_c_wgisnpgug",
+        "title": "국립자연공원",
+        "abstract": "국립자연공원"
+      },
+      {
+        "name": "lt_c_wgisnpdo",
+        "title": "도립자연공원",
+        "abstract": "도립자연공원"
+      },
+      {
+        "name": "lt_c_wgisnpgun",
+        "title": "군립자연공원",
+        "abstract": "군립자연공원"
+      }
+    ],
+    "습지보호": [
+      {
+        "name": "lt_c_um901",
+        "title": "습지보호지역",
+        "abstract": "습지보호지역"
+      },
+      {
+        "name": "lt_c_wgisarwet",
+        "title": "습지보호구역",
+        "abstract": "습지보호구역"
+      }
+    ],
+    "야생생물보호": [
+      {
+        "name": "lt_c_um221",
+        "title": "야생동식물보호",
+        "abstract": "야생동식물보호"
+      }
+    ],
+    "상수원보호": [
+      {
+        "name": "lt_c_um710",
+        "title": "상수원보호",
+        "abstract": "상수원보호"
+      }
+    ],
+    "대기환경규제": [
+      {
+        "name": "lt_c_um301",
+        "title": "대기환경규제지역",
+        "abstract": "대기환경규제지역"
+      }
+    ],
+    "해양보호구역": [
+      {
+        "name": "lt_c_tfismpa",
+        "title": "해양보호구역",
+        "abstract": "해양보호구역"
+      }
+    ],
+    "농업진흥지역": [
+      {
+        "name": "lt_c_agrixue101",
+        "title": "농업진흥지역도",
+        "abstract": "농업진흥지역도"
+      }
+    ],
+    "영농여건불리농지": [
+      {
+        "name": "lt_c_agrixue102",
+        "title": "영농여건불리농지도",
+        "abstract": "영농여건불리농지도"
+      }
+    ],
+    "재해위험지구": [
+      {
+        "name": "lt_c_up201",
+        "title": "재해위험지구",
+        "abstract": "재해위험지구"
+      }
+    ],
+    "급경사재해예방": [
+      {
+        "name": "lt_c_up401",
+        "title": "급경사재해예방지역",
+        "abstract": "급경사재해예방지역"
+      }
+    ],
+    "산불위험": [
+      {
+        "name": "lt_c_kfdrssigugrade",
+        "title": "산불위험예측지도",
+        "abstract": "산불위험예측지도"
+      }
+    ],
+    "국가유산보호구역": [
+      {
+        "name": "lt_c_uo301",
+        "title": "국가유산 지정/보호구역",
+        "abstract": "국가유산 지정/보호구역"
+      }
+    ],
+    "전통사찰보존": [
+      {
+        "name": "lt_c_uo501",
+        "title": "전통사찰보존",
+        "abstract": "전통사찰보존"
+      }
+    ],
+    "교육환경보호구역": [
+      {
+        "name": "lt_c_uo101",
+        "title": "교육환경보호구역",
+        "abstract": "교육환경보호구역"
+      }
+    ],
+    "비행금지구역": [
+      {
+        "name": "lt_c_aisprhc",
+        "title": "비행금지구역",
+        "abstract": "비행금지구역"
+      }
+    ],
+    "비행제한구역": [
+      {
+        "name": "lt_c_aisresc",
+        "title": "비행제한구역",
+        "abstract": "비행제한구역"
+      }
+    ],
+    "관제권": [
+      {
+        "name": "lt_c_aisctrc",
+        "title": "관제권",
+        "abstract": "관제권"
+      }
+    ],
+    "비행장교통구역": [
+      {
+        "name": "lt_c_aisatzc",
+        "title": "비행장교통구역",
+        "abstract": "비행장교통구역"
+      }
+    ],
+    "군작전구역": [
+      {
+        "name": "lt_c_aismoac",
+        "title": "군작전구역",
+        "abstract": "군작전구역"
+      }
+    ],
+    "훈련구역": [
+      {
+        "name": "lt_c_aiscatc",
+        "title": "훈련구역",
+        "abstract": "훈련구역"
+      }
+    ],
+    "공중전투기동훈련장": [
+      {
+        "name": "lt_c_aisacmc",
+        "title": "공중전투기동훈련장",
+        "abstract": "공중전투기동훈련장"
+      }
+    ],
+    "연속지적": [
+      {
+        "name": "lp_pa_cbnd_bubun",
+        "title": "연속지적도",
+        "abstract": "연속지적도"
+      }
+    ],
+    "토지소유": [
+      {
+        "name": "dt_d160",
+        "title": "토지소유공간정보",
+        "abstract": "토지소유공간정보"
+      }
+    ],
+    "토지이용계획": [
+      {
+        "name": "lt_c_lhblpn",
+        "title": "토지이용계획도",
+        "abstract": "토지이용계획도"
+      }
+    ],
+    "건물": [
+      {
+        "name": "lt_c_spbd",
+        "title": "도로명주소건물",
+        "abstract": "도로명주소건물"
+      }
+    ],
+    "도로": [
+      {
+        "name": "lt_l_sprd",
+        "title": "도로명주소도로",
+        "abstract": "도로명주소도로"
+      }
+    ],
+    "행정구역": [
+      {
+        "name": "lt_c_adsido",
+        "title": "광역시도",
+        "abstract": "광역시도"
+      },
+      {
+        "name": "lt_c_adsigg",
+        "title": "시군구",
+        "abstract": "시군구"
+      },
+      {
+        "name": "lt_c_ademd",
+        "title": "읍면동",
+        "abstract": "읍면동"
+      },
+      {
+        "name": "lt_c_adri",
+        "title": "리",
+        "abstract": "리"
+      }
+    ]
+  },
+  "describe": {
+    "dt_d160": [
+      {
+        "name": "pnu",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ld_cpsg_code",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ld_emd_li_code",
+        "type": "xsd:string"
+      },
+      {
+        "name": "regstr_se_code",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mnnm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "slno",
+        "type": "xsd:string"
+      },
+      {
+        "name": "lnm_lndcgr_smbol",
+        "type": "xsd:string"
+      },
+      {
+        "name": "posesn_se_code",
+        "type": "xsd:string"
+      },
+      {
+        "name": "cnrs_psn_co",
+        "type": "xsd:int"
+      },
+      {
+        "name": "agrde_se_code",
+        "type": "xsd:string"
+      },
+      {
+        "name": "resdnc_se_code",
+        "type": "xsd:string"
+      },
+      {
+        "name": "nation_instt_se_code",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ownship_chg_cause_code",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ownship_chg_de",
+        "type": "xsd:string"
+      },
+      {
+        "name": "lndcgr_code",
+        "type": "xsd:string"
+      },
+      {
+        "name": "lbl",
+        "type": "xsd:string"
+      },
+      {
+        "name": "lndpcl_ar",
+        "type": "xsd:decimal"
+      },
+      {
+        "name": "frst_regist_dt",
+        "type": "xsd:date"
+      },
+      {
+        "name": "src_signgu_code",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "dt_d160",
+        "type": "sop:dt_d160Type"
+      }
+    ],
+    "lp_pa_cbnd_bubun": [
+      {
+        "name": "pnu",
+        "type": "xsd:string"
+      },
+      {
+        "name": "jibun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bchk",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bubun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bonbun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "addr",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ctp_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sig_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "emd_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "li_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "gosi_year",
+        "type": "xsd:string"
+      },
+      {
+        "name": "gosi_month",
+        "type": "xsd:string"
+      },
+      {
+        "name": "jiga",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lp_pa_cbnd_bubun",
+        "type": "sop:lp_pa_cbnd_bubunType"
+      }
+    ],
+    "lt_c_ademd": [
+      {
+        "name": "emd_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "emd_eng_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "emd_kor_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "cat_cde",
+        "type": "xsd:string"
+      },
+      {
+        "name": "cat_nam",
+        "type": "xsd:string"
+      },
+      {
+        "name": "full_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_ademd",
+        "type": "sop:lt_c_ademdType"
+      }
+    ],
+    "lt_c_adri": [
+      {
+        "name": "li_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "li_eng_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "li_kor_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "cat_cde",
+        "type": "xsd:string"
+      },
+      {
+        "name": "cat_nam",
+        "type": "xsd:string"
+      },
+      {
+        "name": "full_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_adri",
+        "type": "sop:lt_c_adriType"
+      }
+    ],
+    "lt_c_adsido": [
+      {
+        "name": "ctprvn_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ctp_eng_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ctp_kor_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "cat_cde",
+        "type": "xsd:string"
+      },
+      {
+        "name": "cat_nam",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_adsido",
+        "type": "sop:lt_c_adsidoType"
+      }
+    ],
+    "lt_c_adsigg": [
+      {
+        "name": "sig_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sig_eng_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sig_kor_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "cat_cde",
+        "type": "xsd:string"
+      },
+      {
+        "name": "cat_nam",
+        "type": "xsd:string"
+      },
+      {
+        "name": "full_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_adsigg",
+        "type": "sop:lt_c_adsiggType"
+      }
+    ],
+    "lt_c_agrixue101": [
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_agrixue101",
+        "type": "sop:lt_c_agrixue101Type"
+      }
+    ],
+    "lt_c_agrixue102": [
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_agrixue102",
+        "type": "sop:lt_c_agrixue102Type"
+      }
+    ],
+    "lt_c_aisacmc": [
+      {
+        "name": "acmi_label",
+        "type": "xsd:string"
+      },
+      {
+        "name": "acm_lbl_1",
+        "type": "xsd:string"
+      },
+      {
+        "name": "acm_lbl_2",
+        "type": "xsd:string"
+      },
+      {
+        "name": "acm_lbl_3",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_aisacmc",
+        "type": "sop:lt_c_aisacmcType"
+      }
+    ],
+    "lt_c_aisatzc": [
+      {
+        "name": "atm_label",
+        "type": "xsd:string"
+      },
+      {
+        "name": "atm_lbl_1",
+        "type": "xsd:string"
+      },
+      {
+        "name": "atm_lbl_2",
+        "type": "xsd:string"
+      },
+      {
+        "name": "atm_lbl_3",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_aisatzc",
+        "type": "sop:lt_c_aisatzcType"
+      }
+    ],
+    "lt_c_aiscatc": [
+      {
+        "name": "cata_label",
+        "type": "xsd:string"
+      },
+      {
+        "name": "cat_lbl_1",
+        "type": "xsd:string"
+      },
+      {
+        "name": "cat_lbl_2",
+        "type": "xsd:string"
+      },
+      {
+        "name": "cat_lbl_3",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_aiscatc",
+        "type": "sop:lt_c_aiscatcType"
+      }
+    ],
+    "lt_c_aisctrc": [
+      {
+        "name": "ctr_lbl_1",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ctr_label",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ctr_class_",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_aisctrc",
+        "type": "sop:lt_c_aisctrcType"
+      }
+    ],
+    "lt_c_aismoac": [
+      {
+        "name": "moa_label",
+        "type": "xsd:string"
+      },
+      {
+        "name": "moa_lbl_1",
+        "type": "xsd:string"
+      },
+      {
+        "name": "moa_lbl_2",
+        "type": "xsd:string"
+      },
+      {
+        "name": "moa_lbl_3",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_aismoac",
+        "type": "sop:lt_c_aismoacType"
+      }
+    ],
+    "lt_c_aisprhc": [
+      {
+        "name": "prohibited",
+        "type": "xsd:string"
+      },
+      {
+        "name": "prh_lbl_1",
+        "type": "xsd:string"
+      },
+      {
+        "name": "prh_lbl_2",
+        "type": "xsd:string"
+      },
+      {
+        "name": "prh_lbl_3",
+        "type": "xsd:string"
+      },
+      {
+        "name": "prh_lbl_4",
+        "type": "xsd:string"
+      },
+      {
+        "name": "prh_typ",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_aisprhc",
+        "type": "sop:lt_c_aisprhcType"
+      }
+    ],
+    "lt_c_aisresc": [
+      {
+        "name": "restricted",
+        "type": "xsd:string"
+      },
+      {
+        "name": "res_lbl_1",
+        "type": "xsd:string"
+      },
+      {
+        "name": "res_lbl_2",
+        "type": "xsd:string"
+      },
+      {
+        "name": "res_lbl_3",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_aisresc",
+        "type": "sop:lt_c_aisrescType"
+      }
+    ],
+    "lt_c_fsdifrsts": [
+      {
+        "name": "sltp_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "toyanghyun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_fsdifrsts",
+        "type": "sop:lt_c_fsdifrstsType"
+      }
+    ],
+    "lt_c_kfdrssigugrade": [
+      {
+        "name": "ymd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value00h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class00h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value01h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class01h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value02h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class02h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value03h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class03h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value04h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class04h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value05h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class05h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value06h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class06h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value07h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class07h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value08h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class08h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value09h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class09h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value10h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class10h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value11h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class11h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value12h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class12h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value13h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class13h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value14h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class14h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value15h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class15h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value16h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class16h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value17h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class17h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value18h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class18h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value19h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class19h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value20h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class20h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value21h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class21h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value22h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class22h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "value23h",
+        "type": "xsd:int"
+      },
+      {
+        "name": "class23h",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_kfdrssigugrade",
+        "type": "sop:lt_c_kfdrssigugradeType"
+      }
+    ],
+    "lt_c_lhblpn": [
+      {
+        "name": "zonecode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "zonename",
+        "type": "xsd:string"
+      },
+      {
+        "name": "blocktype",
+        "type": "xsd:string"
+      },
+      {
+        "name": "cat_cde",
+        "type": "xsd:string"
+      },
+      {
+        "name": "cat_nam",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_lhblpn",
+        "type": "sop:lt_c_lhblpnType"
+      }
+    ],
+    "lt_c_spbd": [
+      {
+        "name": "pk",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bd_mgt_sn",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu",
+        "type": "xsd:string"
+      },
+      {
+        "name": "gu",
+        "type": "xsd:string"
+      },
+      {
+        "name": "rd_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bld_s",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bld_e",
+        "type": "xsd:string"
+      },
+      {
+        "name": "buld_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "buld_nm_dc",
+        "type": "xsd:string"
+      },
+      {
+        "name": "buld_se_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bul_eng_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "zip_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "gro_flo_co",
+        "type": "xsd:decimal"
+      },
+      {
+        "name": "und_flo_co",
+        "type": "xsd:decimal"
+      },
+      {
+        "name": "buld_no",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sig_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "rn_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "emd_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "pnu",
+        "type": "xsd:string"
+      },
+      {
+        "name": "xpos",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ypos",
+        "type": "xsd:string"
+      },
+      {
+        "name": "poi_chk",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_spbd",
+        "type": "sop:lt_c_spbdType"
+      }
+    ],
+    "lt_c_tfismpa": [
+      {
+        "name": "mpa_cde",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mpa_nam",
+        "type": "xsd:string"
+      },
+      {
+        "name": "gos_num",
+        "type": "xsd:string"
+      },
+      {
+        "name": "gos_dat",
+        "type": "xsd:string"
+      },
+      {
+        "name": "law",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mng_org",
+        "type": "xsd:string"
+      },
+      {
+        "name": "loc",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ara_siz",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mng_ogr",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_tfismpa",
+        "type": "sop:lt_c_tfismpaType"
+      }
+    ],
+    "lt_c_ud801": [
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_ud801",
+        "type": "sop:lt_c_ud801Type"
+      }
+    ],
+    "lt_c_uf151": [
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uf151",
+        "type": "sop:lt_c_uf151Type"
+      }
+    ],
+    "lt_c_uf901": [
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uf901",
+        "type": "sop:lt_c_uf901Type"
+      }
+    ],
+    "lt_c_um221": [
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_um221",
+        "type": "sop:lt_c_um221Type"
+      }
+    ],
+    "lt_c_um301": [
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_um301",
+        "type": "sop:lt_c_um301Type"
+      }
+    ],
+    "lt_c_um710": [
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_um710",
+        "type": "sop:lt_c_um710Type"
+      }
+    ],
+    "lt_c_um901": [
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_um901",
+        "type": "sop:lt_c_um901Type"
+      }
+    ],
+    "lt_c_uo101": [
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uo101",
+        "type": "sop:lt_c_uo101Type"
+      }
+    ],
+    "lt_c_uo301": [
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uo301",
+        "type": "sop:lt_c_uo301Type"
+      }
+    ],
+    "lt_c_uo501": [
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uo501",
+        "type": "sop:lt_c_uo501Type"
+      }
+    ],
+    "lt_c_up201": [
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_up201",
+        "type": "sop:lt_c_up201Type"
+      }
+    ],
+    "lt_c_up401": [
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_up401",
+        "type": "sop:lt_c_up401Type"
+      }
+    ],
+    "lt_c_upisuq171": [
+      {
+        "name": "present_sn",
+        "type": "xsd:string"
+      },
+      {
+        "name": "lclas_cl",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mlsfc_cl",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sclas_cl",
+        "type": "xsd:string"
+      },
+      {
+        "name": "atrb_se",
+        "type": "xsd:string"
+      },
+      {
+        "name": "wtnnc_sn",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ntfc_sn",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dgm_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dgm_ar",
+        "type": "xsd:decimal"
+      },
+      {
+        "name": "dgm_lt",
+        "type": "xsd:decimal"
+      },
+      {
+        "name": "signgu_se",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sig_nam",
+        "type": "xsd:string"
+      },
+      {
+        "name": "lcl_nam",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mls_nam",
+        "type": "xsd:string"
+      },
+      {
+        "name": "scl_nam",
+        "type": "xsd:string"
+      },
+      {
+        "name": "atr_nam",
+        "type": "xsd:string"
+      },
+      {
+        "name": "pmi_nam",
+        "type": "xsd:string"
+      },
+      {
+        "name": "exc_nam",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_upisuq171",
+        "type": "sop:lt_c_upisuq171Type"
+      }
+    ],
+    "lt_c_uq111": [
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uq111",
+        "type": "sop:lt_c_uq111Type"
+      }
+    ],
+    "lt_c_uq112": [
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uq112",
+        "type": "sop:lt_c_uq112Type"
+      }
+    ],
+    "lt_c_uq113": [
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uq113",
+        "type": "sop:lt_c_uq113Type"
+      }
+    ],
+    "lt_c_uq114": [
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uq114",
+        "type": "sop:lt_c_uq114Type"
+      }
+    ],
+    "lt_c_uq121": [
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uq121",
+        "type": "sop:lt_c_uq121Type"
+      }
+    ],
+    "lt_c_uq123": [
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uq123",
+        "type": "sop:lt_c_uq123Type"
+      }
+    ],
+    "lt_c_uq124": [
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uq124",
+        "type": "sop:lt_c_uq124Type"
+      }
+    ],
+    "lt_c_uq125": [
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uq125",
+        "type": "sop:lt_c_uq125Type"
+      }
+    ],
+    "lt_c_uq126": [
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uq126",
+        "type": "sop:lt_c_uq126Type"
+      }
+    ],
+    "lt_c_uq128": [
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uq128",
+        "type": "sop:lt_c_uq128Type"
+      }
+    ],
+    "lt_c_uq129": [
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uq129",
+        "type": "sop:lt_c_uq129Type"
+      }
+    ],
+    "lt_c_uq130": [
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uq130",
+        "type": "sop:lt_c_uq130Type"
+      }
+    ],
+    "lt_c_uq162": [
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uq162",
+        "type": "sop:lt_c_uq162Type"
+      }
+    ],
+    "lt_c_wgisarwet": [
+      {
+        "name": "bcode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_wgisarwet",
+        "type": "sop:lt_c_wgisarwetType"
+      }
+    ],
+    "lt_c_wgisnpdo": [
+      {
+        "name": "park_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_wgisnpdo",
+        "type": "sop:lt_c_wgisnpdoType"
+      }
+    ],
+    "lt_c_wgisnpgug": [
+      {
+        "name": "park_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_wgisnpgug",
+        "type": "sop:lt_c_wgisnpgugType"
+      }
+    ],
+    "lt_c_wgisnpgun": [
+      {
+        "name": "park_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_wgisnpgun",
+        "type": "sop:lt_c_wgisnpgunType"
+      }
+    ],
+    "lt_l_sprd": [
+      {
+        "name": "eng_rn",
+        "type": "xsd:string"
+      },
+      {
+        "name": "rbp_cn",
+        "type": "xsd:string"
+      },
+      {
+        "name": "rds_man_no",
+        "type": "xsd:decimal"
+      },
+      {
+        "name": "rep_cn",
+        "type": "xsd:string"
+      },
+      {
+        "name": "rn",
+        "type": "xsd:string"
+      },
+      {
+        "name": "rn_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "road_bt",
+        "type": "xsd:decimal"
+      },
+      {
+        "name": "road_lt",
+        "type": "xsd:decimal"
+      },
+      {
+        "name": "road_py_lt",
+        "type": "xsd:decimal"
+      },
+      {
+        "name": "sig_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "wdr_rd_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiLineStringPropertyType"
+      },
+      {
+        "name": "lt_l_sprd",
+        "type": "sop:lt_l_sprdType"
+      }
+    ]
+  },
+  "samples": {
+    "dt_d160": {
+      "statuses": [
+        "광주 도심:ERROR",
+        "전남 화순 산간:ERROR",
+        "경북 청도 산간:ERROR"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lp_pa_cbnd_bubun": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:OK"
+      ],
+      "feature_count": 5,
+      "property_keys": [
+        "addr",
+        "bonbun",
+        "bubun",
+        "gosi_month",
+        "gosi_year",
+        "jibun",
+        "jiga",
+        "pnu"
+      ],
+      "sample_properties": {
+        "gosi_year": "2025",
+        "pnu": "1276025025100660000",
+        "jibun": "66 도",
+        "bonbun": "66도",
+        "bubun": "",
+        "addr": "전남광주통합특별시 화순군 화순읍 훈리 66",
+        "gosi_month": "01",
+        "jiga": "155200"
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "광주 도심"
+    },
+    "lt_c_ademd": {
+      "statuses": [
+        "광주 도심:ERROR",
+        "전남 화순 산간:ERROR",
+        "경북 청도 산간:ERROR"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_adri": {
+      "statuses": [
+        "광주 도심:ERROR",
+        "전남 화순 산간:ERROR",
+        "경북 청도 산간:ERROR"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_adsido": {
+      "statuses": [
+        "광주 도심:ERROR",
+        "전남 화순 산간:ERROR",
+        "경북 청도 산간:ERROR"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_adsigg": {
+      "statuses": [
+        "광주 도심:ERROR",
+        "전남 화순 산간:ERROR",
+        "경북 청도 산간:ERROR"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_agrixue101": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:OK"
+      ],
+      "feature_count": 1,
+      "property_keys": [
+        "admin_cd",
+        "alias",
+        "bon_bun",
+        "bu_bun",
+        "dnum",
+        "dyear",
+        "mnum",
+        "remark",
+        "sido_cd",
+        "sido_name",
+        "sigg_name",
+        "sigungu_cd",
+        "std_sggcd",
+        "ucode",
+        "uname"
+      ],
+      "sample_properties": {
+        "bu_bun": "000",
+        "sido_name": "전남광주통합특별시",
+        "sigg_name": "화순군",
+        "uname": "농업진흥구역",
+        "mnum": "64600001276020180069UEA1100193000",
+        "remark": "",
+        "alias": "",
+        "std_sggcd": "12760",
+        "admin_cd": "6460000",
+        "sido_cd": "12",
+        "sigungu_cd": "760",
+        "dyear": "2018",
+        "dnum": "0069",
+        "ucode": "UEA110",
+        "bon_bun": "0193"
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "광주 도심"
+    },
+    "lt_c_agrixue102": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:OK"
+      ],
+      "feature_count": 5,
+      "property_keys": [
+        "admin_cd",
+        "alias",
+        "bon_bun",
+        "bu_bun",
+        "dnum",
+        "dyear",
+        "mnum",
+        "remark",
+        "sido_cd",
+        "sido_name",
+        "sigg_name",
+        "sigungu_cd",
+        "ucode",
+        "uname"
+      ],
+      "sample_properties": {
+        "uname": "영농여건불리농지",
+        "mnum": "49000001276020101105UEG1000005058",
+        "remark": "",
+        "alias": "",
+        "admin_cd": "4900000",
+        "sido_cd": "12",
+        "sigungu_cd": "760",
+        "dyear": "2010",
+        "dnum": "1105",
+        "ucode": "UEG100",
+        "bon_bun": "0005",
+        "bu_bun": "058",
+        "sido_name": "전남광주통합특별시",
+        "sigg_name": "화순군"
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "광주 도심"
+    },
+    "lt_c_aisacmc": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_aisatzc": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_aiscatc": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_aisctrc": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_aismoac": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_aisprhc": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_aisresc": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_fsdifrsts": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:OK"
+      ],
+      "feature_count": 5,
+      "property_keys": [
+        "name",
+        "toyanghyun"
+      ],
+      "sample_properties": {
+        "toyanghyun": "B₂",
+        "name": "갈색약건산림토양"
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "광주 도심"
+    },
+    "lt_c_kfdrssigugrade": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:OK"
+      ],
+      "feature_count": 1,
+      "property_keys": [
+        "class00h",
+        "class01h",
+        "class02h",
+        "class03h",
+        "class04h",
+        "class05h",
+        "class06h",
+        "class07h",
+        "class08h",
+        "class09h",
+        "class10h",
+        "class11h",
+        "class12h",
+        "class13h",
+        "class14h",
+        "class15h",
+        "class16h",
+        "class17h",
+        "class18h",
+        "class19h",
+        "class20h",
+        "class21h",
+        "class22h",
+        "class23h",
+        "value00h",
+        "value01h",
+        "value02h",
+        "value03h",
+        "value04h",
+        "value05h",
+        "value06h",
+        "value07h",
+        "value08h",
+        "value09h",
+        "value10h",
+        "value11h",
+        "value12h",
+        "value13h",
+        "value14h",
+        "value15h",
+        "value16h",
+        "value17h",
+        "value18h",
+        "value19h",
+        "value20h",
+        "value21h",
+        "value22h",
+        "value23h",
+        "ymd"
+      ],
+      "sample_properties": {
+        "ymd": "20140112",
+        "value00h": "29",
+        "class00h": "낮음",
+        "value01h": "29",
+        "class01h": "낮음",
+        "value02h": "30",
+        "class02h": "낮음",
+        "value03h": "29",
+        "class03h": "낮음",
+        "value04h": "0",
+        "class04h": "",
+        "value05h": "29",
+        "class05h": "낮음",
+        "value06h": "29",
+        "class06h": "낮음",
+        "value07h": "29",
+        "class07h": "낮음",
+        "value08h": "29",
+        "class08h": "낮음",
+        "value09h": "29",
+        "class09h": "낮음",
+        "value10h": "34",
+        "class10h": "낮음",
+        "value11h": "0",
+        "class11h": "",
+        "value12h": "36",
+        "class12h": "낮음",
+        "value13h": "37",
+        "class13h": "낮음",
+        "value14h": "35",
+        "class14h": "낮음",
+        "value15h": "0",
+        "class15h": "",
+        "value16h": "0",
+        "class16h": "",
+        "value17h": "0",
+        "class17h": "",
+        "value18h": "0",
+        "class18h": "",
+        "value19h": "0",
+        "class19h": "",
+        "value20h": "0",
+        "class20h": "",
+        "value21h": "0",
+        "class21h": "",
+        "value22h": "0",
+        "class22h": "",
+        "value23h": "0",
+        "class23h": ""
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "광주 도심"
+    },
+    "lt_c_lhblpn": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_spbd": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:OK"
+      ],
+      "feature_count": 5,
+      "property_keys": [
+        "bd_mgt_sn",
+        "bul_eng_nm",
+        "buld_nm",
+        "buld_nm_dc",
+        "buld_no",
+        "gro_flo_co",
+        "gu",
+        "rd_nm",
+        "sido",
+        "sigungu"
+      ],
+      "sample_properties": {
+        "buld_nm_dc": "",
+        "buld_no": "15",
+        "rd_nm": "일심동길",
+        "sigungu": "화순군",
+        "sido": "전남광주통합특별시",
+        "gro_flo_co": "0",
+        "bul_eng_nm": "",
+        "buld_nm": "",
+        "gu": "화순읍",
+        "bd_mgt_sn": "4679025028100620000046206"
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "광주 도심"
+    },
+    "lt_c_tfismpa": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_ud801": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 5,
+      "property_keys": [
+        "dnum",
+        "dyear",
+        "sido_name",
+        "sigg_name",
+        "uname"
+      ],
+      "sample_properties": {
+        "uname": "개발제한구역",
+        "dyear": "0000",
+        "dnum": "0000",
+        "sido_name": "전남광주통합특별시",
+        "sigg_name": "화순군"
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "광주 도심"
+    },
+    "lt_c_uf151": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_uf901": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_um221": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_um301": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_um710": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_um901": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_uo101": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:OK"
+      ],
+      "feature_count": 5,
+      "property_keys": [
+        "dnum",
+        "dyear",
+        "remark",
+        "sido_name",
+        "sigg_name",
+        "uname"
+      ],
+      "sample_properties": {
+        "dnum": "0017",
+        "sido_name": "전남광주통합특별시",
+        "sigg_name": "화순군",
+        "remark": "",
+        "uname": "상대보호구역",
+        "dyear": "2018"
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "광주 도심"
+    },
+    "lt_c_uo301": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:OK"
+      ],
+      "feature_count": 5,
+      "property_keys": [
+        "admin_cd",
+        "alias",
+        "bon_bun",
+        "bu_bun",
+        "dnum",
+        "dyear",
+        "mnum",
+        "remark",
+        "sido_cd",
+        "sido_name",
+        "sigg_name",
+        "sigungu_cd",
+        "std_sggcd",
+        "ucode",
+        "uname"
+      ],
+      "sample_properties": {
+        "sigg_name": "화순군",
+        "uname": "역사문화환경보존지역",
+        "dyear": "2008",
+        "dnum": "0004",
+        "ucode": "UOC800",
+        "bon_bun": "0010",
+        "bu_bun": "001",
+        "sido_name": "전남광주통합특별시",
+        "mnum": "64600001276020080004UOC8000010001",
+        "remark": "",
+        "alias": "",
+        "std_sggcd": "12760",
+        "admin_cd": "6460000",
+        "sido_cd": "12",
+        "sigungu_cd": "760"
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "광주 도심"
+    },
+    "lt_c_uo501": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_up201": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_up401": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_upisuq171": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 2,
+      "property_keys": [
+        "atr_nam",
+        "atrb_se",
+        "dgm_ar",
+        "dgm_lt",
+        "dgm_nm",
+        "exc_nam",
+        "lcl_nam",
+        "lclas_cl",
+        "mls_nam",
+        "mlsfc_cl",
+        "ntfc_sn",
+        "pmi_nam",
+        "present_sn",
+        "scl_nam",
+        "sclas_cl",
+        "sig_nam",
+        "signgu_se",
+        "wtnnc_sn"
+      ],
+      "sample_properties": {
+        "lcl_nam": "개발행위허가제한지역",
+        "mls_nam": "미분류",
+        "scl_nam": "미분류",
+        "atr_nam": "개발행위허가제한지역",
+        "pmi_nam": "",
+        "exc_nam": "",
+        "present_sn": "46790UQ171PS000000000002",
+        "lclas_cl": "UQQ900",
+        "mlsfc_cl": "",
+        "sclas_cl": "",
+        "atrb_se": "UQQ900",
+        "wtnnc_sn": "46790ARZ000000000665",
+        "ntfc_sn": "46790NTC000000000382",
+        "dgm_nm": "개발행위허가제한지역",
+        "dgm_ar": "142293",
+        "dgm_lt": "1621",
+        "signgu_se": "46790",
+        "sig_nam": "46"
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "광주 도심"
+    },
+    "lt_c_uq111": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:OK"
+      ],
+      "feature_count": 5,
+      "property_keys": [
+        "dnum",
+        "dyear",
+        "sido_name",
+        "sigg_name",
+        "uname"
+      ],
+      "sample_properties": {
+        "uname": "제1종일반주거지역",
+        "dyear": "2010",
+        "dnum": "0426",
+        "sido_name": "전남광주통합특별시",
+        "sigg_name": "화순군"
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "광주 도심"
+    },
+    "lt_c_uq112": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:OK"
+      ],
+      "feature_count": 2,
+      "property_keys": [
+        "dnum",
+        "dyear",
+        "sido_name",
+        "sigg_name",
+        "uname"
+      ],
+      "sample_properties": {
+        "uname": "계획관리지역",
+        "dyear": "2010",
+        "dnum": "0426",
+        "sido_name": "전남광주통합특별시",
+        "sigg_name": "화순군"
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "광주 도심"
+    },
+    "lt_c_uq113": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:OK"
+      ],
+      "feature_count": 1,
+      "property_keys": [
+        "dnum",
+        "dyear",
+        "sido_name",
+        "sigg_name",
+        "uname"
+      ],
+      "sample_properties": {
+        "uname": "농림지역",
+        "dyear": "2010",
+        "dnum": "0426",
+        "sido_name": "전남광주통합특별시",
+        "sigg_name": "화순군"
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "광주 도심"
+    },
+    "lt_c_uq114": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_uq121": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 2,
+      "property_keys": [
+        "dnum",
+        "dyear",
+        "sido_name",
+        "sigg_name",
+        "uname"
+      ],
+      "sample_properties": {
+        "uname": "자연경관지구",
+        "dyear": "2010",
+        "dnum": "0426",
+        "sido_name": "전남광주통합특별시",
+        "sigg_name": "화순군"
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "광주 도심"
+    },
+    "lt_c_uq123": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 2,
+      "property_keys": [
+        "dnum",
+        "dyear",
+        "sido_name",
+        "sigg_name",
+        "uname"
+      ],
+      "sample_properties": {
+        "uname": "고도지구",
+        "dyear": "2024",
+        "dnum": "0032",
+        "sido_name": "전남광주통합특별시",
+        "sigg_name": "화순군"
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "전남 화순 산간"
+    },
+    "lt_c_uq124": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_uq125": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_uq126": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_uq128": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:OK"
+      ],
+      "feature_count": 5,
+      "property_keys": [
+        "dnum",
+        "dyear",
+        "sido_name",
+        "sigg_name",
+        "uname"
+      ],
+      "sample_properties": {
+        "sigg_name": "화순군",
+        "uname": "자연취락지구",
+        "dyear": "2024",
+        "dnum": "0032",
+        "sido_name": "전남광주통합특별시"
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "광주 도심"
+    },
+    "lt_c_uq129": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_uq130": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_uq162": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:OK"
+      ],
+      "feature_count": 5,
+      "property_keys": [
+        "dnum",
+        "dyear",
+        "sido_name",
+        "sigg_name",
+        "uname"
+      ],
+      "sample_properties": {
+        "uname": "기타공원시설",
+        "dyear": "2008",
+        "dnum": "0125",
+        "sido_name": "전남광주통합특별시",
+        "sigg_name": "화순군"
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "광주 도심"
+    },
+    "lt_c_wgisarwet": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_wgisnpdo": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_wgisnpgug": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 1,
+      "property_keys": [
+        "park_name"
+      ],
+      "sample_properties": {
+        "park_name": "무등산"
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "광주 도심"
+    },
+    "lt_c_wgisnpgun": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_l_sprd": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:OK"
+      ],
+      "feature_count": 5,
+      "property_keys": [
+        "rn"
+      ],
+      "sample_properties": {
+        "rn": "자치샘로"
+      },
+      "geometry_type": "MultiLineString",
+      "hit_at": "광주 도심"
+    }
+  }
+}

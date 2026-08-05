@@ -1,0 +1,67 @@
+# =====================================================================
+# 재생E AI Agent — Backend Dependencies
+# =====================================================================
+
+# Django
+Django>=5.0,<6.0
+djangorestframework>=3.15,<4.0
+django-cors-headers>=4.3,<5.0
+django-filter>=24.0,<25.0
+
+# Database
+psycopg2-binary>=2.9,<3.0
+dj-database-url>=2.1,<3.0
+
+# Async Tasks
+celery>=5.4,<6.0
+redis>=5.0,<6.0
+
+# Vector DB
+qdrant-client>=1.9,<2.0
+
+# Embedding (BGE-M3)
+# FlagEmbedding>=1.2    # 용량이 크므로 필요 시 활성화
+sentence-transformers>=3.0,<4.0
+fastembed>=0.2,<1.0
+
+# Document Parsing
+PyMuPDF>=1.24,<2.0
+pdfplumber>=0.10,<1.0
+python-docx>=1.1,<2.0
+openpyxl>=3.1,<4.0
+pandas>=2.2,<3.0
+
+# OCR (스캔 PDF 처리)
+pdf2image>=1.16,<2.0
+pytesseract>=0.3.10,<1.0
+Pillow>=10.0,<12.0
+
+# LLM
+httpx>=0.27,<1.0
+openai>=1.30,<2.0
+
+# Word Export
+python-docx>=1.1,<2.0
+
+# Utilities
+python-dotenv>=1.0,<2.0
+gunicorn>=22.0,<23.0
+python-pptx>=1.0.0
+
+# HWP/HWPX Document Parsing
+hwp-hwpx-parser>=1.0.0
+olefile>=0.47
+
+# =====================================================================
+# 풍력 입지검토(windsite) — 공간연산 스택
+#   shapely  : 폴리곤 교차·거리·면적 연산 (최근접 이격거리, 가용면적)
+#   pyproj   : WGS84 ↔ EPSG:5179(UTM-K) 투영 변환 — 미터 단위 정확 거리
+#   pyshp    : SHP 판독 (국가유산 등 공간데이터 적재, GDAL 불필요)
+#   dbfread  : SHP 속성(DBF) 판독 — CP949 인코딩 대응
+#   matplotlib: 검토 보고서용 지도 렌더링
+# =====================================================================
+shapely>=2.0,<3.0
+pyproj>=3.6,<4.0
+pyshp>=2.3,<4.0
+dbfread>=2.0,<3.0
+matplotlib>=3.8,<4.0

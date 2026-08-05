@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="UTF-8"?><xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:gml="http://www.opengis.net/gml" xmlns:sop="https://www.vworld.kr" elementFormDefault="qualified" targetNamespace="https://www.vworld.kr">
+  <xsd:import namespace="http://www.opengis.net/gml" schemaLocation="http://10.10.21.6:8080/geoserver/schemas/gml/3.1.1/base/gml.xsd"/>
+  <xsd:complexType name="lt_c_kfdrssigugradeType">
+    <xsd:complexContent>
+      <xsd:extension base="gml:AbstractFeatureType">
+        <xsd:sequence>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ymd" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>예측년월일</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value00h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>00시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class00h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>00시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value01h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>01시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class01h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>01시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value02h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>02시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class02h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>02시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value03h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>03시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class03h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>03시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value04h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>04시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class04h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>04시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value05h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>05시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class05h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>05시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value06h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>06시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class06h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>06시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value07h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>07시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class07h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>07시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value08h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>08시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class08h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>08시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value09h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>09시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class09h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>09시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value10h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>10시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class10h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>10시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value11h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>11시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class11h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>11시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value12h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>12시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class12h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>12시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value13h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>13시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class13h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>13시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value14h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>14시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class14h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>14시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value15h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>15시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class15h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>15시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value16h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>16시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class16h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>16시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value17h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>17시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class17h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>17시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value18h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>18시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class18h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>18시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value19h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>19시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class19h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>19시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value20h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>20시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class20h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>20시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value21h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>21시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class21h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>21시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value22h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>22시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class22h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>22시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="value23h" nillable="true" type="xsd:int">
+            <xsd:annotation>
+              <xsd:documentation>23시예측값</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="class23h" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>23시예측등급</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ag_geom" nillable="true" type="gml:MultiSurfacePropertyType">
+            <xsd:annotation>
+              <xsd:documentation>지오메트리</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+        </xsd:sequence>
+      </xsd:extension>
+    </xsd:complexContent>
+  </xsd:complexType>
+  <xsd:element name="lt_c_kfdrssigugrade" substitutionGroup="gml:_Feature" type="sop:lt_c_kfdrssigugradeType"/>
+</xsd:schema>

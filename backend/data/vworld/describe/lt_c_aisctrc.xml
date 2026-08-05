@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?><xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:gml="http://www.opengis.net/gml" xmlns:sop="https://www.vworld.kr" elementFormDefault="qualified" targetNamespace="https://www.vworld.kr">
+  <xsd:import namespace="http://www.opengis.net/gml" schemaLocation="http://10.10.21.6:8080/geoserver/schemas/gml/3.1.1/base/gml.xsd"/>
+  <xsd:complexType name="lt_c_aisctrcType">
+    <xsd:complexContent>
+      <xsd:extension base="gml:AbstractFeatureType">
+        <xsd:sequence>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ctr_lbl_1" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ctr_label" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ctr_class_" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>한글명없음</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ag_geom" nillable="true" type="gml:MultiSurfacePropertyType">
+            <xsd:annotation>
+              <xsd:documentation>지오메트리</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+        </xsd:sequence>
+      </xsd:extension>
+    </xsd:complexContent>
+  </xsd:complexType>
+  <xsd:element name="lt_c_aisctrc" substitutionGroup="gml:_Feature" type="sop:lt_c_aisctrcType"/>
+</xsd:schema>

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:gml="http://www.opengis.net/gml" xmlns:sop="https://www.vworld.kr" elementFormDefault="qualified" targetNamespace="https://www.vworld.kr">
+  <xsd:import namespace="http://www.opengis.net/gml" schemaLocation="http://10.10.21.6:8080/geoserver/schemas/gml/3.1.1/base/gml.xsd"/>
+  <xsd:complexType name="lt_l_sprdType">
+    <xsd:complexContent>
+      <xsd:extension base="gml:AbstractFeatureType">
+        <xsd:sequence>
+          <xsd:element maxOccurs="1" minOccurs="0" name="eng_rn" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>영문도로명</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="rbp_cn" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>기점</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="rds_man_no" nillable="true" type="xsd:decimal">
+            <xsd:annotation>
+              <xsd:documentation>도로구간일련번호</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="rep_cn" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>종점</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="rn" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>도로명</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="rn_cd" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>도로명코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="road_bt" nillable="true" type="xsd:decimal">
+            <xsd:annotation>
+              <xsd:documentation>도로폭</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="road_lt" nillable="true" type="xsd:decimal">
+            <xsd:annotation>
+              <xsd:documentation>도로길이</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="road_py_lt" nillable="true" type="xsd:decimal">
+            <xsd:annotation>
+              <xsd:documentation>도로길이(상세)</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="sig_cd" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>시군구코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="wdr_rd_cd" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>광역도로구분코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ag_geom" nillable="true" type="gml:MultiLineStringPropertyType">
+            <xsd:annotation>
+              <xsd:documentation>지오메트리</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+        </xsd:sequence>
+      </xsd:extension>
+    </xsd:complexContent>
+  </xsd:complexType>
+  <xsd:element name="lt_l_sprd" substitutionGroup="gml:_Feature" type="sop:lt_l_sprdType"/>
+</xsd:schema>

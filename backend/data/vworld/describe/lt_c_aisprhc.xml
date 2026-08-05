@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?><xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:gml="http://www.opengis.net/gml" xmlns:sop="https://www.vworld.kr" elementFormDefault="qualified" targetNamespace="https://www.vworld.kr">
+  <xsd:import namespace="http://www.opengis.net/gml" schemaLocation="http://10.10.21.6:8080/geoserver/schemas/gml/3.1.1/base/gml.xsd"/>
+  <xsd:complexType name="lt_c_aisprhcType">
+    <xsd:complexContent>
+      <xsd:extension base="gml:AbstractFeatureType">
+        <xsd:sequence>
+          <xsd:element maxOccurs="1" minOccurs="0" name="prohibited" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>비행금지구역전체라벨</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="prh_lbl_1" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>비행금지구역라벨1</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="prh_lbl_2" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>비행금지구역라벨2</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="prh_lbl_3" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>비행금지구역라벨3</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="prh_lbl_4" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>비행금지구역라벨4</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="prh_typ" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>비행금지구역타입</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ag_geom" nillable="true" type="gml:MultiSurfacePropertyType">
+            <xsd:annotation>
+              <xsd:documentation>지오메트리</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+        </xsd:sequence>
+      </xsd:extension>
+    </xsd:complexContent>
+  </xsd:complexType>
+  <xsd:element name="lt_c_aisprhc" substitutionGroup="gml:_Feature" type="sop:lt_c_aisprhcType"/>
+</xsd:schema>

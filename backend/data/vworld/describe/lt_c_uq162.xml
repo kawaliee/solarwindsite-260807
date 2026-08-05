@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:gml="http://www.opengis.net/gml" xmlns:sop="https://www.vworld.kr" elementFormDefault="qualified" targetNamespace="https://www.vworld.kr">
+  <xsd:import namespace="http://www.opengis.net/gml" schemaLocation="http://10.10.21.6:8080/geoserver/schemas/gml/3.1.1/base/gml.xsd"/>
+  <xsd:complexType name="lt_c_uq162Type">
+    <xsd:complexContent>
+      <xsd:extension base="gml:AbstractFeatureType">
+        <xsd:sequence>
+          <xsd:element maxOccurs="1" minOccurs="0" name="alias" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>별칭</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="remark" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>메모</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="mnum" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>관리번호</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="std_sggcd" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>시군구코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="admin_cd" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>관리기관코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="sido_cd" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>시도코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="sigungu_cd" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>시군구코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="dyear" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>고시년도</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="dnum" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>고시번호</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ucode" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>용도코드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="bon_bun" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>본번</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="bu_bun" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>부번</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="sido_name" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>시도명</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="sigg_name" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>시군구명</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="uname" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>용도지역명</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ag_geom" nillable="true" type="gml:MultiSurfacePropertyType">
+            <xsd:annotation>
+              <xsd:documentation>지오메트리</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+        </xsd:sequence>
+      </xsd:extension>
+    </xsd:complexContent>
+  </xsd:complexType>
+  <xsd:element name="lt_c_uq162" substitutionGroup="gml:_Feature" type="sop:lt_c_uq162Type"/>
+</xsd:schema>

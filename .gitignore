@@ -12,6 +12,10 @@ web_modules/
 /backend/media/
 db.sqlite3
 
+# 원본 공간데이터(SHP ZIP) 배제 — 용량이 크고 배포처에서 재수급 가능
+# (국가유산청 https://www.khs.go.kr 공간정보 다운로드 → backend/data/heritage/ 에 배치)
+/backend/data/heritage/
+
 # 파이썬 캐시 및 가상환경 배제
 __pycache__/
 *.py[cod]
@@ -33,6 +37,8 @@ Thumbs.db
 *api key*.txt
 *API KEY*.txt
 *.txt
+# 단, 의존성 목록은 이미지 빌드에 필수다 (*.txt 일괄 배제에 걸려 누락돼 있었음)
+!backend/requirements.txt
 
 # IDE 및 도구 임시 설정 배제
 .gemini/
