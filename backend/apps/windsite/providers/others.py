@@ -10,8 +10,6 @@
 """
 from __future__ import annotations
 
-import math
-
 from django.conf import settings
 
 from ..schemas import AnalysisItem, Confidence, Difficulty, Status
@@ -68,54 +66,9 @@ class LandslideProvider(LayerProvider):
 
 
 # ======================================================================
-# 6. 국가유산 (문화재)
+# 6. 국가유산 → providers/local_spatial.py 의 HeritageSpatialProvider로 이관
+#    (공개 API 대신 국가유산청 SHP 직접 적재 → 좌표 기반 실거리 판정)
 # ======================================================================
-class HeritageProvider(LayerProvider):
-    category = '안전/문화재'
-    item_name = '국가유산·역사문화환경 보존지역'
-    data_source = '국가유산청'
-    required_settings = ('HERITAGE_API_KEY', 'HERITAGE_URL')
-    default_law = '문화유산의 보존 및 활용에 관한 법률'
-    default_article = '제13조(역사문화환경 보존지역의 보호)'
-
-    #: 국가지정유산 외곽경계 500m 원칙 — 시·도 조례로 축소·확대 가능
-    DEFAULT_BUFFER_M = 500
-
-    def analyze(self, q: SiteQuery) -> AnalysisItem:
-        res = self.get(settings.HERITAGE_URL, {
-            'serviceKey': settings.HERITAGE_API_KEY,
-            'lat': q.lat, 'lng': q.lng,
-            'radius': q.radius_m + self.DEFAULT_BUFFER_M, 'type': 'json',
-        })
-        res.raise_for_status()
-        items = _find_named_items(res.json())
-
-        if not items:
-            return self.item(
-                status=Status.POSSIBLE,
-                reason=(
-                    f'검토 반경 + 역사문화환경 보존지역 기본 {self.DEFAULT_BUFFER_M}m 범위 내에서 '
-                    '지정 국가유산이 조회되지 않았습니다.'
-                ),
-                difficulty=Difficulty.LOW,
-                confidence=Confidence.MEDIUM,
-                action_required='매장유산 지표조사 대상 여부는 사업 면적 기준으로 별도 확인이 필요합니다.',
-                raw={'heritages': []},
-            )
-
-        return self.item(
-            status=Status.CONDITIONAL,
-            reason=(
-                f'인근 국가유산이 확인되었습니다({", ".join(items[:5])}). '
-                '역사문화환경 보존지역은 지정유산 외곽경계로부터 원칙적으로 500m 이내이며, '
-                '시·도 조례로 범위가 조정될 수 있어 현상변경 허용기준 확인이 필요합니다.'
-            ),
-            difficulty=Difficulty.HIGH,
-            confidence=Confidence.MEDIUM,
-            source_url='https://www.khs.go.kr',
-            action_required='관할 시·도의 현상변경 허용기준을 확인하고 필요 시 현상변경 허가를 신청하십시오.',
-            raw={'heritages': items},
-        )
 
 
 # ======================================================================
@@ -247,70 +200,12 @@ class WindResourceProvider(LayerProvider):
 
 
 # ======================================================================
-# 10. 전력계통 연계
+# 10. 전력계통 연계 → providers/osm.py 의 OsmGridProvider로 이관
+#     (한전 미공개 → OSM Overpass로 변전소·송전선로 최근접 탐색)
 # ======================================================================
-class GridConnectionProvider(LayerProvider):
-    category = '인프라'
-    item_name = '전력계통 연계'
-    data_source = '한국전력공사 (공개 API 미제공)'
-    required_settings = ()
-    default_law = '송·배전용 전기설비 이용규정'
-
-    def __init__(self, substations: list[dict] | None = None):
-        """substations: [{'name':..,'lat':..,'lng':..,'kv':154}] — 내부 DB/수기 입력"""
-        self.substations = substations or []
-
-    def analyze(self, q: SiteQuery) -> AnalysisItem:
-        if not self.substations:
-            return self.item(
-                status=Status.UNKNOWN,
-                reason=(
-                    '변전소 위치 및 계통 여유용량은 한전이 공개 API로 제공하지 않아 '
-                    '자동 판정이 불가합니다.'
-                ),
-                difficulty=Difficulty.MEDIUM,
-                confidence=Confidence.MEDIUM,
-                source_url='https://online.kepco.co.kr',
-                action_required=(
-                    '① 한전ON에서 인근 변전소 접속 가능 용량 조회 '
-                    '② 한전에 계통연계 사전검토(기술검토) 신청'
-                ),
-            )
-
-        nearest = min(self.substations, key=lambda s: _haversine_km(q.lat, q.lng, s['lat'], s['lng']))
-        dist = _haversine_km(q.lat, q.lng, nearest['lat'], nearest['lng'])
-        kv = nearest.get('kv', 0)
-
-        if dist <= 10 and kv >= 154:
-            st, df = Status.POSSIBLE, Difficulty.LOW
-            msg = '연계 여건이 양호합니다.'
-        elif dist <= 25:
-            st, df = Status.CONDITIONAL, Difficulty.MEDIUM
-            msg = '송전선로 신설 거리가 길어 공사비·인허가 부담이 있습니다.'
-        else:
-            st, df = Status.CONDITIONAL, Difficulty.HIGH
-            msg = '계통 연계점이 원거리에 있어 사업성 저하 요인입니다.'
-
-        return self.item(
-            status=st,
-            reason=f'최근접 변전소 {nearest["name"]}({kv}kV)까지 직선거리 약 {dist:.1f}km. {msg}',
-            difficulty=df,
-            confidence=Confidence.LOW,
-            action_required='한전에 계통연계 사전검토를 신청해 실제 접속 가능 용량을 확인하십시오.',
-            raw={'nearest': nearest, 'distance_km': round(dist, 2)},
-        )
 
 
 # ----------------------------------------------------------------------
-def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
-    r = 6371.0
-    p1, p2 = math.radians(lat1), math.radians(lat2)
-    dp = math.radians(lat2 - lat1)
-    dl = math.radians(lng2 - lng1)
-    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
-    return 2 * r * math.asin(math.sqrt(a))
-
-
 def _find_ints(data, keys: tuple[str, ...]) -> set[int]:
     out: set[int] = set()
 
@@ -330,22 +225,3 @@ def _find_ints(data, keys: tuple[str, ...]) -> set[int]:
 
     walk(data)
     return {g for g in out if 1 <= g <= 5}
-
-
-def _find_named_items(data) -> list[str]:
-    names: list[str] = []
-
-    def walk(o):
-        if isinstance(o, dict):
-            for k, v in o.items():
-                if isinstance(v, (dict, list)):
-                    walk(v)
-                elif isinstance(v, str) and ('nm' in str(k).lower() or 'name' in str(k).lower()):
-                    if v.strip():
-                        names.append(v.strip())
-        elif isinstance(o, list):
-            for i in o:
-                walk(i)
-
-    walk(data)
-    return sorted(set(names))
