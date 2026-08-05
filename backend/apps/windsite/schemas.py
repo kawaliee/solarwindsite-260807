@@ -114,6 +114,10 @@ class AnalysisItem:
             'source_url': self.source_url,
             'data_source': self.data_source,
             'action_required': self.action_required,
+            # raw는 판정 근거(최근접 거리·필지 면적·조회된 구역명 등)를 담는다.
+            # 보고서 재생성과 화면 상세 표시가 이 값에 의존하므로 함께 직렬화한다.
+            # (각 어댑터가 상위 N건으로 이미 제한해 보관한다)
+            'raw': self.raw,
         }
 
 

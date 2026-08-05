@@ -13,7 +13,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr-kor \
     tesseract-ocr-eng \
     poppler-utils \
-    && rm -rf /var/lib/apt/lists/*
+    # 검토 보고서 지도에 한글을 렌더링하려면 한글 폰트가 필요하다 (없으면 □로 깨짐)
+    fonts-nanum \
+    && rm -rf /var/lib/apt/lists/* \
+    && fc-cache -fv
 
 # Python 패키지 설치
 COPY requirements.txt .

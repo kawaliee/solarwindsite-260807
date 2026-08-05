@@ -2,15 +2,16 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
+from urllib.parse import quote
 
-from django.conf import settings
 from rest_framework import status as http
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .engine import evaluate
+from .engine import compare, evaluate
 from .geocode import geocode, reverse_geocode
-from .models import LawReference, LocalOrdinance, PermitStep, SiteEvaluation
+from .models import LawReference, LocalOrdinance, SiteEvaluation
 from .permits import build_roadmap, collect_laws
 
 logger = logging.getLogger(__name__)
@@ -102,6 +103,195 @@ def evaluate_site(request):
         logger.exception('입지 검토 이력 저장 실패')
 
     return Response(payload)
+
+
+@api_view(['POST'])
+def compare_sites(request):
+    """
+    복수 후보지 비교 검토
+
+    POST body:
+      { "candidates": [
+          {"label":"A안", "lat":..., "lng":..., "radius_m":500, "capacity_mw":60},
+          {"label":"B안", "address":"전남 화순군 ..."}
+        ] }
+    """
+    d = request.data or {}
+    raw = d.get('candidates') or []
+    if not isinstance(raw, list) or not raw:
+        return Response({'detail': 'candidates 배열이 필요합니다.'},
+                        status=http.HTTP_400_BAD_REQUEST)
+    if len(raw) > 5:
+        return Response({'detail': '한 번에 비교 가능한 후보는 최대 5곳입니다.'},
+                        status=http.HTTP_400_BAD_REQUEST)
+
+    prepared: list[dict] = []
+    for idx, c in enumerate(raw, start=1):
+        try:
+            lat, lng = _resolve_point(c)
+        except ValueError as e:
+            return Response({'detail': f'후보 {idx}: {e}'}, status=http.HTTP_400_BAD_REQUEST)
+        sido, sigungu, address = _resolve_admin(c, lat, lng)
+        prepared.append({
+            'label': c.get('label') or address or f'후보 {idx}',
+            'lat': lat, 'lng': lng,
+            'radius_m': max(50, min(20000, int(c.get('radius_m') or 500))),
+            'address': address, 'sido': sido, 'sigungu': sigungu,
+            'capacity_mw': _as_float(c.get('capacity_mw')),
+        })
+
+    return Response(compare(prepared))
+
+
+@api_view(['POST'])
+def evaluation_report(request):
+    """
+    검토 보고서(docx) 생성 — 이미 저장된 이력 또는 즉석 검토 결과로 만든다.
+
+    POST body: { "evaluation_id": "<uuid>" }  또는  evaluate 와 동일한 좌표 파라미터
+    """
+    from django.http import HttpResponse
+
+    from .report import build_report
+    from .schemas import (
+        AnalysisItem, Confidence, Coordinates, Difficulty, EvaluationResult,
+        OverallFeasibility, SiteInfo, Status,
+    )
+
+    d = request.data or {}
+    eval_id = d.get('evaluation_id')
+
+    if eval_id:
+        try:
+            row = SiteEvaluation.objects.get(pk=eval_id)
+        except (SiteEvaluation.DoesNotExist, ValueError, TypeError):
+            return Response({'detail': '검토 이력을 찾을 수 없습니다.'},
+                            status=http.HTTP_404_NOT_FOUND)
+        payload = row.result_json or {}
+        result = _result_from_payload(
+            payload, AnalysisItem, Confidence, Coordinates, Difficulty,
+            EvaluationResult, OverallFeasibility, SiteInfo, Status)
+        sido, sigungu = row.sido, row.sigungu
+        stem = row.address or f'{row.lat:.5f}_{row.lng:.5f}'
+    else:
+        try:
+            lat, lng = _resolve_point(d)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=http.HTTP_400_BAD_REQUEST)
+        sido, sigungu, address = _resolve_admin(d, lat, lng)
+        result = evaluate(
+            lat=lat, lng=lng,
+            radius_m=max(50, min(20000, int(d.get('radius_m') or 500))),
+            address=address, capacity_mw=_as_float(d.get('capacity_mw')),
+            sido=sido, sigungu=sigungu,
+        )
+        stem = address or f'{lat:.5f}_{lng:.5f}'
+
+    try:
+        blob = build_report(result, sido=sido, sigungu=sigungu,
+                            with_maps=bool(d.get('with_maps', True)))
+    except ImportError as e:
+        return Response(
+            {'detail': f'보고서 생성 의존성이 없습니다 ({e}). '
+                       'requirements.txt 반영 후 backend 이미지를 재빌드하십시오.'},
+            status=http.HTTP_501_NOT_IMPLEMENTED)
+
+    filename = f'풍력입지검토_{stem}_{datetime.now():%Y%m%d}.docx'.replace('/', '_')
+    res = HttpResponse(
+        blob,
+        content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    res['Content-Disposition'] = \
+        f"attachment; filename*=UTF-8''{quote(filename)}"
+    return res
+
+
+# ----------------------------------------------------------------------
+def _as_float(v):
+    try:
+        return float(v) if v not in (None, '') else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _resolve_point(d: dict) -> tuple[float, float]:
+    """lat/lng 또는 address(지오코딩)에서 좌표를 확정한다."""
+    try:
+        lat, lng = float(d['lat']), float(d['lng'])
+    except (KeyError, TypeError, ValueError):
+        addr = (d.get('address') or '').strip()
+        g = geocode(addr) if addr else None
+        if not g:
+            raise ValueError('lat/lng 또는 지오코딩 가능한 address 가 필요합니다.')
+        lat, lng = g['lat'], g['lng']
+    if not (33.0 <= lat <= 38.7 and 124.5 <= lng <= 132.0):
+        raise ValueError('대한민국 영역 밖의 좌표입니다.')
+    return lat, lng
+
+
+def _resolve_admin(d: dict, lat: float, lng: float) -> tuple[str, str, str]:
+    """행정구역 미입력 시 역지오코딩으로 자동 채움."""
+    sido = (d.get('sido') or '').strip()
+    sigungu = (d.get('sigungu') or '').strip()
+    address = (d.get('address') or '').strip()
+    if not sido or not sigungu or not address:
+        rg = reverse_geocode(lat, lng) or {}
+        sido = sido or rg.get('sido', '')
+        sigungu = sigungu or rg.get('sigungu', '')
+        address = address or rg.get('address', '')
+    return sido, sigungu, address
+
+
+def _result_from_payload(payload, AnalysisItem, Confidence, Coordinates, Difficulty,
+                         EvaluationResult, OverallFeasibility, SiteInfo, Status):
+    """저장된 result_json → EvaluationResult 복원 (보고서 재생성용)."""
+    si = payload.get('site_info') or {}
+    coord = si.get('coordinates') or {}
+    of = payload.get('overall_feasibility') or {}
+
+    items = []
+    for raw in payload.get('analysis_items') or []:
+        items.append(AnalysisItem(
+            category=raw.get('category', ''), item_name=raw.get('item_name', ''),
+            status=Status(raw.get('status', 'UNKNOWN')), reason=raw.get('reason', ''),
+            difficulty=Difficulty(raw.get('difficulty', 'MEDIUM')), law=raw.get('law', ''),
+            article=raw.get('article', ''),
+            confidence=Confidence(raw.get('confidence', 'LOW')),
+            source_url=raw.get('source_url', ''), data_source=raw.get('data_source', ''),
+            raw=raw.get('raw', {}), action_required=raw.get('action_required', ''),
+        ))
+
+    from .schemas import PermitStepResult
+
+    roadmap = []
+    for s in payload.get('permit_roadmap') or []:
+        try:
+            roadmap.append(PermitStepResult(
+                order=s.get('order', 0), phase=s.get('phase', ''), name=s.get('name', ''),
+                authority=s.get('authority', ''), law=s.get('law', ''),
+                article=s.get('article', ''), statutory_days=s.get('statutory_days'),
+                depends_on=s.get('depends_on') or [], applicable=s.get('applicable', True),
+                applicability_reason=s.get('applicability_reason', ''),
+                confidence=Confidence(s.get('confidence', 'LOW')),
+                source_url=s.get('source_url', ''), note=s.get('note', ''),
+            ))
+        except (TypeError, ValueError):
+            continue
+
+    return EvaluationResult(
+        site_info=SiteInfo(
+            address=si.get('address', ''),
+            coordinates=Coordinates(lat=coord.get('lat', 0.0), lng=coord.get('lng', 0.0)),
+            radius_m=si.get('radius_m', 500), total_area_m2=si.get('total_area_m2', 0.0),
+        ),
+        overall_feasibility=OverallFeasibility(
+            score=of.get('score', 0), grade=of.get('grade', 'UNKNOWN'),
+            summary=of.get('summary', '')),
+        analysis_items=items,
+        permit_roadmap=roadmap,
+        applicable_laws=payload.get('applicable_laws') or [],
+        data_gaps=payload.get('data_gaps') or [],
+        evaluated_at=payload.get('evaluated_at', ''),
+    )
 
 
 @api_view(['POST'])
