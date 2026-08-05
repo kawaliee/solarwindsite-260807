@@ -30,7 +30,7 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 # ── 지원 확장자 ──────────────────────────────────────────────
-SUPPORTED_EXTENSIONS = {'.pdf', '.docx', '.doc', '.xlsx', '.xls', '.xlsm', '.pptx', '.ppt', '.hwp', '.hwpx', '.zip'}
+SUPPORTED_EXTENSIONS = {'.pdf', '.docx', '.doc', '.xlsx', '.xls', '.xlsm', '.pptx', '.ppt', '.hwp', '.hwpx', '.zip', '.md'}
 
 # ── 폴더 → 프로젝트 매핑 규칙 ────────────────────────────────
 FOLDER_PROJECT_MAP = [

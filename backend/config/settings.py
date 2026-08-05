@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'apps.chat',
     'apps.contracts',
     'apps.windsite',
+    'apps.factsheets',
 ]
 
 MIDDLEWARE = [

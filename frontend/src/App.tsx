@@ -5,10 +5,11 @@ import ChatView from './features/chat/ChatView'
 import ContractView from './features/contracts/ContractView'
 import OpsView from './features/ops/OpsView'
 import WindSiteView from './features/windsite/WindSiteView'
+import FactSheetView from './features/factsheet/FactSheetView'
 import PlaceholderView from './components/PlaceholderView'
 import Login from './components/Login'
 
-type ViewType = 'chat' | 'contract' | 'finance' | 'ops' | 'windsite';
+type ViewType = 'chat' | 'contract' | 'finance' | 'ops' | 'windsite' | 'factsheet';
 
 interface UserProfile {
   id?: string;
@@ -24,6 +25,7 @@ const VIEW_META: Record<ViewType, { title: string; sub: string }> = {
   finance: { title: '재무모델', sub: '재무모델 생성 및 검토 (준비 중)' },
   ops: { title: '운영관리 Dashboard', sub: '전국 사업장 분포 · 발전 자산 통합 모니터링' },
   windsite: { title: '풍력 입지타당성 검토', sub: '입지 규제 자동 스크리닝 · 인허가 로드맵 · 관련 법령' },
+  factsheet: { title: '사업 정보 입력', sub: 'PJT별 사업 Fact-sheet 작성 · RAG 코퍼스 발행' },
 };
 
 export default function App() {
@@ -95,6 +97,8 @@ export default function App() {
         {activeView === 'ops' && <OpsView />}
 
         {activeView === 'windsite' && <WindSiteView />}
+
+        {activeView === 'factsheet' && <FactSheetView />}
       </main>
     </>
   );

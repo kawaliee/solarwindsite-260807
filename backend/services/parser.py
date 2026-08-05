@@ -140,9 +140,46 @@ def parse_document(filepath, file_type, strategy='general'):
         return parse_pptx(filepath)
     elif file_type in ('hwp', 'hwpx'):
         return parse_hwp(filepath, strategy)
+    elif file_type in ('md', 'markdown'):
+        return parse_markdown(filepath)
     else:
         logger.warning(f'Unsupported file type: {file_type}')
         return {'page_count': 0, 'chunks': []}
+
+
+def parse_markdown(filepath):
+    """
+    마크다운 파싱 — 사업 Fact-sheet([사업개요] *.md) 적재 경로.
+
+    헤더(##) 단위로 끊는다. Fact-sheet 는 섹션 제목마다 사업명을 반복해 두므로
+    청크가 쪼개져도 "어느 사업 수치인지"가 조각 안에 남는다.
+    """
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            text = f.read()
+    except UnicodeDecodeError:
+        with open(filepath, 'r', encoding='cp949', errors='ignore') as f:
+            text = f.read()
+    except OSError as e:
+        logger.error(f'Markdown read failed: {e}')
+        return {'page_count': 0, 'chunks': [], 'status': 'failed'}
+
+    doc_meta = {
+        'original_format': 'md',
+        'extraction_confidence': 1.0,
+        'is_low_quality': False,
+    }
+
+    if len(text.strip()) < 50:
+        return {'page_count': 1, 'chunks': [], 'status': 'review_pending', 'doc_meta': doc_meta}
+
+    chunks = _chunk_by_markdown_headers(text, None)
+    return {
+        'page_count': max(1, len(text) // 1500),
+        'chunks': chunks,
+        'status': 'indexed',
+        'doc_meta': doc_meta,
+    }
 
 
 def parse_pdf(filepath, strategy='general'):

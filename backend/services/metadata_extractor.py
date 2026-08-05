@@ -17,6 +17,7 @@ DOC_TYPE_MAP = {
     '보고자료': 'report',
     '보고서': 'report',
     'report': 'report',
+    '사업개요': 'report',   # Fact-sheet 발행 폴더 → 마크다운 헤더 청킹 전략
     '재무모델': 'financial',
     '재무': 'financial',
     'financial': 'financial',
