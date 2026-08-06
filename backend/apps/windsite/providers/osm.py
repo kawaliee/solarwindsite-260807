@@ -400,9 +400,14 @@ class QuietFacilityProvider(LayerProvider):
     #: 조례가 없을 때의 기본 탐색 반경 (판정이 아닌 '현황 제시'용)
     FALLBACK_SEARCH_M = 2000
 
-    #: OSM 태그 → 정온시설 유형
+    #: OSM 태그 → 정온시설 유형 (의미가 확정된 시설)
     AMENITY_TAGS = ('school', 'kindergarten', 'hospital', 'clinic', 'university',
                     'college', 'nursing_home', 'childcare', 'social_facility')
+    #: 주거건물 — 이격거리 조례의 주된 대상은 '주거밀집지역'이다.
+    #: amenity만 보면 학교·병원만 잡히고 정작 코앞의 아파트를 놓친다.
+    RESIDENTIAL_BUILDINGS = ('residential', 'apartments', 'house', 'detached',
+                             'semidetached_house', 'terrace', 'dormitory',
+                             'bungalow', 'farm')
 
     def __init__(self, sido: str = '', sigungu: str = ''):
         self.sido = sido
@@ -440,7 +445,7 @@ class QuietFacilityProvider(LayerProvider):
             )
 
         if not facilities:
-            base = (f'반경 {search_m:,}m 내에서 학교·의료·복지 계열 정온시설이 '
+            base = (f'반경 {search_m:,}m 내에서 학교·의료·복지 시설과 주거건물이 '
                     'OSM에 등재된 것이 없습니다.')
             if not rules:
                 return self.unknown(
@@ -472,9 +477,21 @@ class QuietFacilityProvider(LayerProvider):
             'confidence': r.confidence,
         } for r in rules]
 
+        homes = [f for f in facilities if f.get('category') == 'RESIDENTIAL']
+        facils = [f for f in facilities if f.get('category') != 'RESIDENTIAL']
+        parts = []
+        if facils:
+            n = facils[0]
+            parts.append(f'정온시설 {len(facils)}개소(최근접 {n["name"]}·{n["kind"]} '
+                         f'{geo.format_distance(n["distance_m"])})')
+        if homes:
+            n = homes[0]
+            parts.append(f'주거건물 {len(homes)}동(최근접 {n["name"]} '
+                         f'{geo.format_distance(n["distance_m"])})')
         head = (
-            f'반경 {search_m:,}m 내 정온시설 {len(facilities)}개소. 최근접은 '
-            f'{nearest["name"]}({nearest["kind"]}) {geo.format_distance(nearest["distance_m"])}입니다.'
+            f'반경 {search_m:,}m 내 ' + ' · '.join(parts) + '. '
+            f'전체 최근접은 {nearest["name"]}({nearest["kind"]}) '
+            f'{geo.format_distance(nearest["distance_m"])}입니다.'
         )
 
         if not rules:
@@ -531,10 +548,12 @@ class QuietFacilityProvider(LayerProvider):
     # ------------------------------------------------------------------
     def _facilities(self, q: SiteQuery, site, search_m: int) -> tuple[list[dict], str]:
         pattern = '|'.join(self.AMENITY_TAGS)
+        houses = '|'.join(self.RESIDENTIAL_BUILDINGS)
         ql = f"""[out:json][timeout:90];
 (
   nwr["amenity"~"^({pattern})$"](around:{search_m},{q.lat},{q.lng});
   nwr["healthcare"](around:{search_m},{q.lat},{q.lng});
+  nwr["building"~"^({houses})$"](around:{search_m},{q.lat},{q.lng});
 );
 out center tags;"""
         out: list[dict] = []
@@ -553,14 +572,20 @@ out center tags;"""
             if not c:
                 continue
             tags = el.get('tags') or {}
-            name = tags.get('name') or tags.get('amenity') or '(명칭 미상)'
+            building = tags.get('building') or ''
+            kind = (tags.get('amenity') or tags.get('healthcare')
+                    or (f'주거({building})' if building else '기타'))
+            name = tags.get('name') or tags.get('amenity') or building or '(명칭 미상)'
             key = f'{name}:{round(c[0], 5)},{round(c[1], 5)}'
             if key in seen:
                 continue
             seen.add(key)
             out.append({
                 'name': name,
-                'kind': tags.get('amenity') or tags.get('healthcare') or '기타',
+                'kind': kind,
+                # 학교·병원은 유형이 확정된 정온시설, 주거건물은 조례상 '주거밀집지역'
+                # 판단 대상 — 성격이 달라 결과에서 구분해 제시한다
+                'category': 'RESIDENTIAL' if building else 'FACILITY',
                 'lat': c[0], 'lng': c[1],
                 'distance_m': round(_distance_m(site, *c), 1),
                 'osm': f'{el["type"]}/{el.get("id")}',

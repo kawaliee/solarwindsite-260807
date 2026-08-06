@@ -34,8 +34,8 @@ NAME_FIELD_CANDIDATES = (
     'uname', 'dgm_nm', 'park_name', 'mpa_nam', 'name',
     # 항공·군사 계열은 lbl_4(한글 구역종류) → lbl_1(구역기호) 순으로 쓸모가 있다
     'prh_lbl_4', 'res_lbl_1', 'ctr_lbl_1', 'atm_lbl_1', 'moa_lbl_1',
-    'cat_lbl_1', 'acm_lbl_1',
-    'rn', 'buld_nm',
+    'cat_lbl_1', 'acm_lbl_1', 'dng_lbl_1',
+    'riv_nm', 'rn', 'buld_nm',
 )
 
 # ----------------------------------------------------------------------
@@ -139,6 +139,18 @@ SPECS: list[dict] = [
          law='산림보호법', article='제9조(산림보호구역에서의 행위 제한)',
          action_required='산림보호구역 해제 또는 행위허가 가능 여부를 산림청·지자체와 협의하십시오.',
          display_order=42),
+    dict(code='임업산촌진흥권역', layer_id='lt_c_uf602', role='CONTEXT',
+         category='산림', default_status='POSSIBLE', default_difficulty='LOW',
+         law='임업 및 산촌 진흥촉진에 관한 법률', article='제5조(산촌진흥지역의 지정)',
+         action_required='산촌진흥지역이면 지역 주민 소득사업과의 조화 여부를 지자체와 협의하십시오.',
+         display_order=45),
+    dict(code='하천망', layer_id='lt_c_wkmstrm', role='DISTANCE',
+         category='환경', default_status='CONDITIONAL', default_difficulty='MEDIUM',
+         proximity_m=500,
+         law='하천법', article='제33조(하천의 점용허가)',
+         action_required='하천구역·홍수관리구역 저촉 시 하천점용허가가 필요합니다. '
+                         '진입도로가 하천을 횡단하는 경우도 대상입니다.',
+         display_order=46),
     dict(code='산림입지토양', layer_id='lt_c_fsdifrsts', role='CONTEXT',
          category='산림', default_status='POSSIBLE', default_difficulty='LOW',
          law='해당 없음 (참고 정보)',
@@ -260,6 +272,13 @@ SPECS: list[dict] = [
          category='안전/문화재', default_status='CONDITIONAL', default_difficulty='HIGH',
          altitude_floor_field='acm_lbl_3',
          law='군사기지 및 군사시설 보호법', article='제13조', display_order=97),
+    dict(code='항공위험구역', layer_id='lt_c_aisdngc', role='REGULATION',
+         category='안전/문화재', default_status='CONDITIONAL', default_difficulty='HIGH',
+         altitude_floor_field='dng_lbl_3',
+         law='항공안전법', article='제78조(공역 등의 지정)',
+         action_required='위험구역(D)은 항공기에 위험을 미치는 활동이 이루어지는 공역입니다. '
+                         '국토교통부·관할부대에 고층 구조물 설치 가능 여부를 질의하십시오.',
+         display_order=98),
 
     # ---------------- 지적·이격 기초 ----------------
     dict(code='연속지적', layer_id='lp_pa_cbnd_bubun', role='PARCEL',

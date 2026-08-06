@@ -53,6 +53,12 @@
     "산림입지": [
       "lt_c_fsdifrsts"
     ],
+    "임업산촌진흥권역": [
+      "lt_c_uf602"
+    ],
+    "하천망": [
+      "lt_c_wkmstrm"
+    ],
     "자연공원": [
       "lt_c_wgisnpgug",
       "lt_c_wgisnpdo",
@@ -118,6 +124,9 @@
     ],
     "공중전투기동훈련장": [
       "lt_c_aisacmc"
+    ],
+    "항공위험구역": [
+      "lt_c_aisdngc"
     ],
     "연속지적": [
       "lp_pa_cbnd_bubun"
@@ -247,6 +256,20 @@
         "name": "lt_c_fsdifrsts",
         "title": "산림입지도",
         "abstract": "산림입지도"
+      }
+    ],
+    "임업산촌진흥권역": [
+      {
+        "name": "lt_c_uf602",
+        "title": "임업 및 산촌 진흥권역",
+        "abstract": "임업 및 산촌 진흥권역"
+      }
+    ],
+    "하천망": [
+      {
+        "name": "lt_c_wkmstrm",
+        "title": "하천망",
+        "abstract": "하천망"
       }
     ],
     "자연공원": [
@@ -409,6 +432,13 @@
         "name": "lt_c_aisacmc",
         "title": "공중전투기동훈련장",
         "abstract": "공중전투기동훈련장"
+      }
+    ],
+    "항공위험구역": [
+      {
+        "name": "lt_c_aisdngc",
+        "title": "위험구역",
+        "abstract": "위험구역"
       }
     ],
     "연속지적": [
@@ -992,6 +1022,32 @@
       {
         "name": "lt_c_aisctrc",
         "type": "sop:lt_c_aisctrcType"
+      }
+    ],
+    "lt_c_aisdngc": [
+      {
+        "name": "danger_lab",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dng_lbl_1",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dng_lbl_2",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dng_lbl_3",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_aisdngc",
+        "type": "sop:lt_c_aisdngcType"
       }
     ],
     "lt_c_aismoac": [
@@ -1620,6 +1676,76 @@
       {
         "name": "lt_c_uf151",
         "type": "sop:lt_c_uf151Type"
+      }
+    ],
+    "lt_c_uf602": [
+      {
+        "name": "alias",
+        "type": "xsd:string"
+      },
+      {
+        "name": "remark",
+        "type": "xsd:string"
+      },
+      {
+        "name": "mnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "std_sggcd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "admin_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigungu_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dyear",
+        "type": "xsd:string"
+      },
+      {
+        "name": "dnum",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ucode",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bon_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "bu_bun",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sido_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sigg_name",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uname",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_uf602",
+        "type": "sop:lt_c_uf602Type"
       }
     ],
     "lt_c_uf901": [
@@ -3370,6 +3496,44 @@
         "type": "sop:lt_c_wgisnpgunType"
       }
     ],
+    "lt_c_wkmstrm": [
+      {
+        "name": "inadm",
+        "type": "xsd:long"
+      },
+      {
+        "name": "inbsn",
+        "type": "xsd:long"
+      },
+      {
+        "name": "riv_level",
+        "type": "xsd:string"
+      },
+      {
+        "name": "riv_nm",
+        "type": "xsd:string"
+      },
+      {
+        "name": "riv_cd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "cat_cde",
+        "type": "xsd:string"
+      },
+      {
+        "name": "cat_nam",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_wkmstrm",
+        "type": "sop:lt_c_wkmstrmType"
+      }
+    ],
     "lt_l_sprd": [
       {
         "name": "eng_rn",
@@ -3650,6 +3814,18 @@
       "geometry_type": "",
       "hit_at": ""
     },
+    "lt_c_aisdngc": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
     "lt_c_aismoac": {
       "statuses": [
         "광주 도심:NOT_FOUND",
@@ -3899,6 +4075,18 @@
       "hit_at": "광주 도심"
     },
     "lt_c_uf151": {
+      "statuses": [
+        "광주 도심:NOT_FOUND",
+        "전남 화순 산간:NOT_FOUND",
+        "경북 청도 산간:NOT_FOUND"
+      ],
+      "feature_count": 0,
+      "property_keys": [],
+      "sample_properties": {},
+      "geometry_type": "",
+      "hit_at": ""
+    },
+    "lt_c_uf602": {
       "statuses": [
         "광주 도심:NOT_FOUND",
         "전남 화순 산간:NOT_FOUND",
@@ -4417,6 +4605,24 @@
       "sample_properties": {},
       "geometry_type": "",
       "hit_at": ""
+    },
+    "lt_c_wkmstrm": {
+      "statuses": [
+        "광주 도심:OK",
+        "전남 화순 산간:OK",
+        "경북 청도 산간:OK"
+      ],
+      "feature_count": 3,
+      "property_keys": [
+        "cat_nam",
+        "riv_nm"
+      ],
+      "sample_properties": {
+        "riv_nm": "벌고천",
+        "cat_nam": "지방2급하천"
+      },
+      "geometry_type": "MultiPolygon",
+      "hit_at": "광주 도심"
     },
     "lt_l_sprd": {
       "statuses": [

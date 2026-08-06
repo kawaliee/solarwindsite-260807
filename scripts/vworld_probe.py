@@ -105,6 +105,8 @@ CURATED: dict[str, list[str]] = {
     '백두대간': ['lt_c_uf901'],
     '산림보호구역': ['lt_c_uf151'],
     '산림입지': ['lt_c_fsdifrsts'],
+    '임업산촌진흥권역': ['lt_c_uf602'],
+    '하천망': ['lt_c_wkmstrm'],
     # 자연·환경
     '자연공원': ['lt_c_wgisnpgug', 'lt_c_wgisnpdo', 'lt_c_wgisnpgun'],
     '습지보호': ['lt_c_um901', 'lt_c_wgisarwet'],
@@ -131,6 +133,7 @@ CURATED: dict[str, list[str]] = {
     '군작전구역': ['lt_c_aismoac'],
     '훈련구역': ['lt_c_aiscatc'],
     '공중전투기동훈련장': ['lt_c_aisacmc'],
+    '항공위험구역': ['lt_c_aisdngc'],
     # 지적·소유
     '연속지적': ['lp_pa_cbnd_bubun'],
     '토지소유': ['dt_d160'],
