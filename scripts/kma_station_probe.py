@@ -50,49 +50,69 @@ def load_key() -> str:
              'https://apihub.kma.go.kr 에서 발급받아 .env에 등록하십시오.')
 
 
+def _decode(raw: bytes) -> str:
+    """
+    응답은 **CP949**로 내려온다 (실측 확인). UTF-8로 읽으면 지점명이 전부 깨진다.
+    오류 응답(JSON)은 UTF-8이라 둘 다 시도한다.
+    """
+    for enc in ('cp949', 'utf-8'):
+        try:
+            return raw.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode('utf-8', 'replace')
+
+
 def fetch(key_param: str, key: str, tm: str) -> tuple[int, str]:
     params = {'inf': 'SFC', 'stn': '', 'tm': tm, 'help': '1', key_param: key}
     url = f'{BASE}?{urllib.parse.urlencode(params)}'
     req = urllib.request.Request(url, headers={'User-Agent': 'windsite-kma-probe/1.0'})
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
-            return r.status, r.read().decode('utf-8', 'replace')
+            return r.status, _decode(r.read())
     except urllib.error.HTTPError as e:
-        return e.code, e.read().decode('utf-8', 'replace')
+        return e.code, _decode(e.read())
 
 
 def parse_stations(text: str) -> list[dict]:
     """
-    고정폭 텍스트 응답을 파싱한다. 주석행(#)에 컬럼 정의가 들어 있어
-    STN_ID / LON / LAT / STN_SP(표고) / STN_KO(지점명) 위치를 그대로 읽는다.
+    공백 구분 텍스트를 파싱한다. 헤더 주석(#)이 컬럼 순서를 알려준다.
+
+      STN_ID  LON  LAT  STN_SP  HT  HT_PA  HT_TA  HT_WD  HT_RN  STN_ID  STN_KO  STN_EN ...
+
+    HT     관측지점 해발고도(m)
+    HT_WD  **풍향·풍속계 관측높이(m)** — 허브고도 환산의 기준이 되므로 반드시 보관한다
     """
     rows: list[dict] = []
     for line in text.splitlines():
         if not line.strip() or line.lstrip().startswith('#'):
             continue
         parts = line.split()
-        if len(parts) < 5 or not parts[0].isdigit():
+        if len(parts) < 12 or not parts[0].isdigit():
             continue
         try:
-            stn_id = parts[0]
-            lon = float(parts[1])
-            lat = float(parts[2])
+            lon, lat = float(parts[1]), float(parts[2])
         except (ValueError, IndexError):
             continue
         if not (33.0 <= lat <= 39.0 and 124.0 <= lon <= 132.5):
             continue
-        # 지점명은 한글이 처음 나오는 토큰
-        name = next((p for p in parts[3:] if re.search(r'[가-힣]', p)), '')
-        alt = 0.0
-        for p in parts[3:]:
+
+        def num(idx: int) -> float | None:
             try:
-                v = float(p)
-            except ValueError:
-                continue
-            if 0 <= v <= 2000:
-                alt = v
-                break
-        rows.append({'stn_id': stn_id, 'name': name, 'lat': lat, 'lng': lon, 'alt_m': alt})
+                v = float(parts[idx])
+            except (ValueError, IndexError):
+                return None
+            return None if v <= -999 else v
+
+        name = next((p for p in parts[9:] if re.search(r'[가-힣]', p)), '')
+        rows.append({
+            'stn_id': parts[0],
+            'name': name,
+            'lat': lat,
+            'lng': lon,
+            'alt_m': num(4),            # HT — 지점 해발고도
+            'anemometer_h_m': num(7),   # HT_WD — 풍속계 관측높이
+        })
     return rows
 
 
@@ -121,7 +141,8 @@ def main() -> None:
             if stations:
                 for s in stations[:5]:
                     print(f"       {s['stn_id']:>4} {s['name']:<8} "
-                          f"{s['lat']:.4f},{s['lng']:.4f} 표고 {s['alt_m']}m")
+                          f"{s['lat']:.4f},{s['lng']:.4f} "
+                          f"표고 {s['alt_m']}m 풍속계 {s['anemometer_h_m']}m")
                 (OUT / 'stations.json').write_text(
                     json.dumps(stations, ensure_ascii=False, indent=1), encoding='utf-8')
                 print(f'\n산출 → {OUT / "stations.json"}')

@@ -124,37 +124,9 @@ class LocalOrdinanceProvider(LayerProvider):
 
 
 # ======================================================================
-# 9. 풍황
+# 9. 풍황 → providers/wind.py 의 WindResourceProvider로 이관
+#    (기상청 ASOS 관측자료 기반 — 최근접 관측소 자동 선정)
 # ======================================================================
-class WindResourceProvider(LayerProvider):
-    category = '사업성'
-    item_name = '풍황(연평균 풍속)'
-    data_source = '기상청 ASOS / KIER 풍력자원지도'
-    required_settings = ('KMA_API_KEY',)
-    default_law = '해당 없음 (비규제 · 사업성 판단 영역)'
-
-    #: 업계 통상 참고치 — 법정 기준이 아님
-    REFERENCE_MS = 6.0
-
-    def analyze(self, q: SiteQuery) -> AnalysisItem:
-        return self.item(
-            status=Status.UNKNOWN,
-            reason=(
-                'KIER 풍력자원지도는 좌표 기반 공개 API가 확인되지 않아 허브고도(100~140m) 풍속을 '
-                '자동 추정하지 못했습니다. 기상청 ASOS는 지상 10m 관측값이라 허브고도 환산에 '
-                '별도 연직분포(전단지수) 가정이 필요해 단독 판정 근거로 쓰지 않습니다.'
-            ),
-            difficulty=Difficulty.MEDIUM,
-            confidence=Confidence.LOW,
-            source_url='https://kier-wind.org',
-            action_required=(
-                f'① KIER 풍력자원지도에서 대상지 허브고도 풍속 조회 '
-                f'② 사업 확정 전 현장 풍황계측(통상 1년 이상) 수행. '
-                f'참고: 국내 육상풍력은 통상 연평균 {self.REFERENCE_MS}m/s 이상 지역에 입지하는 것으로 '
-                f'보고되나, 이는 법정 기준이 아닌 업계 참고치입니다.'
-            ),
-        )
-
 
 # ======================================================================
 # 10. 전력계통 연계 → providers/osm.py 의 OsmGridProvider로 이관

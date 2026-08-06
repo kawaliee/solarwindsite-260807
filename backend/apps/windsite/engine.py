@@ -27,11 +27,8 @@ from .providers.ned import (
     LandOwnershipProvider,
 )
 from .providers.osm import OsmGridProvider, QuietFacilityProvider
-from .providers.others import (
-    LocalOrdinanceProvider,
-    MilitaryAirspaceProvider,
-    WindResourceProvider,
-)
+from .providers.wind import WindResourceProvider
+from .providers.others import LocalOrdinanceProvider, MilitaryAirspaceProvider
 from .providers.vworld import build_vworld_providers
 from .schemas import (
     DIFFICULTY_PENALTY,
