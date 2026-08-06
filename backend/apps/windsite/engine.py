@@ -74,7 +74,8 @@ def build_providers(sido: str = '', sigungu: str = '', substations=None):
         LocalOrdinanceProvider(sido=sido, sigungu=sigungu),  # 지자체 조례
         QuietFacilityProvider(sido=sido, sigungu=sigungu),   # 정온시설 동심원
         WindResourceProvider(),                            # 풍황
-        OsmGridProvider(substations=substations),          # 계통 연계 (OSM)
+        # 계통 연계 — 위치는 OSM, 여유용량은 한전 분산전원 연계정보
+        OsmGridProvider(substations=substations),
     ]
 
 

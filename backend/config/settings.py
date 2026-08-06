@@ -203,6 +203,14 @@ KMA_API_KEY = os.environ.get('KMA_API_KEY', '')
 # 사용량 제한이 있어 운영에는 자체 발급 값을 넣는다. 발급: https://open.law.go.kr
 LAW_API_OC = os.environ.get('LAW_API_OC', '')
 
+# 한전 전력데이터 개방 포털 — 분산전원 연계정보(계통 여유용량).
+# 공공데이터포털과 별개 포털이라 인증키도 별개다(40자리).
+#   발급: https://bigdata.kepco.co.kr → 데이터공개 → OPEN API → 인증키 신청
+# ⚠️ 호출 간격 제한이 있어 반드시 캐시를 경유해 호출한다.
+KEPCO_API_KEY = os.environ.get('KEPCO_API_KEY', '')
+KEPCO_GRID_URL = os.environ.get(
+    'KEPCO_GRID_URL', 'https://bigdata.kepco.co.kr/openapi/v1/dispersedGeneration.do')
+
 # OpenStreetMap Overpass — 변전소·송전선로·정온시설 탐색 (인증키 불필요).
 # 공개 인스턴스는 사용량 제한이 있으므로 필요 시 자체 인스턴스 URL로 교체한다.
 OVERPASS_URL = os.environ.get('OVERPASS_URL', 'https://overpass-api.de/api/interpreter')

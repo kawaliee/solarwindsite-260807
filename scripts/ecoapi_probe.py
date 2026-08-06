@@ -56,8 +56,10 @@ def load_env() -> dict[str, str]:
     key = env.get('ECO_API_KEY') or env.get('DATA_GO_KR_KEY')
     if not key:
         sys.exit('DATA_GO_KR_KEY(또는 ECO_API_KEY)가 비어 있습니다. '
-                 '공공데이터포털 마이페이지의 **일반 인증키(Decoding)** 를 넣으십시오.')
-    env['_KEY'] = key
+                 '공공데이터포털 마이페이지의 인증키를 넣으십시오.')
+    # Encoding 형태(퍼센트 인코딩)로 넣어도 동작하도록 디코딩해 통일한다.
+    # 그대로 두면 쿼리 생성 시 이중 인코딩되어 SERVICE_KEY_IS_NOT_REGISTERED_ERROR가 난다.
+    env['_KEY'] = urllib.parse.unquote(key) if '%' in key else key
     return env
 
 

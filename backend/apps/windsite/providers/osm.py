@@ -133,6 +133,9 @@ class OsmGridProvider(LayerProvider):
         site = geo.point_metric(q.lat, q.lng)
         subs, sub_err = self._substations(q, site)
         lines, _ = self._lines(q, site)
+        # 한전 여유용량을 변전소명으로 결합한다 (위치는 OSM, 용량은 한전)
+        capacity, cap_err = self._capacities(q)
+        self._merge_capacity(subs, capacity)
 
         if not subs:
             detail = (f'Overpass 조회에 실패했습니다 — {sub_err}. '
@@ -165,6 +168,9 @@ class OsmGridProvider(LayerProvider):
             st, df, msg = (Status.CONDITIONAL, Difficulty.HIGH,
                            '연계점이 원거리에 있어 사업성 저하 요인입니다.')
 
+        # 여유용량이 확인되면 거리보다 우선한다 — 아무리 가까워도 여유가 없으면 접속 불가
+        cap_note, st, df = self._capacity_verdict(q, subs, capacity, cap_err, st, df)
+
         hv_txt = ''
         if nearest_hv:
             hv_txt = (f' 154kV 이상 변전소 중 최근접은 {nearest_hv["name"]}'
@@ -181,20 +187,111 @@ class OsmGridProvider(LayerProvider):
             reason=(
                 f'최근접 변전소는 {nearest["name"]}'
                 f'({(nearest.get("voltage") or 0) // 1000 or "?"}kV)로 직선거리 '
-                f'{geo.format_distance(nearest["distance_m"])}입니다.{hv_txt}{line_txt} {msg} '
-                '⚠️ OSM 기반 위치 탐색 결과이며 **접속 가능 용량(계통 여유도)은 포함되지 않습니다.**'
+                f'{geo.format_distance(nearest["distance_m"])}입니다.{hv_txt}{line_txt} {msg}'
+                f'{cap_note}'
             ),
             difficulty=df,
-            confidence=Confidence.LOW,
-            source_url='https://www.openstreetmap.org',
+            confidence=Confidence.MEDIUM if capacity else Confidence.LOW,
+            source_url='https://bigdata.kepco.co.kr',
             action_required=(
-                '① 한전ON에서 해당 변전소의 접속 가능 용량을 조회 '
-                '② 한전에 계통연계 사전검토(기술검토) 신청 '
+                '① 한전에 계통연계 사전검토(기술검토) 신청 — 공표 여유용량은 신청 시점에 '
+                '이미 선점되었을 수 있습니다 '
+                '② 여유용량 부족 시 상위 전압 연계 또는 계통보강 일정 확인 '
                 '③ 선로 경과지의 별도 인허가(선하지 보상·산지전용 등) 검토'
             ),
             raw={'substations': subs[:10], 'lines': lines[:10],
-                 'search_radius_m': self.SUBSTATION_SEARCH_M},
+                 'search_radius_m': self.SUBSTATION_SEARCH_M,
+                 'capacity_source': 'KEPCO 분산전원 연계정보' if capacity else '',
+                 'capacity_error': cap_err},
         )
+
+    # ------------------------------------------------------------------
+    def _capacities(self, q: SiteQuery) -> tuple[dict[str, dict], str]:
+        """
+        한전 분산전원 연계정보 → {정규화 변전소명: 여유용량 집계}
+
+        조회 지역(시도·시군구)은 중심 필지의 PNU 앞 5자리에서 얻는다.
+        연속지적 응답은 캐시를 공유하므로 추가 호출 비용이 사실상 없다.
+        """
+        from .kepco import KepcoGridClient, KepcoGridError, normalize_substation
+        from .ned import select_parcels
+
+        if not getattr(settings, 'KEPCO_API_KEY', ''):
+            return {}, ''
+
+        pnu = ''
+        try:
+            parcels, _ = select_parcels(q, limit=1)
+            pnu = parcels[0]['pnu'] if parcels else ''
+        except Exception:                                       # noqa: BLE001
+            logger.debug('중심 필지 PNU 확인 실패', exc_info=True)
+
+        metro = pnu[:2] if len(pnu) >= 5 else ''
+        city = pnu[2:5] if len(pnu) >= 5 else ''
+        try:
+            rows = KepcoGridClient.fetch(metro_cd=metro, city_cd=city)
+        except KepcoGridError as e:
+            logger.warning('한전 계통 여유용량 조회 실패 — %s', e)
+            return {}, str(e)
+        except Exception as e:                                  # noqa: BLE001
+            logger.exception('한전 계통 여유용량 조회 실패')
+            return {}, type(e).__name__
+
+        summary = KepcoGridClient.summarize(rows)
+        return {normalize_substation(k): v for k, v in summary.items()}, ''
+
+    @staticmethod
+    def _merge_capacity(subs: list[dict], capacity: dict[str, dict]) -> None:
+        """OSM 변전소 목록에 한전 여유용량을 붙인다 (명칭 정규화 후 대조)."""
+        from .kepco import normalize_substation
+
+        for s in subs:
+            hit = capacity.get(normalize_substation(s['name']))
+            if hit:
+                s['margin_substation_kw'] = hit['substation_margin_kw']
+                s['margin_line_kw'] = hit['best_line_margin_kw']
+                s['best_line'] = hit['best_line']
+
+    def _capacity_verdict(self, q: SiteQuery, subs: list[dict], capacity: dict,
+                          cap_err: str, st: Status, df: Difficulty):
+        """
+        여유용량과 사업 용량을 비교한다.
+        거리가 가까워도 여유가 없으면 접속할 수 없으므로 거리 판정을 덮어쓴다.
+        """
+        if cap_err:
+            return (f' ⚠️ 한전 계통 여유용량 조회에 실패했습니다({cap_err}). '
+                    '접속 가능 용량은 확인되지 않았습니다.'), st, df
+        matched = [s for s in subs if 'margin_line_kw' in s]
+        if not matched:
+            return (' ⚠️ OSM 변전소명과 한전 자료를 대조하지 못해 '
+                    '접속 가능 용량은 확인되지 않았습니다.'), st, df
+
+        best = max(matched, key=lambda s: s['margin_line_kw'])
+        need_kw = (q.capacity_mw or 0) * 1000
+
+        detail = (f' 한전 분산전원 연계정보 기준 여유용량 — '
+                  f'{best["name"]}: 변전소 {best["margin_substation_kw"]:,.0f}kW · '
+                  f'최대 선로({best["best_line"] or "-"}) {best["margin_line_kw"]:,.0f}kW '
+                  '(단위는 문서에 미명시이며 kW로 해석했습니다).')
+
+        if not need_kw:
+            return detail, st, df
+
+        if best['margin_substation_kw'] <= 0:
+            # 배전선로에 여유가 남아 있어도 상위 변전소가 포화면 신규 접속이 막힌다.
+            tail = ''
+            if best['margin_line_kw'] > 0:
+                tail = (f' (선로 여유 {best["margin_line_kw"]:,.0f}kW가 남아 있으나 '
+                        '상위 변전소가 포화 상태입니다)')
+            return (detail + f' **변전소 단위 여유용량이 0**이라 사업 용량 '
+                    f'{need_kw:,.0f}kW의 신규 접속이 어렵습니다{tail}. '
+                    '계통보강 계획과 대체 연계점을 확인해야 합니다.'), \
+                Status.CONDITIONAL, Difficulty.CRITICAL
+        if best['margin_line_kw'] < need_kw:
+            return (detail + f' 사업 용량 {need_kw:,.0f}kW에 미치지 못해 '
+                    '분할 연계 또는 상위 전압 연계 검토가 필요합니다.'), \
+                Status.CONDITIONAL, Difficulty.HIGH
+        return detail + ' 사업 용량을 수용할 여유가 확인됩니다.', st, df
 
     # ------------------------------------------------------------------
     def _substations(self, q: SiteQuery, site) -> tuple[list[dict], str]:
