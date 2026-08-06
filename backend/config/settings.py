@@ -195,8 +195,20 @@ FOREST_LANDSLIDE_LAYER = os.environ.get('FOREST_LANDSLIDE_LAYER', '')
 HERITAGE_API_KEY = os.environ.get('HERITAGE_API_KEY', '')
 HERITAGE_URL = os.environ.get('HERITAGE_URL', '')
 
-# 기상청 ASOS
-KMA_API_KEY = os.environ.get('KMA_API_KEY', '')
+# 기상청 ASOS (공공데이터포털) — 종관기상관측 일자료·시간자료.
+# 값은 DATA_GO_KR_KEY와 동일한 포털 인증키다.
+_RAW_KMA_API_KEY = os.environ.get('KMA_API_KEY', '')
+KMA_API_KEY = (
+    (unquote(_RAW_KMA_API_KEY) if '%' in _RAW_KMA_API_KEY else _RAW_KMA_API_KEY)
+    or DATA_GO_KR_KEY
+)
+
+# 기상청 API허브(apihub.kma.go.kr) — **관측지점 목록(위경도·표고)** 조회용.
+# 공공데이터포털과 별개 사이트라 인증키도 별개다.
+#   발급: https://apihub.kma.go.kr → 회원가입 → 마이페이지 → 인증키
+# 이 값이 없으면 최근접 관측소 자동 선정이 불가해 지점번호를 수동 지정해야 한다.
+KMA_APIHUB_KEY = os.environ.get('KMA_APIHUB_KEY', '')
+KMA_APIHUB_BASE = os.environ.get('KMA_APIHUB_BASE', 'https://apihub.kma.go.kr/api/typ01/url')
 
 # 국가법령정보 공동활용 OPEN API (법제처) — 법령·자치법규 원문 대조용.
 # 값은 신청 이메일의 ID(@ 앞부분). 비우면 공용 데모 계정 'test'로 동작하나
