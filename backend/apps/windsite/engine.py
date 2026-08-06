@@ -20,6 +20,11 @@ from .providers.base import SiteQuery
 from .providers.cadastral import CadastralProvider
 from .providers.environment import EcoNatureMapProvider, ProtectedAreaProvider
 from .providers.local_spatial import HeritageSpatialProvider
+from .providers.ned import (
+    ForestClassificationProvider,
+    LandCharacteristicsProvider,
+    LandOwnershipProvider,
+)
 from .providers.osm import OsmGridProvider, QuietFacilityProvider
 from .providers.others import (
     LandslideProvider,
@@ -58,6 +63,9 @@ def build_providers(sido: str = '', sigungu: str = '', substations=None):
     return [
         *build_vworld_providers(),                         # 규제 레이어 (DB 정의)
         CadastralProvider(),                               # 필지·지적 (면적 산출)
+        ForestClassificationProvider(),                    # 산지구분 (보전/준보전)
+        LandOwnershipProvider(),                           # 소유구분 (국·공유지)
+        LandCharacteristicsProvider(),                     # 지형·진입도로
         EcoNatureMapProvider(),                            # 생태자연도
         ProtectedAreaProvider(),                           # 환경보호지역
         LandslideProvider(),                               # 산사태위험등급

@@ -3,6 +3,7 @@
 """
 import os
 from pathlib import Path
+from urllib.parse import unquote
 
 import dj_database_url
 from dotenv import load_dotenv
@@ -145,9 +146,38 @@ VWORLD_API_KEY = os.environ.get('VWORLD_API_KEY', '')
 VWORLD_DOMAIN = os.environ.get('VWORLD_DOMAIN', 'localhost')
 
 # 공공데이터포털(data.go.kr) 일반 인증키
-DATA_GO_KR_KEY = os.environ.get('DATA_GO_KR_KEY', '')
+#
+# 포털은 인증키를 Encoding(퍼센트 인코딩)/Decoding 두 형태로 보여준다. HTTP 클라이언트가
+# 쿼리스트링을 만들 때 다시 인코딩하므로, Encoding 값을 그대로 쓰면 '%2B'가 '%252B'가 되어
+# SERVICE_KEY_IS_NOT_REGISTERED_ERROR(403)가 난다. 어느 쪽을 넣어도 동작하도록
+# '%'가 포함돼 있으면 여기서 한 번 디코딩해 Decoding 형태로 통일한다.
+_RAW_DATA_GO_KR_KEY = os.environ.get('DATA_GO_KR_KEY', '')
+DATA_GO_KR_KEY = (
+    unquote(_RAW_DATA_GO_KR_KEY) if '%' in _RAW_DATA_GO_KR_KEY else _RAW_DATA_GO_KR_KEY
+)
 
-# 환경공간정보서비스(EGIS) — 엔드포인트가 확인되면 URL도 함께 설정
+# 국립생태원 생태자연도 (공공데이터포털 B553084) — 생태·자연도 등급 조회.
+# 인증키는 별도 지정이 없으면 DATA_GO_KR_KEY를 그대로 쓴다.
+# ⚠️ 반드시 **Decoding(일반 인증키)** 값을 넣을 것. Encoding 값을 넣으면
+#    HTTP 클라이언트가 다시 인코딩해 SERVICE_KEY_IS_NOT_REGISTERED_ERROR가 난다.
+_RAW_ECO_API_KEY = os.environ.get('ECO_API_KEY', '')
+ECO_API_KEY = (
+    (unquote(_RAW_ECO_API_KEY) if '%' in _RAW_ECO_API_KEY else _RAW_ECO_API_KEY)
+    or DATA_GO_KR_KEY
+)
+
+# 토지이용규제 행위제한정보 (국토교통부 / 토지이음 연계, 1613000)
+#   DTarLandUseInfo  — 지역지구코드(ucode)별 토지이용행위 가능여부
+#   DTsearchLunCd    — 토지이용행위명 → 코드 검색
+# ⚠️ 이 API는 "이 필지가 무슨 지역지구인가"를 알려주지 않는다. 지역지구코드를 **입력**받아
+#    행위 가능여부를 돌려준다. 지역지구 판별은 V-World 레이어가 담당한다.
+LANDUSE_ACT_API_BASE = os.environ.get(
+    'LANDUSE_ACT_API_BASE', 'https://apis.data.go.kr/1613000/arLandUseInfoService')
+ECO_API_BASE = os.environ.get(
+    'ECO_API_BASE', 'https://apis.data.go.kr/B553084/ecoapi/EcologyzmpService')
+
+# 환경공간정보서비스(EGIS) — 생태자연도를 위 공공데이터포털 API로 대체했으므로
+# 아래는 EGIS가 별도 REST를 공개할 경우를 위한 예비 설정이다.
 EGIS_API_KEY = os.environ.get('EGIS_API_KEY', '')
 EGIS_ECOMAP_URL = os.environ.get('EGIS_ECOMAP_URL', '')
 EGIS_PROTECTED_URL = os.environ.get('EGIS_PROTECTED_URL', '')

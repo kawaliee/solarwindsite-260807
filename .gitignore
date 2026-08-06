@@ -12,9 +12,14 @@ web_modules/
 /backend/media/
 db.sqlite3
 
-# 원본 공간데이터(SHP ZIP) 배제 — 용량이 크고 배포처에서 재수급 가능
-# (국가유산청 https://www.khs.go.kr 공간정보 다운로드 → backend/data/heritage/ 에 배치)
+# 원본 공간데이터 배제 — 용량이 크고 배포처에서 재수급 가능
+#   heritage : 국가유산청 https://www.khs.go.kr 공간정보 다운로드
+#   forest   : 산림공간정보서비스 https://map.forest.go.kr 산림공간자료 다운로드
+#   ecoapi   : 국립생태원 생태자연도 API 프로브 산출물
+# (vworld 프로브 결과는 시드 근거라 예외적으로 추적한다)
 /backend/data/heritage/
+/backend/data/forest/
+/backend/data/ecoapi/
 
 # 파이썬 캐시 및 가상환경 배제
 __pycache__/
