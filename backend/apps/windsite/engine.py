@@ -18,7 +18,8 @@ from datetime import datetime, timezone
 from .permits import build_roadmap, collect_laws
 from .providers.base import SiteQuery
 from .providers.cadastral import CadastralProvider
-from .providers.environment import EcoNatureMapProvider, ProtectedAreaProvider
+from .providers.econature import EcoNatureMapProvider
+from .providers.environment import ProtectedAreaProvider
 from .providers.landslide import LandslideProvider
 from .providers.local_spatial import HeritageSpatialProvider
 from .providers.ned import (

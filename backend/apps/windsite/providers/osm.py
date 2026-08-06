@@ -266,13 +266,23 @@ class OsmGridProvider(LayerProvider):
             return (' ⚠️ OSM 변전소명과 한전 자료를 대조하지 못해 '
                     '접속 가능 용량은 확인되지 않았습니다.'), st, df
 
-        best = max(matched, key=lambda s: s['margin_line_kw'])
+        # 연계 대상은 **최근접 변전소**다. 여유용량이 가장 큰 곳을 고르면
+        # 수십 km 밖 변전소를 연계점처럼 제시하게 되어 오도한다.
+        best = min(matched, key=lambda s: s['distance_m'])
         need_kw = (q.capacity_mw or 0) * 1000
 
         detail = (f' 한전 분산전원 연계정보 기준 여유용량 — '
-                  f'{best["name"]}: 변전소 {best["margin_substation_kw"]:,.0f}kW · '
+                  f'{best["name"]}({geo.format_distance(best["distance_m"])}): '
+                  f'변전소 {best["margin_substation_kw"]:,.0f}kW · '
                   f'최대 선로({best["best_line"] or "-"}) {best["margin_line_kw"]:,.0f}kW '
                   '(단위는 문서에 미명시이며 kW로 해석했습니다).')
+
+        # 최근접이 부족할 때만 여유가 더 큰 대안을 함께 알린다
+        roomier = max(matched, key=lambda s: s['margin_line_kw'])
+        if roomier is not best and roomier['margin_line_kw'] > best['margin_line_kw']:
+            detail += (f' 참고로 {roomier["name"]}'
+                       f'({geo.format_distance(roomier["distance_m"])})의 선로 여유가 '
+                       f'{roomier["margin_line_kw"]:,.0f}kW로 더 큽니다.')
 
         if not need_kw:
             return detail, st, df
