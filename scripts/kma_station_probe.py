@@ -6,10 +6,14 @@ ASOS 관측소의 **지점번호·명칭·위경도·표고**를 확보한다.
 
   https://apihub.kma.go.kr/api/typ01/url/stn_inf.php?inf=SFC&tm=..&authKey=..
 
-인증키 발급
-  https://apihub.kma.go.kr → 회원가입 → 로그인 → 마이페이지 → 인증키
-  ※ 공공데이터포털(data.go.kr)과 **별개 사이트**입니다. 키가 다릅니다.
-  .env 에 `KMA_APIHUB_KEY=발급받은키` 로 등록하십시오.
+인증키 발급 및 활용신청
+  1) https://apihub.kma.go.kr → 회원가입 → 로그인 → 마이페이지 → 인증키
+     ※ 공공데이터포털(data.go.kr)과 **별개 사이트**입니다. 키가 다릅니다.
+  2) .env 에 `KMA_APIHUB_KEY=발급받은키` 등록
+  3) **API별 활용신청이 필요합니다.** 가입만으로는 모든 API가 403입니다(실측 확인).
+     관측 → 지상관측 → "지점정보(stn_inf)" 활용신청
+
+인증 파라미터는 `authKey` 입니다 (403 응답으로 확정 — 401은 키 자체가 무효일 때).
 
 사용:  python scripts/kma_station_probe.py
 산출:  backend/data/kma/stations.json  (시드 입력)
@@ -99,6 +103,16 @@ def main() -> None:
     for kp in KEY_PARAM_CANDIDATES:
         status, body = fetch(kp, key, '202508010000')
         head = re.sub(r'\s+', ' ', body[:120])
+
+        # 403은 "키는 유효하나 해당 API를 활용신청하지 않음"이다.
+        # 401(키 오류)과 구분해서 안내해야 엉뚱한 곳을 고치지 않는다.
+        if status == 403:
+            print(f'[403] 인증 파라미터 = {kp} (키는 유효합니다)')
+            print('      해당 API가 활용신청되지 않았습니다.')
+            print('      https://apihub.kma.go.kr 로그인 → 관측 → 지상관측 →')
+            print('      "지점정보(stn_inf)" 활용신청 후 다시 실행하십시오.')
+            return
+
         if status == 200 and '인증키' not in body:
             print(f'[OK] 인증 파라미터 = {kp}')
             (OUT / 'stn_inf_raw.txt').write_text(body, encoding='utf-8')
@@ -117,7 +131,8 @@ def main() -> None:
             return
         print(f'[{status}] {kp}: {head}')
 
-    print('\n모든 인증 파라미터 후보가 실패했습니다. 키 값을 다시 확인하십시오.')
+    print('\n모든 후보가 401(유효하지 않은 인증키)입니다. '
+          'KMA_APIHUB_KEY 값을 다시 확인하십시오.')
 
 
 if __name__ == '__main__':
