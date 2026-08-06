@@ -182,9 +182,14 @@ EGIS_API_KEY = os.environ.get('EGIS_API_KEY', '')
 EGIS_ECOMAP_URL = os.environ.get('EGIS_ECOMAP_URL', '')
 EGIS_PROTECTED_URL = os.environ.get('EGIS_PROTECTED_URL', '')
 
-# 산림청 (산사태위험등급)
+# 산사태위험지도 — 생활안전지도(safemap.go.kr) 오픈API (제공기관 산림청).
+# 공공데이터포털과 별개 포털이라 인증키도 별개다. DATA_GO_KR_KEY를 쓰면 안 된다.
+# 데이터 포맷이 WMS(지도 이미지)이므로 GetFeatureInfo로 지점 등급을 조회한다.
 FOREST_API_KEY = os.environ.get('FOREST_API_KEY', '')
-FOREST_LANDSLIDE_URL = os.environ.get('FOREST_LANDSLIDE_URL', '')
+FOREST_LANDSLIDE_URL = os.environ.get(
+    'FOREST_LANDSLIDE_URL', 'https://safemap.go.kr/openapi2/IF_0046_WMS')
+# 산사태위험지도 WMS 레이어명 — 키 발급 후 GetCapabilities로 실측해 확정한다.
+FOREST_LANDSLIDE_LAYER = os.environ.get('FOREST_LANDSLIDE_LAYER', '')
 
 # 국가유산청
 HERITAGE_API_KEY = os.environ.get('HERITAGE_API_KEY', '')
