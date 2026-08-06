@@ -19,8 +19,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && fc-cache -fv
 
 # Python 패키지 설치
+#   기본 타임아웃(15초)으로는 대용량 휠(torch·matplotlib 등) 내려받다 끊긴다.
+#   실제로 ReadTimeoutError로 빌드가 실패해 타임아웃·재시도를 늘렸다.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --timeout 120 --retries 10 -r requirements.txt
 
 COPY . .
 
