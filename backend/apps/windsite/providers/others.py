@@ -17,52 +17,9 @@ from .base import LayerProvider, SiteQuery
 
 
 # ======================================================================
-# 5. 산사태위험등급
+# 5. 산사태위험등급 → providers/landslide.py 의 LandslideProvider로 이관
+#    (생활안전지도 WMS에서 이미지를 받아 색상을 등급으로 역변환)
 # ======================================================================
-class LandslideProvider(LayerProvider):
-    category = '산림'
-    item_name = '산사태위험등급'
-    data_source = '산림청 산사태위험지도'
-    required_settings = ('FOREST_API_KEY', 'FOREST_LANDSLIDE_URL')
-    default_law = '산지관리법'
-    default_article = '제18조(산지전용허가기준 등) · 시행령 별표4'
-
-    GRADE_RULES = {
-        1: (Status.CONDITIONAL, Difficulty.HIGH,
-            '산사태위험 1등급지가 포함되어 산지 인허가 심사 시 재해영향 검토가 크게 강화됩니다. '
-            '실무상 허가가 어려운 경우가 많아 배치 조정 검토를 권장합니다.'),
-        2: (Status.CONDITIONAL, Difficulty.MEDIUM,
-            '산사태위험 2등급지가 포함되어 사면 안정성 검토 및 재해저감 대책 수립이 요구됩니다.'),
-    }
-
-    def analyze(self, q: SiteQuery) -> AnalysisItem:
-        res = self.get(settings.FOREST_LANDSLIDE_URL, {
-            'serviceKey': settings.FOREST_API_KEY,
-            'lat': q.lat, 'lng': q.lng, 'buffer': q.radius_m, 'type': 'json',
-        })
-        res.raise_for_status()
-        grades = _find_ints(res.json(), keys=('grade', 'gradnm', '등급', 'wrnggrad'))
-
-        if not grades:
-            return self.unknown(
-                reason='산사태위험등급을 응답에서 판별하지 못했습니다.',
-                action_required='산림청 산사태정보시스템에서 대상지 등급을 직접 확인하십시오.',
-            )
-        worst = min(grades)
-        if worst in self.GRADE_RULES:
-            st, df, reason = self.GRADE_RULES[worst]
-        else:
-            st, df, reason = (Status.POSSIBLE, Difficulty.LOW,
-                              f'산사태위험 {worst}등급지로 상대적으로 안정적인 구간입니다.')
-        return self.item(
-            status=st,
-            reason=f'검토 반경 내 최고 위험등급 {worst}등급. {reason}',
-            difficulty=df,
-            confidence=Confidence.LOW,
-            source_url='https://sansatai.forest.go.kr',
-            action_required='재해영향평가 대상 여부 및 사방시설 계획을 검토하십시오.',
-            raw={'grades': sorted(grades)},
-        )
 
 
 # ======================================================================
@@ -203,25 +160,3 @@ class WindResourceProvider(LayerProvider):
 # 10. 전력계통 연계 → providers/osm.py 의 OsmGridProvider로 이관
 #     (한전 미공개 → OSM Overpass로 변전소·송전선로 최근접 탐색)
 # ======================================================================
-
-
-# ----------------------------------------------------------------------
-def _find_ints(data, keys: tuple[str, ...]) -> set[int]:
-    out: set[int] = set()
-
-    def walk(o):
-        if isinstance(o, dict):
-            for k, v in o.items():
-                if isinstance(v, (dict, list)):
-                    walk(v)
-                elif any(kw in str(k).lower() for kw in keys):
-                    try:
-                        out.add(int(str(v).strip()[0]))
-                    except (ValueError, IndexError):
-                        pass
-        elif isinstance(o, list):
-            for i in o:
-                walk(i)
-
-    walk(data)
-    return {g for g in out if 1 <= g <= 5}

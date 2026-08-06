@@ -19,6 +19,7 @@ from .permits import build_roadmap, collect_laws
 from .providers.base import SiteQuery
 from .providers.cadastral import CadastralProvider
 from .providers.environment import EcoNatureMapProvider, ProtectedAreaProvider
+from .providers.landslide import LandslideProvider
 from .providers.local_spatial import HeritageSpatialProvider
 from .providers.ned import (
     ForestClassificationProvider,
@@ -27,7 +28,6 @@ from .providers.ned import (
 )
 from .providers.osm import OsmGridProvider, QuietFacilityProvider
 from .providers.others import (
-    LandslideProvider,
     LocalOrdinanceProvider,
     MilitaryAirspaceProvider,
     WindResourceProvider,
