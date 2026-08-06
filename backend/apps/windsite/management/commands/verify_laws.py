@@ -110,11 +110,31 @@ class Command(BaseCommand):
             rec['note'] = f'검색 실패 ({type(e).__name__})'
             return rec
 
-        exact = next((h for h in hits if h['name'] == name and h['status'] == '현행'), None)
+        key = lawapi.normalize_law_name(name)
+
+        def same(h):
+            return lawapi.normalize_law_name(h['name']) == key
+
+        exact = next((h for h in hits if same(h) and h['status'] == '현행'), None)
         if not exact:
-            exact = next((h for h in hits if h['name'] == name), None)
+            exact = next((h for h in hits if same(h)), None)
         if not exact:
-            rec['note'] = ('현행 법령에서 같은 이름을 찾지 못했습니다. '
+            # 법령이 아니라 행정규칙(훈령·예규·고시·지침)일 수 있다
+            try:
+                rules = lawapi.search_admin_rule(name)
+                time.sleep(sleep)
+            except Exception:                                   # noqa: BLE001
+                rules = []
+            hit = next((r for r in rules
+                        if lawapi.normalize_law_name(r['name']) == key), None)
+            if hit:
+                rec['confidence'] = 'MEDIUM'
+                rec['note'] = (f"행정규칙으로 확인 ({hit['kind']}) · 시행 "
+                               f"{_fmt(hit['effective_date'])} · 소관 {hit['ministry'] or '-'}")
+                rec['law_id'] = hit['rule_id']
+                rec['is_admin_rule'] = True
+                return rec
+            rec['note'] = ('현행 법령·행정규칙에서 같은 이름을 찾지 못했습니다. '
                            f'유사: {", ".join(h["name"] for h in hits[:3]) or "없음"}')
             return rec
 
@@ -134,8 +154,28 @@ class Command(BaseCommand):
             return rec
 
         rec['meta'] = {**exact, **body['meta']}
+
+        # 별표를 참조하는 표기가 있으면 별표 목록도 함께 받는다.
+        # 환경영향평가 대상 규모처럼 판정 핵심 수치가 조문이 아닌 별표에 있는 경우가 많다.
+        appendices: list[dict] = []
+        if any(lawapi.parse_appendix_label(lb)[0] for lb in labels):
+            decree = self._decree_of(name, labels, cache, sleep)
+            if decree:
+                try:
+                    appendices = lawapi.fetch_law_appendices(decree['mst'])
+                    time.sleep(sleep)
+                except Exception:                               # noqa: BLE001
+                    appendices = []
+
         found_any = False
         for label in sorted(labels):
+            if lawapi.parse_appendix_label(label)[0]:
+                ap = lawapi.find_appendix(appendices, label)
+                rec['articles'].append((label, bool(ap), ap['title'][:60] if ap else ''))
+                if ap:
+                    found_any = True
+                    self._store_appendix(rec, label, ap, body['meta'])
+                continue
             art = lawapi.find_article(body['articles'], label)
             rec['articles'].append((label, bool(art), art['title'] if art else ''))
             if art:
@@ -144,6 +184,39 @@ class Command(BaseCommand):
         if found_any and all(ok for _, ok, _ in rec['articles']):
             rec['confidence'] = 'HIGH'
         return rec
+
+    # ------------------------------------------------------------------
+    def _decree_of(self, name: str, labels: set[str], cache: dict, sleep: float) -> dict | None:
+        """
+        '시행령 별표3' 처럼 하위법령의 별표를 가리키는 경우 시행령을 따로 찾는다.
+        '별표3'만 적혀 있으면 본법의 별표로 본다.
+        """
+        wants_decree = any('시행령' in lb for lb in labels)
+        target_name = f'{name} 시행령' if wants_decree and '시행령' not in name else name
+        try:
+            hits = cache.get(target_name) or lawapi.search_law(target_name, display=5)
+            cache[target_name] = hits
+            time.sleep(sleep)
+        except Exception:                                       # noqa: BLE001
+            return None
+        key = lawapi.normalize_law_name(target_name)
+        return next((h for h in hits
+                     if lawapi.normalize_law_name(h['name']) == key), None)
+
+    def _store_appendix(self, rec: dict, label: str, ap: dict, meta: dict) -> None:
+        LawArticle.objects.update_or_create(
+            law_name=rec['name'], article_label=label,
+            defaults=dict(
+                source_type='LAW', org=meta.get('ministry', ''),
+                law_id=rec['law_id'], mst=rec['mst'],
+                article_no=ap['no'], article_sub_no=ap.get('sub_no', ''),
+                article_title=ap['title'][:300], article_text=ap['text'][:20000],
+                effective_date=meta.get('effective_date', ''),
+                promulgated_date=meta.get('promulgated', ''),
+                source_url=lawapi.law_detail_url(rec['law_id']),
+                via_demo_account=lawapi.is_demo_account(),
+            ),
+        )
 
     # ------------------------------------------------------------------
     def _store(self, rec: dict, label: str, art: dict, meta: dict, hit: dict) -> None:

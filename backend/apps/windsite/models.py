@@ -122,6 +122,10 @@ class RegulationLayer(models.Model):
     #: 함께 표기할 부가 속성 목록 (실측 확인값)
     extra_fields = models.JSONField('부가 속성', default=list, blank=True)
     geometry_type = models.CharField('지오메트리', max_length=30, blank=True)
+    #: 공역 레이어의 **하한고도** 속성명 (예: aismoac의 moa_lbl_3 = '10 000 AMSL').
+    #: 값이 있으면 평면 중첩만으로 저촉 판정하지 않고, 발전기 최고높이와 고도를 비교한다.
+    #: (항공 공역은 대부분 일정 고도 이상에만 적용돼 평면 중첩만 보면 오탐이 난다)
+    altitude_floor_field = models.CharField('하한고도 속성', max_length=50, blank=True)
 
     #: 피처가 검출됐을 때의 기본 판정 (세부 값별 판정은 RegulationRule이 우선)
     default_status = models.CharField('기본 판정', max_length=15,

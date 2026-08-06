@@ -20,7 +20,7 @@ import urllib.parse
 import httpx
 from django.conf import settings
 
-from .. import geo
+from .. import geo, httpcache
 from ..schemas import AnalysisItem, Confidence, Difficulty, Status
 from .base import LayerProvider, SiteQuery
 
@@ -50,6 +50,11 @@ class OverpassClient:
 
     @classmethod
     def query(cls, ql: str, timeout: float = 120.0) -> list[dict]:
+        return httpcache.get_or_set('overpass', {'ql': ql},
+                                    lambda: cls._query_live(ql, timeout))
+
+    @classmethod
+    def _query_live(cls, ql: str, timeout: float) -> list[dict]:
         endpoints = cls.endpoints()
         last = ''
         with _OVERPASS_LOCK:

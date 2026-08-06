@@ -21,7 +21,7 @@ from pathlib import Path
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from apps.windsite.models import RegulationLayer
+from apps.windsite.models import RegulationLayer, RegulationRule
 
 PROBE_PATH = Path(__file__).resolve().parents[4] / 'data' / 'vworld' / 'probe_result.json'
 
@@ -170,9 +170,17 @@ SPECS: list[dict] = [
          law='야생생물 보호 및 관리에 관한 법률', article='제33조(야생생물 특별보호구역 등에서의 행위 제한)',
          action_required='조류 충돌 리스크와 함께 환경영향평가에서 중점 검토 대상이 됩니다.',
          display_order=56),
+    # ⚠️ 실측 확인: lt_c_um710에는 상수원보호구역뿐 아니라
+    #    '상수원보호기타'(= 상수원 상류 공장설립 승인·제한지역)가 함께 들어온다.
+    #    후자는 「물환경보전법」상 **공장** 설립에 걸리는 규제라 풍력발전과 무관한데,
+    #    레이어 기본값(CRITICAL)이 그대로 적용되면 종합판정이 통째로 왜곡된다.
+    #    → 기본값을 낮추고, 진짜 보호구역만 아래 LAYER_RULES에서 CRITICAL로 올린다.
     dict(code='상수원보호구역', layer_id='lt_c_um710', role='REGULATION',
-         category='환경', default_status='CONDITIONAL', default_difficulty='CRITICAL',
-         law='수도법', article='제7조(상수원보호구역 지정 등)', display_order=57),
+         category='환경', default_status='CONDITIONAL', default_difficulty='MEDIUM',
+         law='수도법', article='제7조(상수원보호구역 지정 등)',
+         action_required='조회된 구역 종류를 확인하십시오. 상수원보호구역이면 행위제한이 강하고, '
+                         '공장설립 승인·제한지역이면 발전시설과는 규제 대상이 다릅니다.',
+         display_order=57),
     dict(code='대기환경규제지역', layer_id='lt_c_um301', role='CONTEXT',
          category='환경', default_status='POSSIBLE', default_difficulty='LOW',
          law='대기환경보전법', article='제18조', display_order=58),
@@ -230,19 +238,27 @@ SPECS: list[dict] = [
          law='공항시설법', article='제34조(장애물 제한표면)',
          action_required='관제권 내 장애물 제한표면 저촉 여부를 국토교통부·관할부대에 질의하십시오.',
          display_order=93),
+    # ⚠️ 항공 공역(비행제한·비행장교통·군작전·훈련·공중전투기동)은 대부분
+    #    **일정 고도 이상에만** 적용된다. 예) 영양 상공 MOA 10 = 하한 10,000ft.
+    #    평면 중첩만 보면 전국 산간 대부분이 오탐이 되므로 하한고도 속성을 지정해
+    #    발전기 최고높이와 비교한 뒤 판정한다.
     dict(code='비행장교통구역', layer_id='lt_c_aisatzc', role='REGULATION',
          category='안전/문화재', default_status='CONDITIONAL', default_difficulty='HIGH',
+         altitude_floor_field='atm_lbl_3',
          law='공항시설법', article='제34조', display_order=94),
     dict(code='군작전구역', layer_id='lt_c_aismoac', role='REGULATION',
          category='안전/문화재', default_status='CONDITIONAL', default_difficulty='HIGH',
+         altitude_floor_field='moa_lbl_3',
          law='군사기지 및 군사시설 보호법', article='제13조',
          action_required='관할부대 협의 대상입니다. 레이더 전파영향 검토를 함께 요청하십시오.',
          display_order=95),
     dict(code='훈련구역', layer_id='lt_c_aiscatc', role='REGULATION',
          category='안전/문화재', default_status='CONDITIONAL', default_difficulty='HIGH',
+         altitude_floor_field='cat_lbl_3',
          law='군사기지 및 군사시설 보호법', article='제13조', display_order=96),
     dict(code='공중전투기동훈련장', layer_id='lt_c_aisacmc', role='REGULATION',
          category='안전/문화재', default_status='CONDITIONAL', default_difficulty='HIGH',
+         altitude_floor_field='acm_lbl_3',
          law='군사기지 및 군사시설 보호법', article='제13조', display_order=97),
 
     # ---------------- 지적·이격 기초 ----------------
@@ -263,6 +279,30 @@ SPECS: list[dict] = [
          law='지자체 도시·군계획 조례 (이격거리)',
          action_required='도로 이격거리 조례가 있는 지자체인지 확인하십시오.',
          display_order=103),
+]
+
+
+# ----------------------------------------------------------------------
+# 구역명별 세부 판정 규칙 (RegulationRule)
+#   레이어 하나에 성격이 다른 구역이 섞여 들어오는 경우, 레이어 기본값만으로는
+#   오탐이 난다. 실측으로 확인된 구역명에 한해 규칙을 둔다. (추측 금지)
+#   condition_key는 구역명(uname)에 부분일치하면 적용된다.
+# ----------------------------------------------------------------------
+LAYER_RULES: list[dict] = [
+    dict(layer='상수원보호구역', condition_key='상수원보호구역',
+         condition_desc='수도법상 상수원보호구역',
+         status='CONDITIONAL', difficulty='CRITICAL',
+         reason_template='상수원보호구역은 행위제한이 강해 발전시설 설치가 사실상 어렵습니다. '
+                         '입지 변경을 우선 검토하십시오.',
+         law='수도법', article='제7조(상수원보호구역 지정 등)'),
+    dict(layer='상수원보호구역', condition_key='상수원보호기타',
+         condition_desc='상수원 상류 공장설립 승인·제한지역 (실측 확인된 구역명)',
+         status='CONDITIONAL', difficulty='LOW',
+         reason_template='조회된 구역은 상수원 상류 「공장설립 승인·제한지역」으로, '
+                         '규제 대상이 공장 설립입니다. 풍력발전시설은 공장에 해당하지 않아 '
+                         '직접 저촉되지는 않으나, 상수원 상류라는 입지 특성상 '
+                         '환경영향평가에서 수질 항목이 중점 검토됩니다.',
+         law='물환경보전법', article='제33조(배출시설의 설치 허가 및 신고)'),
 ]
 
 
@@ -338,6 +378,7 @@ class Command(BaseCommand):
                 law=spec.get('law', ''),
                 article=spec.get('article', ''),
                 action_required=spec.get('action_required', ''),
+                altitude_floor_field=spec.get('altitude_floor_field', ''),
                 probe_status=probe_status,
                 probe_note=note,
                 # 법령 원문 대조는 아직 수행되지 않았다 (docs/WINDSITE_API_KEYS.md §3 참조)
@@ -350,6 +391,19 @@ class Command(BaseCommand):
                 code=spec['code'], defaults={**defaults, 'layer_id': lid})
             created += is_new
             updated += (not is_new)
+
+        # 구역명별 세부 규칙
+        rules = 0
+        for r in LAYER_RULES:
+            RegulationRule.objects.update_or_create(
+                layer=r['layer'], condition_key=r['condition_key'],
+                defaults={**{k: v for k, v in r.items()
+                             if k not in ('layer', 'condition_key')},
+                          'confidence': r.get('confidence', 'MEDIUM'),
+                          'is_active': True},
+            )
+            rules += 1
+        self.stdout.write(f'구역명별 판정 규칙 {rules}건 반영')
 
         ok = RegulationLayer.objects.filter(probe_status='OK').count()
         schema = RegulationLayer.objects.filter(probe_status='SCHEMA').count()

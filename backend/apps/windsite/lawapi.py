@@ -62,6 +62,16 @@ def _get(url: str, params: dict, timeout: float = 60.0) -> ET.Element:
 # ======================================================================
 # 검색
 # ======================================================================
+#: 법령명에 쓰이는 가운뎃점 변종 — 원문은 'ㆍ'(U+318D), 사람이 적을 땐 '·'(U+00B7)를
+#: 쓰는 일이 많아 그대로 비교하면 "법령을 찾지 못했습니다"가 난다.
+_MIDDOT = str.maketrans({'·': 'ㆍ', '‧': 'ㆍ', '・': 'ㆍ', '•': 'ㆍ'})
+
+
+def normalize_law_name(name: str) -> str:
+    """가운뎃점 변종과 공백을 통일해 법령명을 비교 가능한 형태로 만든다."""
+    return re.sub(r'\s+', '', (name or '').translate(_MIDDOT))
+
+
 def search_law(name: str, display: int = 20) -> list[dict]:
     """법령명으로 검색. 정확히 일치하는 현행 법령을 앞에 둔다."""
     root = _get(SEARCH_URL, {'target': 'law', 'query': name, 'display': str(display)})
@@ -77,9 +87,74 @@ def search_law(name: str, display: int = 20) -> list[dict]:
             'ministry': el.findtext('소관부처명') or '',
             'detail_url': el.findtext('법령상세링크') or '',
         })
-    # 완전일치 → 현행 → 그 외 순
-    out.sort(key=lambda r: (r['name'] != name, r['status'] != '현행'))
+    # 완전일치(가운뎃점 정규화 후) → 현행 → 그 외 순
+    key = normalize_law_name(name)
+    out.sort(key=lambda r: (normalize_law_name(r['name']) != key, r['status'] != '현행'))
     return out
+
+
+def search_admin_rule(name: str, display: int = 10) -> list[dict]:
+    """
+    행정규칙(훈령·예규·고시·지침) 검색.
+
+    「육상풍력 개발사업 환경성평가 지침」처럼 법령이 아닌 행정규칙은
+    target=law로는 절대 찾을 수 없다.
+    """
+    root = _get(SEARCH_URL, {'target': 'admrul', 'query': name, 'display': str(display)})
+    out = []
+    for el in root.findall('admrul'):
+        out.append({
+            'name': (el.findtext('행정규칙명') or '').strip(),
+            'rule_id': el.findtext('행정규칙ID') or '',
+            'mst': el.findtext('행정규칙일련번호') or '',
+            'kind': el.findtext('행정규칙종류') or '',
+            'effective_date': el.findtext('시행일자') or '',
+            'ministry': el.findtext('소관부처명') or '',
+            'detail_url': el.findtext('행정규칙상세링크') or '',
+        })
+    key = normalize_law_name(name)
+    out.sort(key=lambda r: normalize_law_name(r['name']) != key)
+    return out
+
+
+def fetch_law_appendices(mst: str) -> list[dict]:
+    """
+    법령의 별표 목록과 본문.
+
+    환경영향평가 대상 규모처럼 **판정에 직결되는 수치가 조문이 아니라 별표에**
+    있는 경우가 많다. 조문만 대조하면 정작 중요한 기준을 검증하지 못한다.
+    """
+    root = _get(SERVICE_URL, {'target': 'law', 'MST': mst}, timeout=90.0)
+    out = []
+    for b in root.iter('별표단위'):
+        raw_no = (b.findtext('별표번호') or '').strip()
+        sub = (b.findtext('별표가지번호') or '').strip()
+        out.append({
+            'no': str(int(raw_no)) if raw_no.isdigit() else raw_no,
+            'sub_no': str(int(sub)) if sub.isdigit() and int(sub) else '',
+            'title': (b.findtext('별표제목') or '').strip(),
+            'kind': (b.findtext('별표구분') or '').strip(),
+            'text': re.sub(r'[ \t]{2,}', ' ', (b.findtext('별표내용') or '')).strip(),
+        })
+    return out
+
+
+def parse_appendix_label(label: str) -> tuple[str, str]:
+    """'시행령 별표3' / '[별표 4의2]' → ('3','') / ('4','2'). 아니면 ('','')"""
+    m = re.search(r'별\s*표\s*(\d+)(?:\s*의\s*(\d+))?', label or '')
+    if not m:
+        return '', ''
+    return m.group(1), (m.group(2) or '')
+
+
+def find_appendix(appendices: list[dict], label: str) -> dict | None:
+    no, sub = parse_appendix_label(label)
+    if not no:
+        return None
+    for a in appendices:
+        if a['no'] == no and (a['sub_no'] or '') == (sub or ''):
+            return a
+    return None
 
 
 def search_ordinance(sigungu: str, keyword: str = '', display: int = 20) -> list[dict]:
@@ -199,6 +274,91 @@ def find_article(articles: list[dict], label: str, *, ordinance: bool = False) -
         if no == want_no and (sub or '') == (want_sub or ''):
             return a
     return None
+
+
+# ======================================================================
+# 별표(첨부 HWP)
+# ======================================================================
+def fetch_ordinance_appendices(mst: str) -> list[dict]:
+    """
+    자치법규의 별표 목록.
+
+    ⚠️ 실측 확인 — 별표 본문(`별표내용`)은 비어 있고 **HWP 첨부로만** 제공된다.
+       청도군처럼 이격거리 기준이 조문이 아니라 별표에 있는 지자체가 있어,
+       별표를 보지 않으면 "규정 없음"으로 잘못 판정하게 된다.
+    """
+    root = _get(SERVICE_URL, {'target': 'ordin', 'MST': mst}, timeout=90.0)
+    out = []
+    for b in root.iter('별표단위'):
+        out.append({
+            'no': (b.findtext('별표번호') or '').strip(),
+            'sub_no': (b.findtext('별표가지번호') or '').strip(),
+            'title': (b.findtext('별표제목') or '').strip(),
+            'kind': (b.findtext('별표구분') or '').strip(),
+            'file_type': (b.findtext('별표첨부파일구분') or '').strip(),
+            'file_url': (b.findtext('별표첨부파일명') or '').strip(),
+            'text': (b.findtext('별표내용') or '').strip(),
+        })
+    return out
+
+
+def fetch_appendix_text(file_url: str, timeout: float = 90.0) -> str:
+    """
+    별표 HWP를 내려받아 본문 텍스트를 뽑는다.
+
+    hwp-hwpx-parser는 이 문서(표 위주 별표)에서 본문을 거의 못 뽑아내,
+    HWP5 BodyText 스트림의 문단 텍스트 레코드를 직접 읽는다.
+    """
+    if not file_url:
+        return ''
+    # 응답 헤더의 파일명은 URL 쿼리에 붙어 오기도 한다 — flSeq만 남겨 요청한다
+    url = re.sub(r'&flNm=.*$', '', file_url)
+    res = httpx.get(url, timeout=timeout, follow_redirects=True,
+                    headers={'User-Agent': 'windsite-lawcheck/1.0'})
+    res.raise_for_status()
+    return extract_hwp_text(res.content)
+
+
+def extract_hwp_text(blob: bytes) -> str:
+    """HWP5(OLE) 바이트에서 문단 텍스트만 추출한다."""
+    import struct
+    import zlib
+
+    try:
+        import olefile
+    except ImportError:                                         # pragma: no cover
+        logger.warning('olefile 미설치 — 별표 HWP를 읽을 수 없습니다.')
+        return ''
+
+    import io
+    try:
+        ole = olefile.OleFileIO(io.BytesIO(blob))
+    except Exception:                                           # noqa: BLE001
+        logger.warning('HWP OLE 판독 실패')
+        return ''
+
+    HWPTAG_PARA_TEXT = 67
+    chunks: list[str] = []
+    for entry in ole.listdir():
+        if not entry or entry[0] != 'BodyText':
+            continue
+        data = ole.openstream(entry).read()
+        try:
+            data = zlib.decompress(data, -15)                   # 배포용 압축 스트림
+        except zlib.error:
+            pass                                                # 비압축 문서
+        i = 0
+        while i < len(data) - 4:
+            header = struct.unpack('<I', data[i:i + 4])[0]
+            tag = header & 0x3FF
+            size = (header >> 20) & 0xFFF
+            i += 4
+            if tag == HWPTAG_PARA_TEXT:
+                chunks.append(data[i:i + size].decode('utf-16le', 'ignore'))
+            i += size
+    text = ''.join(chunks)
+    # HWP 제어문자(표/그림 앵커 등)를 공백으로 치환
+    return re.sub(r'[\x00-\x1f]', ' ', text)
 
 
 def law_detail_url(law_id: str) -> str:

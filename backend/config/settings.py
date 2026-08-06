@@ -106,6 +106,23 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 
+# ───── Cache ─────
+# 풍력 입지검토는 한 지점당 수십 건의 외부 API를 호출한다. 같은 지점을 다시 보거나
+# 보고서를 만들 때 동일 호출이 반복되므로 응답을 캐시해 지연과 사용량 제한을 줄인다.
+_REDIS_URL = os.environ.get('REDIS_URL', '')
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': _REDIS_URL,
+    } if _REDIS_URL else {
+        # Redis가 없으면 프로세스 로컬 캐시로 동작 (개발/단독 실행용)
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'windsite-local',
+    }
+}
+#: 외부 공간정보 응답 캐시 수명(초). 규제 레이어는 자주 바뀌지 않는다.
+WINDSITE_CACHE_TTL = int(os.environ.get('WINDSITE_CACHE_TTL', 60 * 60 * 24))
+
 # ───── Qdrant ─────
 QDRANT_URL = os.environ.get('QDRANT_URL', 'http://localhost:6333')
 QDRANT_COLLECTION = 're_documents'

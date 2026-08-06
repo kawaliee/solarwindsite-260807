@@ -43,7 +43,7 @@ _DIST = r'([0-9][0-9,\.]*)\s*(미터|m|M|킬로미터|km|KM)'
 TARGET_PATTERNS: list[tuple[str, str]] = [
     ('RESIDENTIAL', r'(취락|주거밀집|주거지역|주택|가구|세대|호 이상|호 미만)'),
     ('QUIET_FACILITY', r'(정온시설|학교|병원|요양|어린이집|경로당|공공시설)'),
-    ('ROAD', r'(도로|국도|지방도|군도|고속도로)'),
+    ('ROAD', r'(도로|국도|지방도|군도|고속도로|교통시설)'),
     ('RAILWAY', r'(철도|역사)'),
 ]
 
@@ -102,15 +102,22 @@ class Command(BaseCommand):
 
         body = lawapi.fetch_ordinance_articles(target['mst'])
         found = self._extract(body['articles'])
+        source_kind = '조문'
+
+        if not found:
+            # 조문에 없으면 별표를 본다 — 청도군처럼 별표에만 규정된 사례가 있다
+            found = self._extract_from_appendices(target['mst'])
+            source_kind = '별표'
+
         if not found:
             self.stdout.write(self.style.WARNING(
-                '  풍력 이격거리 조항을 찾지 못했습니다. '
+                '  풍력 이격거리 조항을 조문·별표 어디에서도 찾지 못했습니다. '
                 '해당 지자체에 풍력 이격 규정이 없거나 다른 조례에 있을 수 있습니다.'))
             return
 
         art, entries = found
-        label = _article_label(art['no'])
-        self.stdout.write(f"  조문: {label} {art['title']}")
+        label = _article_label(art['no']) if source_kind == '조문' else art['no']
+        self.stdout.write(f"  {source_kind}: {label} {art['title']}")
 
         # 원문 보관 — 판정 근거를 원문으로 되돌릴 수 있게
         LawArticle.objects.update_or_create(
@@ -148,6 +155,69 @@ class Command(BaseCommand):
             self._apply(sigungu, o['sido'], target, label, entries, current)
 
     # ------------------------------------------------------------------
+    def _extract_from_appendices(self, mst: str) -> tuple[dict, list[dict]] | None:
+        """별표(HWP 첨부)에서 풍력 이격 기준을 찾는다."""
+        try:
+            appendices = lawapi.fetch_ordinance_appendices(mst)
+        except Exception as e:                                  # noqa: BLE001
+            self.stdout.write(self.style.ERROR(f'  별표 목록 조회 실패: {type(e).__name__}'))
+            return None
+
+        for ap in appendices:
+            text = ap.get('text') or ''
+            if not text and ap.get('file_type', '').lower() in ('hwp', 'hwpx'):
+                try:
+                    text = lawapi.fetch_appendix_text(ap['file_url'])
+                except Exception as e:                          # noqa: BLE001
+                    self.stdout.write(self.style.WARNING(
+                        f"  별표 {ap['no']} 첨부 판독 실패: {type(e).__name__}"))
+                    continue
+            if '풍력' not in text:
+                continue
+
+            block = _wind_block_plain(text)
+            if not block:
+                continue
+            entries = self._entries_from(block)
+            if entries:
+                return ({'no': f"[별표 {int(ap['no'])}]", 'title': ap['title'],
+                         'text': text}, entries)
+        return None
+
+    # ------------------------------------------------------------------
+    def _entries_from(self, block: str) -> list[dict]:
+        """항목 단위로 쪼개 거리 수치를 뽑는다 (괄호 안 보조 수치까지)."""
+        entries: list[dict] = []
+        for line in re.split(r'(?=\(\d+\)|\n?\s*\d+\.\s|[가-힣]\.\s)', block):
+            for m in re.finditer(_DIST, line):
+                dist = _to_meters(m.group(1), m.group(2))
+                if dist is None:
+                    continue
+                # 수치 앞 문맥으로 이격 대상을 판별한다
+                ctx = line[:m.start()]
+                target = 'OTHER'
+                for code, pat in TARGET_PATTERNS:
+                    if re.search(pat, ctx) or re.search(pat, line):
+                        target = code
+                        break
+                entries.append({
+                    'target': target,
+                    'detail': _detail_of(ctx or line),
+                    'distance_m': dist,
+                    'sentence': re.sub(r'\s+', ' ', line).strip(),
+                })
+        # 같은 (대상, 상세)가 중복되면 첫 값만 남긴다
+        seen: set[tuple[str, str]] = set()
+        out = []
+        for e in entries:
+            k = (e['target'], e['detail'])
+            if k in seen:
+                continue
+            seen.add(k)
+            out.append(e)
+        return out
+
+    # ------------------------------------------------------------------
     def _extract(self, articles: list[dict]) -> tuple[dict, list[dict]] | None:
         """풍력 이격 조항을 담은 조를 찾아 (조, 추출항목)을 돌려준다."""
         for art in articles:
@@ -158,24 +228,7 @@ class Command(BaseCommand):
             block = _wind_block(text)
             if not block:
                 continue
-            entries = []
-            for line in re.split(r'(?=\n?\s*\d+\.\s)', block):
-                m = re.search(_DIST, line)
-                if not m:
-                    continue
-                dist = _to_meters(m.group(1), m.group(2))
-                if dist is None:
-                    continue
-                target = 'OTHER'
-                for code, pat in TARGET_PATTERNS:
-                    if re.search(pat, line):
-                        target = code
-                        break
-                detail = _detail_of(line)
-                entries.append({
-                    'target': target, 'detail': detail, 'distance_m': dist,
-                    'sentence': re.sub(r'\s+', ' ', line).strip(),
-                })
+            entries = self._entries_from(block)
             if entries:
                 return art, entries
         return None
@@ -234,6 +287,26 @@ def _wind_block(text: str) -> str:
     return ''
 
 
+def _wind_block_plain(text: str) -> str:
+    """
+    별표처럼 항 기호(①②③)가 없는 평문에서 풍력 관련 구간만 잘라낸다.
+    '풍력발전시설은 …' 부터 다음 대항목(가./나./다. 또는 숫자.) 직전까지.
+    태양광 기준의 수치를 섞으면 판정이 통째로 틀어지므로 범위를 좁게 잡는다.
+    """
+    m = re.search(r'[가-힣]\.\s*풍력발전시설', text)
+    if not m:
+        m = re.search(r'풍력', text)
+        if not m:
+            return ''
+        start = m.start()
+    else:
+        start = m.start()
+    tail = text[start:]
+    # 다음 대항목(‘바.’ 같은 한글 항목 기호)에서 끊는다
+    nxt = re.search(r'\s[가-힣]\.\s(?!풍력)', tail[10:])
+    return tail[:10 + nxt.start()] if nxt else tail[:1500]
+
+
 def _to_meters(num: str, unit: str) -> int | None:
     try:
         v = float(num.replace(',', ''))
@@ -245,14 +318,16 @@ def _to_meters(num: str, unit: str) -> int | None:
 
 
 def _detail_of(line: str) -> str:
-    """'10호 이상 취락지역으로부터 2,000미터…' → '10호 이상 취락지역'"""
+    """'(2) 10호 이상 취락지역으로부터 2,000미터…' → '10호 이상 취락지역'"""
+    # 항목 기호 제거: '(1)', '1.', '가.'
+    line = re.sub(r'^\s*(?:\(\d+\)|\d+\.|[가-힣]\.)\s*', '', line.strip())
     m = re.search(r'(\d+호\s*(?:이상|미만)\s*[가-힣]+)', line)
     if m:
         return m.group(1).replace(' ', '')
-    m = re.search(r'([가-힣·\s]{2,20}?)(?:으로부터|로부터|와의|과의)', line)
+    m = re.search(r'([가-힣·\s]{2,24}?)(?:으로부터|로부터|에서부터|와의|과의|경계)', line)
     if m:
-        return m.group(1).strip()[:40]
-    return line.strip()[:40]
+        return re.sub(r'\s+', ' ', m.group(1)).strip()[:40]
+    return re.sub(r'\s+', ' ', line).strip()[:40]
 
 
 def _article_label(no: str) -> str:

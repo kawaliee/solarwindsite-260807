@@ -19,10 +19,11 @@ V-World 데이터 API 2.0 (GetFeature) 사용.
 from __future__ import annotations
 
 import logging
+import re
 
 from django.conf import settings
 
-from .. import geo
+from .. import geo, httpcache
 from ..schemas import AnalysisItem, Confidence, Difficulty, Status
 from .base import LayerProvider, SiteQuery
 
@@ -32,6 +33,51 @@ VWORLD_DATA_URL = 'https://api.vworld.kr/req/data'
 
 #: 난이도 서열 — 최악값 선택에 사용
 _DIFF_ORDER = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
+
+#: 발전기 최고높이(블레이드 끝) 기본값(m). 공역 하한고도와 비교하는 데 쓴다.
+#: 국내 육상풍력 주력 기종(3~5.5MW급)의 통상 범위를 넘지 않는 보수적 값이며,
+#: 기종이 확정되면 settings.WINDSITE_TURBINE_TIP_HEIGHT_M 으로 덮어쓴다.
+DEFAULT_TIP_HEIGHT_M = 200
+
+#: 항공 고도 표기 파서 — 'FL 400' / '10 000 AMSL' / '3000 FT AGL' / 'GND' / 'UNL'
+_ALT_FL = re.compile(r'FL\s*(\d+)', re.I)
+_ALT_FT = re.compile(r'(\d[\d\s,]*)\s*(?:FT|AMSL|AGL|MSL)', re.I)
+_FT_PER_M = 3.28084
+
+
+def parse_altitude_ft(raw: str | None) -> float | None:
+    """
+    공역 고도 표기를 피트로 환산한다. 판별 불가 시 None(→ 고도 비교를 하지 않음).
+
+      'GND' / 'SFC' → 0        지표면
+      'UNL'         → None     제한 없음(상한 표기라 하한 판단에 쓰지 않음)
+      'FL 400'      → 40,000ft
+      '10 000 AMSL' → 10,000ft
+    """
+    s = (raw or '').strip().upper()
+    if not s:
+        return None
+    if s in ('GND', 'SFC', 'SURFACE'):
+        return 0.0
+    if s.startswith('UNL'):
+        return None
+    m = _ALT_FL.search(s)
+    if m:
+        return float(m.group(1)) * 100
+    m = _ALT_FT.search(s)
+    if m:
+        try:
+            return float(m.group(1).replace(' ', '').replace(',', ''))
+        except ValueError:
+            return None
+    # 단위 없이 숫자만 있는 경우도 피트 표기로 본다 (항공 공역 관례)
+    digits = re.fullmatch(r'[\d\s,]+', s)
+    if digits:
+        try:
+            return float(s.replace(' ', '').replace(',', ''))
+        except ValueError:
+            return None
+    return None
 
 
 class VworldClient:
@@ -57,9 +103,12 @@ class VworldClient:
             'crs': 'EPSG:4326',
             'geometry': 'true' if geometry else 'false',
         }
-        res = LayerProvider.get(VWORLD_DATA_URL, params, timeout=30.0)
-        res.raise_for_status()
-        return res.json()
+        def call() -> dict:
+            res = LayerProvider.get(VWORLD_DATA_URL, params, timeout=30.0)
+            res.raise_for_status()
+            return res.json()
+
+        return httpcache.get_or_set('vworld', params, call)
 
     @classmethod
     def fetch_all(cls, layer_id: str, lat: float, lng: float, radius_m: int,
@@ -194,7 +243,8 @@ class VworldLayerProvider(LayerProvider):
             confidence=Confidence.MEDIUM,
             source_url=lyr.source_url or 'https://www.vworld.kr',
             action_required='',
-            raw={'layer': lyr.layer_id, 'feature_count': 0, 'search_radius_m': radius},
+            raw={'code': lyr.code, 'layer': lyr.layer_id,
+                 'feature_count': 0, 'search_radius_m': radius},
         )
 
     # ------------------------------------------------------------------
@@ -216,6 +266,9 @@ class VworldLayerProvider(LayerProvider):
             for k in (lyr.extra_fields or [])[:6]:
                 if props.get(k):
                     rec[k] = props[k]
+            if lyr.altitude_floor_field:
+                rec['altitude_floor_ft'] = parse_altitude_ft(
+                    props.get(lyr.altitude_floor_field))
 
             if site is not None:
                 g = geo.geom_from_geojson(f.get('geometry'))
@@ -242,10 +295,17 @@ class VworldLayerProvider(LayerProvider):
                     difficulty=Difficulty.LOW,
                     confidence=Confidence.MEDIUM,
                     source_url=lyr.source_url or 'https://www.vworld.kr',
-                    raw={'layer': lyr.layer_id, 'nearest': nearest,
-                         'feature_count': len(hits)},
+                    raw={'code': lyr.code, 'layer': lyr.layer_id,
+                         'nearest': nearest, 'feature_count': len(hits)},
                 )
             hits = within
+
+        # 공역 하한고도 판정 — 발전기 최고높이보다 높은 곳에만 적용되는 공역은
+        # 평면이 겹쳐도 저촉이 아니다. (평면 중첩만 보면 전국 대부분이 오탐이 된다)
+        if self.layer.altitude_floor_field:
+            cleared = self._altitude_clearance(hits)
+            if cleared is not None:
+                return cleared
 
         # 구역명별 세부 규칙 (DB) — 없으면 레이어 기본값
         status, difficulty, law, article, confidence, rule_reason = self._resolve_rule(
@@ -284,6 +344,43 @@ class VworldLayerProvider(LayerProvider):
                 'nearest': nearest,
                 'features': hits[:20],
             },
+        )
+
+    # ------------------------------------------------------------------
+    def _altitude_clearance(self, hits: list[dict]) -> AnalysisItem | None:
+        """
+        모든 검출 공역의 하한고도가 발전기 최고높이보다 높으면 '저촉 없음'으로 본다.
+        하나라도 하한을 판별하지 못하거나 낮으면 None을 돌려 정상 판정으로 넘긴다.
+        """
+        tip_m = float(getattr(settings, 'WINDSITE_TURBINE_TIP_HEIGHT_M',
+                              DEFAULT_TIP_HEIGHT_M))
+        tip_ft = tip_m * _FT_PER_M
+
+        floors = [h.get('altitude_floor_ft') for h in hits]
+        if not floors or any(f is None for f in floors):
+            return None
+        if min(floors) <= tip_ft:
+            return None
+
+        lowest = min(floors)
+        names = ', '.join(dict.fromkeys(h['name'] for h in hits))[:120]
+        return self.item(
+            status=Status.POSSIBLE,
+            reason=(
+                f'{self.item_name}({names})과 평면상 겹치지만, 해당 공역의 하한고도는 '
+                f'{lowest:,.0f}ft({lowest / _FT_PER_M:,.0f}m)로 발전기 최고높이 '
+                f'{tip_m:,.0f}m보다 높아 저촉되지 않습니다.'
+            ),
+            difficulty=Difficulty.LOW,
+            confidence=Confidence.MEDIUM,
+            source_url=self.layer.source_url or 'https://www.vworld.kr',
+            action_required=(
+                '기종 확정 후 최고높이가 달라지면 재검토하십시오. 공역 하한고도와 무관하게 '
+                '관할부대·국토교통부 협의 대상일 수 있습니다.'
+            ),
+            raw={'code': self.layer.code, 'layer': self.layer.layer_id,
+                 'altitude_cleared': True, 'lowest_floor_ft': lowest,
+                 'tip_height_m': tip_m, 'features': hits[:10]},
         )
 
     # ------------------------------------------------------------------
