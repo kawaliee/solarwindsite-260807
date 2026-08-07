@@ -35,6 +35,10 @@ DIFFICULTY_LABEL = {
 #: 6장 변전소 표에 실을 최소 전압(V). 풍력 계통연계는 송전전압에서 이뤄지므로
 #: 배전급(22.9kV·25kV)은 제외한다. 154·345·765kV가 모두 남는다.
 GRID_MIN_VOLTAGE = 154_000
+#: 표에 싣는 변전소 수 — 가까운 순. 연계 검토는 최근접 몇 곳으로 시작한다.
+GRID_TABLE_LIMIT = 3
+#: OSM에 name 태그가 없을 때 어댑터가 넣는 값 (providers/osm.py와 맞춘다)
+UNNAMED_SUBSTATION = '(명칭 미상)'
 
 
 # ======================================================================
@@ -163,10 +167,18 @@ def build_report(result: EvaluationResult, *, sido: str = '', sigungu: str = '',
     # 풍력 계통연계는 송전전압(154kV 이상)에서 이뤄진다. 배전급(22.9kV·25kV)
     # 변전소가 표를 채우면 실제 연계 후보가 묻힌다. 전압으로 걸러 낸다.
     # 345kV뿐 아니라 765kV도 남긴다 — 상위 전압을 숨기면 오히려 오도한다.
-    subs = [s for s in all_subs if (s.get('voltage') or 0) >= GRID_MIN_VOLTAGE]
+    hv = [s for s in all_subs if (s.get('voltage') or 0) >= GRID_MIN_VOLTAGE]
     low = [s for s in all_subs
            if 0 < (s.get('voltage') or 0) < GRID_MIN_VOLTAGE]
     unknown_v = [s for s in all_subs if not (s.get('voltage') or 0)]
+
+    # 명칭 미상은 한전 자료와 대조되지 않아 여유용량도 붙지 않고, 실무에서
+    # 지목해 문의할 수도 없다. 표에서는 빼고 건수만 남긴다.
+    named = [s for s in hv if (s.get('name') or '') != UNNAMED_SUBSTATION]
+    unnamed = [s for s in hv if (s.get('name') or '') == UNNAMED_SUBSTATION]
+
+    # 가까운 순 상위 N개만 싣는다 (어댑터가 이미 정렬해 두지만 명시적으로 보장한다)
+    subs = sorted(named, key=lambda s: s['distance_m'])[:GRID_TABLE_LIMIT]
 
     if subs:
         # 여유용량은 한전 분산전원 연계정보에서 변전소명을 정규화해 붙인 값이다.
@@ -182,7 +194,7 @@ def build_report(result: EvaluationResult, *, sido: str = '', sigungu: str = '',
                  _kw(s.get('margin_substation_kw')),
                  _kw(s.get('margin_line_kw')),
                  s.get('best_line') or '-']
-                for s in subs[:8]])
+                for s in subs])
 
         # 걸러 낸 것을 침묵으로 넘기지 않는다 — 표가 전부라고 오해할 수 있다
         dropped = []
@@ -190,11 +202,17 @@ def build_report(result: EvaluationResult, *, sido: str = '', sigungu: str = '',
             dropped.append(f'배전급 {len(low)}개소')
         if unknown_v:
             dropped.append(f'전압 미상 {len(unknown_v)}개소')
+        if unnamed:
+            dropped.append(f'명칭 미상 {len(unnamed)}개소')
+        rest = len(named) - len(subs)
+        if rest > 0:
+            dropped.append(f'{GRID_TABLE_LIMIT}순위 밖 {rest}개소')
         if dropped:
             doc.add_paragraph(
-                f'※ 위 표는 송전전압 {GRID_MIN_VOLTAGE // 1000}kV 이상 변전소만 표기했습니다 '
-                f'(제외: {" · ".join(dropped)}). 전압 미상은 OSM에 voltage 태그가 없는 '
-                '경우로, 실제로는 송전급일 수 있어 한전ON에서 확인이 필요합니다.'
+                f'※ 위 표는 송전전압 {GRID_MIN_VOLTAGE // 1000}kV 이상 변전소 중 '
+                f'가까운 순 {GRID_TABLE_LIMIT}개소입니다 (제외: {" · ".join(dropped)}). '
+                '전압·명칭 미상은 OSM에 태그가 없는 경우로, 실제로는 더 가까운 송전급 '
+                '변전소일 수 있어 한전ON에서 확인이 필요합니다.'
             )
 
         matched = [s for s in subs if s.get('margin_line_kw') is not None]
@@ -215,6 +233,15 @@ def build_report(result: EvaluationResult, *, sido: str = '', sigungu: str = '',
                 '⚠️ OSM 변전소 명칭과 한전 자료를 대조하지 못해 접속 가능 용량이 비어 있습니다. '
                 '변전소명이 서로 다르게 표기된 경우입니다. 한전ON에서 직접 확인하십시오.'
             )
+    elif unnamed:
+        # 송전급은 잡혔으나 전부 명칭 미상인 경우. "없음"으로 적으면 안 된다.
+        near = min(unnamed, key=lambda s: s['distance_m'])
+        doc.add_paragraph(
+            f'송전전압 {GRID_MIN_VOLTAGE // 1000}kV 이상 변전소 {len(unnamed)}개소가 '
+            f'확인되었으나 OSM에 명칭이 없어 표에 싣지 않았습니다 '
+            f'(최근접 {geo.format_distance(near["distance_m"])}). '
+            '한전ON에서 해당 위치의 변전소명과 접속 가능 용량을 확인하십시오.'
+        )
     elif all_subs:
         # 배전급만 잡힌 경우다. "변전소 없음"과 구분해서 적는다.
         doc.add_paragraph(
