@@ -32,6 +32,10 @@ DIFFICULTY_LABEL = {
     'LOW': '낮음', 'MEDIUM': '보통', 'HIGH': '높음', 'CRITICAL': '매우 높음',
 }
 
+#: 6장 변전소 표에 실을 최소 전압(V). 풍력 계통연계는 송전전압에서 이뤄지므로
+#: 배전급(22.9kV·25kV)은 제외한다. 154·345·765kV가 모두 남는다.
+GRID_MIN_VOLTAGE = 154_000
+
 
 # ======================================================================
 def build_report(result: EvaluationResult, *, sido: str = '', sigungu: str = '',
@@ -152,9 +156,18 @@ def build_report(result: EvaluationResult, *, sido: str = '', sigungu: str = '',
     # ── 6. 전력계통 연계 ────────────────────────────────────────────
     doc.add_heading('6. 전력계통 연계', level=1)
     grid = _raw_of(result, '전력계통 연계(변전소·송전선로)')
-    subs = grid.get('substations') or []
+    all_subs = grid.get('substations') or []
     cap_source = grid.get('capacity_source') or ''
     cap_error = grid.get('capacity_error') or ''
+
+    # 풍력 계통연계는 송전전압(154kV 이상)에서 이뤄진다. 배전급(22.9kV·25kV)
+    # 변전소가 표를 채우면 실제 연계 후보가 묻힌다. 전압으로 걸러 낸다.
+    # 345kV뿐 아니라 765kV도 남긴다 — 상위 전압을 숨기면 오히려 오도한다.
+    subs = [s for s in all_subs if (s.get('voltage') or 0) >= GRID_MIN_VOLTAGE]
+    low = [s for s in all_subs
+           if 0 < (s.get('voltage') or 0) < GRID_MIN_VOLTAGE]
+    unknown_v = [s for s in all_subs if not (s.get('voltage') or 0)]
+
     if subs:
         # 여유용량은 한전 분산전원 연계정보에서 변전소명을 정규화해 붙인 값이다.
         # 종전에는 이 표에 용량 열이 없고 "여유도는 포함되지 않습니다"라는 문구만
@@ -170,6 +183,19 @@ def build_report(result: EvaluationResult, *, sido: str = '', sigungu: str = '',
                  _kw(s.get('margin_line_kw')),
                  s.get('best_line') or '-']
                 for s in subs[:8]])
+
+        # 걸러 낸 것을 침묵으로 넘기지 않는다 — 표가 전부라고 오해할 수 있다
+        dropped = []
+        if low:
+            dropped.append(f'배전급 {len(low)}개소')
+        if unknown_v:
+            dropped.append(f'전압 미상 {len(unknown_v)}개소')
+        if dropped:
+            doc.add_paragraph(
+                f'※ 위 표는 송전전압 {GRID_MIN_VOLTAGE // 1000}kV 이상 변전소만 표기했습니다 '
+                f'(제외: {" · ".join(dropped)}). 전압 미상은 OSM에 voltage 태그가 없는 '
+                '경우로, 실제로는 송전급일 수 있어 한전ON에서 확인이 필요합니다.'
+            )
 
         matched = [s for s in subs if s.get('margin_line_kw') is not None]
         if matched:
@@ -189,6 +215,14 @@ def build_report(result: EvaluationResult, *, sido: str = '', sigungu: str = '',
                 '⚠️ OSM 변전소 명칭과 한전 자료를 대조하지 못해 접속 가능 용량이 비어 있습니다. '
                 '변전소명이 서로 다르게 표기된 경우입니다. 한전ON에서 직접 확인하십시오.'
             )
+    elif all_subs:
+        # 배전급만 잡힌 경우다. "변전소 없음"과 구분해서 적는다.
+        doc.add_paragraph(
+            f'탐색 반경 내에서 송전전압 {GRID_MIN_VOLTAGE // 1000}kV 이상 변전소가 '
+            f'조회되지 않았습니다 (배전급 {len(low)}개소 · 전압 미상 {len(unknown_v)}개소만 확인). '
+            '연계점이 원거리에 있을 가능성이 크므로 한전ON에서 상위 전압 변전소 위치와 '
+            '접속 가능 용량을 직접 확인하십시오.'
+        )
     else:
         doc.add_paragraph('변전소가 조회되지 않았습니다. 한전ON에서 직접 확인이 필요합니다.')
 
