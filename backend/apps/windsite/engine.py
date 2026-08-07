@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from .permits import build_roadmap, collect_laws
 from .providers.base import SiteQuery
 from .providers.cadastral import CadastralProvider
+from .providers.ecoarea import EcoAreaProvider
 from .providers.econature import EcoNatureMapProvider
 from .providers.heritage_wms import (
     HeritageDistributionMapProvider,
@@ -70,6 +71,7 @@ def build_providers(sido: str = '', sigungu: str = '', substations=None):
         LandCharacteristicsProvider(),                     # 지형·진입도로
         LandUseZoneProvider(),                             # 필지 지역지구 전체
         EcoNatureMapProvider(),                            # 생태자연도
+        EcoAreaProvider(),                                 # 생태·경관보전지역
         LandslideProvider(),                               # 산사태위험등급
         HeritageSpatialProvider(),                         # 국가유산 (SHP 적재)
         HeritageSurveyAreaProvider(),                      # 국가유산조사구역 (WMS)
