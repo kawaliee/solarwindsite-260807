@@ -36,6 +36,8 @@ export interface AnalysisItem {
   source_url: string;
   data_source: string;
   action_required: string;
+  /** 판정 근거 원자료 — 최근접 거리·필지 면적·조회된 구역명 등 (어댑터마다 형태가 다름) */
+  raw?: Record<string, unknown>;
 }
 
 export interface PermitStep {
@@ -89,6 +91,50 @@ export interface ProviderConfigRow {
   category: string;
   data_source: string;
   required_settings: string[];
+  /** 없어도 동작하지만 있으면 판정이 깊어지는 키 (예: 계통 여유용량) */
+  optional_settings: string[];
+  /** 필수 키가 모두 채워졌는지. 키를 아예 쓰지 않는 어댑터는 null */
   configured: boolean | null;
   missing: string[];
+  missing_optional: string[];
+  active_keys: string[];
+}
+
+/** 후보지 비교 — POST /compare/ */
+export interface ComparisonRow {
+  rank: number;
+  label: string;
+  score: number;
+  grade: FeasibilityStatus;
+  coordinates: { lat: number; lng: number };
+  radius_m: number;
+  usable_area_m2: number | null;
+  total_parcel_area_m2: number | null;
+  parcel_count: number | null;
+  conversion_needed: Record<string, number>;
+  nearest_substation: { name: string; distance_m: number; voltage?: number } | null;
+  nearest_quiet_facility: { name: string; kind: string; distance_m: number } | null;
+  ordinance_breaches: string[];
+  blockers: string[];
+  critical_conditions: string[];
+  unknown_count: number;
+  summary: string;
+}
+
+export interface CompareResult {
+  comparison: ComparisonRow[];
+  results: { label: string; result: EvaluationResult }[];
+  note: string;
+  compared_at: string;
+}
+
+export interface CompareCandidate {
+  label?: string;
+  lat?: number;
+  lng?: number;
+  address?: string;
+  radius_m?: number;
+  capacity_mw?: number | null;
+  sido?: string;
+  sigungu?: string;
 }

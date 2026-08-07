@@ -1550,3 +1550,51 @@ select.fs-input { cursor: pointer; }
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
   color: var(--brand); word-break: break-all;
 }
+
+/* ── 후보지 비교 · 보고서 (windsite) ────────────────────────────── */
+.ws-actions { display: flex; gap: 8px; margin-top: 8px; }
+.ws-actions .ws-btn2 { flex: 1; }
+.ws-btn2 {
+  padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  background: rgba(255,255,255,.06); color: var(--ink); border: 1px solid var(--line);
+  cursor: pointer;
+}
+.ws-btn2:hover:not(:disabled) { background: rgba(255,255,255,.12); }
+.ws-btn2:disabled { opacity: .5; cursor: not-allowed; }
+.ws-hint { font-size: 11px; color: var(--ink-faint); margin-top: 6px; line-height: 1.5; }
+.ws-note {
+  font-size: 12px; color: var(--ink-dim); line-height: 1.6;
+  background: rgba(255,255,255,.04); border-left: 3px solid var(--brand);
+  padding: 10px 12px; border-radius: 0 8px 8px 0; margin: 10px 0;
+}
+
+.ws-cmp-head { margin-bottom: 12px; }
+.ws-cmp-list { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; }
+.ws-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,.06); border: 1px solid var(--line);
+  border-radius: 20px; padding: 6px 8px 6px 14px; font-size: 12px; font-weight: 600;
+}
+.ws-chip em { font-style: normal; font-size: 10.5px; color: var(--ink-faint); font-weight: 400; }
+.ws-chip button {
+  width: 18px; height: 18px; border-radius: 50%; border: none; cursor: pointer;
+  background: rgba(255,255,255,.1); color: var(--ink-dim); line-height: 1;
+}
+.ws-chip button:hover { background: var(--red); color: #fff; }
+
+.ws-tablecard { overflow-x: auto; }
+.ws-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.ws-table th, .ws-table td { padding: 10px 12px; text-align: left; white-space: nowrap; }
+.ws-table thead th {
+  font-size: 11px; color: var(--ink-faint); font-weight: 600;
+  border-bottom: 1px solid var(--line);
+}
+.ws-table tbody tr { border-bottom: 1px solid rgba(255,255,255,.04); }
+.ws-table tbody tr:last-child { border-bottom: none; }
+.ws-rank { font-weight: 800; color: var(--brand); }
+
+.ws-status { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 20px; }
+.ws-status.s-POSSIBLE { background: rgba(57,224,138,.16); color: var(--ok); }
+.ws-status.s-CONDITIONAL { background: rgba(255,193,64,.16); color: var(--warn); }
+.ws-status.s-IMPOSSIBLE { background: rgba(255,91,106,.16); color: var(--red); }
+.ws-status.s-UNKNOWN { background: rgba(255,255,255,.08); color: var(--ink-faint); }

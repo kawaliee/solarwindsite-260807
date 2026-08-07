@@ -6,12 +6,14 @@ import {
   DIFFICULTY_LABEL,
   STATUS_LABEL,
   type AnalysisItem,
+  type CompareCandidate,
+  type CompareResult,
   type EvaluationResult,
   type LawRef,
   type ProviderConfigRow,
 } from './types'
 
-type Tab = 'result' | 'permits' | 'laws' | 'config';
+type Tab = 'result' | 'compare' | 'permits' | 'laws' | 'config';
 
 export default function WindSiteView() {
   const [lat, setLat] = useState<number | null>(null);
@@ -28,6 +30,14 @@ export default function WindSiteView() {
   const [tab, setTab] = useState<Tab>('result');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // 보고서 내려받기
+  const [reporting, setReporting] = useState(false);
+
+  // 후보지 비교 — 현재 지점을 후보로 담아 최대 5곳까지 비교한다
+  const [candidates, setCandidates] = useState<CompareCandidate[]>([]);
+  const [compareResult, setCompareResult] = useState<CompareResult | null>(null);
+  const [comparing, setComparing] = useState(false);
 
   useEffect(() => {
     windsiteApi.laws().then(d => setLaws(d.results)).catch(() => setLaws([]));
@@ -52,6 +62,59 @@ export default function WindSiteView() {
       setError(e instanceof Error ? e.message : '검토 실행에 실패했습니다.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const downloadReport = async () => {
+    if (lat == null || lng == null) {
+      setError('사업지를 먼저 지정하십시오.');
+      return;
+    }
+    setReporting(true);
+    setError('');
+    try {
+      await windsiteApi.downloadReport({
+        lat, lng, radius_m: radiusM, address, sido, sigungu,
+        capacity_mw: capacity ? Number(capacity) : null,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '보고서 생성에 실패했습니다.');
+    } finally {
+      setReporting(false);
+    }
+  };
+
+  const addCandidate = () => {
+    if (lat == null || lng == null) {
+      setError('지도를 클릭해 후보지를 지정한 뒤 담으십시오.');
+      return;
+    }
+    if (candidates.length >= 5) {
+      setError('한 번에 비교 가능한 후보는 최대 5곳입니다.');
+      return;
+    }
+    setError('');
+    setCandidates(prev => [...prev, {
+      label: address || `후보 ${prev.length + 1}`,
+      lat, lng, radius_m: radiusM, address, sido, sigungu,
+      capacity_mw: capacity ? Number(capacity) : null,
+    }]);
+    setTab('compare');
+  };
+
+  const runCompare = async () => {
+    if (candidates.length < 2) {
+      setError('비교하려면 후보지를 2곳 이상 담으십시오.');
+      return;
+    }
+    setComparing(true);
+    setError('');
+    try {
+      setCompareResult(await windsiteApi.compare(candidates));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '후보지 비교에 실패했습니다.');
+    } finally {
+      setComparing(false);
     }
   };
 
@@ -125,6 +188,19 @@ export default function WindSiteView() {
             <button className="btn-primary ws-run" onClick={run} disabled={loading}>
               {loading ? '검토 중…' : '입지타당성 검토 실행'}
             </button>
+
+            <div className="ws-actions">
+              <button className="ws-btn2" onClick={downloadReport} disabled={reporting || loading}>
+                {reporting ? '보고서 생성 중…' : '보고서 내려받기 (docx)'}
+              </button>
+              <button className="ws-btn2" onClick={addCandidate} disabled={loading}>
+                후보지로 담기 {candidates.length > 0 && `(${candidates.length})`}
+              </button>
+            </div>
+            <p className="ws-hint">
+              보고서에는 지적·규제·주변현황·이격거리 지도 4종이 포함되며 생성에 2~3분 걸립니다.
+            </p>
+
             {error && <p className="ws-error">{error}</p>}
 
             {notConfigured.length > 0 && (
@@ -141,6 +217,7 @@ export default function WindSiteView() {
       <div className="ws-tabs">
         {([
           ['result', '입지 검토 결과'],
+          ['compare', `후보지 비교${candidates.length ? ` (${candidates.length})` : ''}`],
           ['permits', '인허가 로드맵'],
           ['laws', `관련 법령 (${laws.length})`],
           ['config', '데이터 연동 현황'],
@@ -188,6 +265,83 @@ export default function WindSiteView() {
             ))}
           </>
         )
+      )}
+
+      {/* ── 후보지 비교 ── */}
+      {tab === 'compare' && (
+        <>
+          <div className="ops-card ws-cmp-head">
+            <div className="ws-cmp-list">
+              {candidates.length === 0 ? (
+                <p className="ops-empty">
+                  지도에서 지점을 지정하고 <b>후보지로 담기</b>를 누르십시오. 2~5곳을 같은 기준으로 비교합니다.
+                </p>
+              ) : (
+                candidates.map((c, i) => (
+                  <span key={i} className="ws-chip">
+                    {c.label}
+                    <em>{c.lat?.toFixed(4)}, {c.lng?.toFixed(4)} · {c.radius_m}m</em>
+                    <button onClick={() => setCandidates(p => p.filter((_, j) => j !== i))}>×</button>
+                  </span>
+                ))
+              )}
+            </div>
+            {candidates.length > 0 && (
+              <div className="ws-actions">
+                <button className="btn-primary" onClick={runCompare}
+                  disabled={comparing || candidates.length < 2}>
+                  {comparing ? `비교 중… (후보당 2~3분)` : `${candidates.length}곳 비교 실행`}
+                </button>
+                <button className="ws-btn2" onClick={() => { setCandidates([]); setCompareResult(null); }}>
+                  전체 비우기
+                </button>
+              </div>
+            )}
+          </div>
+
+          {compareResult && (
+            <>
+              <p className="ws-note">{compareResult.note}</p>
+              <div className="ops-card ws-tablecard">
+                <table className="ws-table">
+                  <thead>
+                    <tr>
+                      <th>순위</th><th>후보지</th><th>등급</th><th>점수</th>
+                      <th>가용면적</th><th>최근접 변전소</th><th>조례 저촉</th><th>미확인</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {compareResult.comparison.map(r => (
+                      <tr key={r.label}>
+                        <td className="ws-rank">{r.rank}</td>
+                        <td>{r.label}</td>
+                        <td><StatusBadge s={r.grade} /></td>
+                        <td>{r.score}</td>
+                        <td>{r.usable_area_m2 != null
+                          ? `${Math.round(r.usable_area_m2).toLocaleString()}㎡` : '—'}</td>
+                        <td>{r.nearest_substation
+                          ? `${r.nearest_substation.name} ${(r.nearest_substation.distance_m / 1000).toFixed(1)}km`
+                          : '—'}</td>
+                        <td>{r.ordinance_breaches.length
+                          ? r.ordinance_breaches.join(' / ') : '없음'}</td>
+                        <td>{r.unknown_count}건</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {compareResult.comparison.map(r => (
+                (r.blockers.length > 0 || r.critical_conditions.length > 0) && (
+                  <p key={r.label} className="ws-warn">
+                    <b>{r.label}</b> —{' '}
+                    {r.blockers.length > 0 && `불가 항목: ${r.blockers.join(', ')}. `}
+                    {r.critical_conditions.length > 0 && `치명 조건부: ${r.critical_conditions.join(', ')}`}
+                  </p>
+                )
+              ))}
+            </>
+          )}
+        </>
       )}
 
       {/* ── 인허가 로드맵 ── */}
@@ -255,19 +409,30 @@ export default function WindSiteView() {
                   <td>{c.data_source}</td>
                   <td>
                     {c.configured === null
-                      ? <span className="ws-badge na">공개 API 없음</span>
+                      ? <span className="ws-badge na">키 불필요</span>
                       : c.configured
                         ? <span className="ws-badge ok">연동됨</span>
                         : <span className="ws-badge no">키 미설정</span>}
+                    {c.missing_optional?.length > 0 && (
+                      <span className="ws-badge na" title="없어도 동작하지만 판정이 얕아집니다">
+                        선택 키 미설정
+                      </span>
+                    )}
                   </td>
-                  <td className="ws-mono">{c.missing.join(', ') || (c.required_settings.join(', ') || '—')}</td>
+                  <td className="ws-mono">
+                    {c.missing.length > 0
+                      ? c.missing.join(', ')
+                      : (c.active_keys?.join(', ') || '—')}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
           <p className="ws-footnote">
-            군사·비행안전, 전력계통 여유도, KIER 풍력자원지도는 좌표 기반 공개 API가 제공되지 않아
-            인증키를 등록해도 자동 판정되지 않습니다. 해당 항목은 관할부대·한전 등과의 협의 절차로 처리하십시오.
+            <b>키 불필요</b>는 인증키 없이 동작하는 항목입니다(내부 적재 공간데이터·OpenStreetMap·조례 DB).
+            좌표 기반 공개 API가 없어 자동 판정되지 않는 것은 <b>군사기지법상 보호구역</b>(통제·제한보호구역,
+            비행안전구역 제1~6구역)과 <b>계통 접속 가능 용량 확정</b>, <b>허브고도 풍황</b>뿐이며
+            관할부대·한전 협의와 현장 계측으로 처리하십시오.
           </p>
         </div>
       )}
@@ -303,4 +468,9 @@ function ItemCard({ item }: { item: AnalysisItem }) {
 
 function ConfidenceBadge({ c }: { c: 'HIGH' | 'MEDIUM' | 'LOW' }) {
   return <span className={`ws-conf c-${c}`} title="판정 기준의 검증 수준">{CONFIDENCE_LABEL[c]}</span>;
+}
+
+/** 종합등급 배지 — 비교표에서 후보지별 등급을 한눈에 보이게 한다 */
+function StatusBadge({ s }: { s: keyof typeof STATUS_LABEL }) {
+  return <span className={`ws-status s-${s}`}>{STATUS_LABEL[s]}</span>;
 }
