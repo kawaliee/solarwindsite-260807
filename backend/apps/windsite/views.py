@@ -381,18 +381,25 @@ def provider_config(request):
 
     rows = []
     for p in build_providers():
+        keys = [*p.required_settings, *p.optional_settings]
+        missing = p.missing_settings()
         rows.append({
             'item_name': p.item_name,
             'category': p.category,
             'data_source': p.data_source,
             'required_settings': list(p.required_settings),
-            'configured': p.is_configured() if p.required_settings else None,
-            'missing': p.missing_settings() if p.required_settings else [],
+            'optional_settings': list(p.optional_settings),
+            # 필수 키가 비면 조회 자체를 못 한다. 선택 키는 없어도 동작하되 판정이 얕아진다.
+            'configured': (not missing) if keys else None,
+            'missing': missing,
+            'missing_optional': p.missing_optional(),
+            'active_keys': p.configured_settings(),
         })
     return Response({
         'results': rows,
-        'note': '공개 API가 없는 항목(군사·비행안전, 전력계통, KIER 풍황)은 키를 넣어도 '
-                '자동 판정되지 않으며 기관 협의가 필요합니다.',
+        'note': '인증키가 필요 없는 항목도 자동 판정됩니다(내부 적재 공간데이터·OSM 등). '
+                '군사기지·비행안전구역과 계통 접속 가능 용량 확정은 공개 API가 없어 '
+                '기관 협의가 필요합니다.',
     })
 
 

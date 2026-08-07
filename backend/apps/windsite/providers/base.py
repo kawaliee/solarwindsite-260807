@@ -49,8 +49,12 @@ class LayerProvider(ABC):
     category: str = ''
     #: 항목명
     item_name: str = ''
-    #: 이 어댑터가 필요로 하는 settings 키 목록 (하나라도 비면 UNKNOWN)
+    #: 이 어댑터가 필요로 하는 settings 키 목록 (하나라도 비면 조회 자체를 하지 않고 UNKNOWN)
     required_settings: tuple[str, ...] = ()
+    #: 있으면 판정이 풍부해지지만 없어도 동작하는 키.
+    #: 예) 계통 연계는 KEPCO 키가 없어도 OSM으로 위치는 찾는다. 이런 키를
+    #:     required_settings에 넣으면 키 하나 때문에 항목 전체가 죽는다.
+    optional_settings: tuple[str, ...] = ()
     #: 데이터 출처 표기
     data_source: str = ''
     #: 근거 법령 (기본값 — 판정 시 구체화)
@@ -63,6 +67,14 @@ class LayerProvider(ABC):
 
     def missing_settings(self) -> list[str]:
         return [k for k in self.required_settings if not getattr(settings, k, '')]
+
+    def configured_settings(self) -> list[str]:
+        """실제로 값이 채워져 있는 키 (필수+선택) — 연동 현황 화면 표기용"""
+        return [k for k in (*self.required_settings, *self.optional_settings)
+                if getattr(settings, k, '')]
+
+    def missing_optional(self) -> list[str]:
+        return [k for k in self.optional_settings if not getattr(settings, k, '')]
 
     # ------------------------------------------------------------------
     def run(self, q: SiteQuery) -> AnalysisItem:

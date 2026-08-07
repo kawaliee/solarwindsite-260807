@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:gml="http://www.opengis.net/gml" xmlns:sop="https://www.vworld.kr" elementFormDefault="qualified" targetNamespace="https://www.vworld.kr">
+  <xsd:import namespace="http://www.opengis.net/gml" schemaLocation="http://10.10.21.6:8080/geoserver/schemas/gml/3.1.1/base/gml.xsd"/>
+  <xsd:complexType name="lt_p_aishcstripType">
+    <xsd:complexContent>
+      <xsd:extension base="gml:AbstractFeatureType">
+        <xsd:sequence>
+          <xsd:element maxOccurs="1" minOccurs="0" name="x" nillable="true" type="xsd:decimal">
+            <xsd:annotation>
+              <xsd:documentation>X좌표</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="y" nillable="true" type="xsd:decimal">
+            <xsd:annotation>
+              <xsd:documentation>Y좌표</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="long" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>경도</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="lat" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>위도</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="str_nam" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>명칭</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="org_nam" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>제공처</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="str_use" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>사용여부</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="str_adr" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>주소</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="stt_cde" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>구분</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="alt_val" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>표고</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="int_len" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>진입구역길이</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="int_grd" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>진입표면경사</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="sht_grd" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>전이표면경사</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="lnd_siz" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>착륙대</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="pad_siz" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>패드</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="hor_rad" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>수평표면반경</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="com_dat" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>설치허가일</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="use_dat" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>사용개시일</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="use_typ" nillable="true" type="xsd:string">
+            <xsd:annotation>
+              <xsd:documentation>운용방법</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ag_geom" nillable="true" type="gml:PointPropertyType">
+            <xsd:annotation>
+              <xsd:documentation>지오메트리</xsd:documentation>
+            </xsd:annotation>
+          </xsd:element>
+        </xsd:sequence>
+      </xsd:extension>
+    </xsd:complexContent>
+  </xsd:complexType>
+  <xsd:element name="lt_p_aishcstrip" substitutionGroup="gml:_Feature" type="sop:lt_p_aishcstripType"/>
+</xsd:schema>

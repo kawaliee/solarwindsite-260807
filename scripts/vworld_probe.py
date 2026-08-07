@@ -134,6 +134,13 @@ CURATED: dict[str, list[str]] = {
     '훈련구역': ['lt_c_aiscatc'],
     '공중전투기동훈련장': ['lt_c_aisacmc'],
     '항공위험구역': ['lt_c_aisdngc'],
+    '접근관제구역': ['lt_c_aistmac'],
+    '경계구역': ['lt_c_aisaltc'],
+    '공중급유구역': ['lt_c_aisrflc'],
+    '제한고도': ['lt_l_aisrouteu'],
+    '초경량비행장치공역': ['lt_c_aisuac'],
+    '헬기장': ['lt_p_aishcstrip'],
+    '경량항공기이착륙장': ['lt_c_aisfldc'],
     # 지적·소유
     '연속지적': ['lp_pa_cbnd_bubun'],
     '토지소유': ['dt_d160'],

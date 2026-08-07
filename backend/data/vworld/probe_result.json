@@ -128,6 +128,27 @@
     "항공위험구역": [
       "lt_c_aisdngc"
     ],
+    "접근관제구역": [
+      "lt_c_aistmac"
+    ],
+    "경계구역": [
+      "lt_c_aisaltc"
+    ],
+    "공중급유구역": [
+      "lt_c_aisrflc"
+    ],
+    "제한고도": [
+      "lt_l_aisrouteu"
+    ],
+    "초경량비행장치공역": [
+      "lt_c_aisuac"
+    ],
+    "헬기장": [
+      "lt_p_aishcstrip"
+    ],
+    "경량항공기이착륙장": [
+      "lt_c_aisfldc"
+    ],
     "연속지적": [
       "lp_pa_cbnd_bubun"
     ],
@@ -439,6 +460,55 @@
         "name": "lt_c_aisdngc",
         "title": "위험구역",
         "abstract": "위험구역"
+      }
+    ],
+    "접근관제구역": [
+      {
+        "name": "lt_c_aistmac",
+        "title": "접근관제구역",
+        "abstract": "접근관제구역"
+      }
+    ],
+    "경계구역": [
+      {
+        "name": "lt_c_aisaltc",
+        "title": "경계구역",
+        "abstract": "경계구역"
+      }
+    ],
+    "공중급유구역": [
+      {
+        "name": "lt_c_aisrflc",
+        "title": "공중급유구역",
+        "abstract": "공중급유구역"
+      }
+    ],
+    "제한고도": [
+      {
+        "name": "lt_l_aisrouteu",
+        "title": "제한고도",
+        "abstract": "제한고도"
+      }
+    ],
+    "초경량비행장치공역": [
+      {
+        "name": "lt_c_aisuac",
+        "title": "(UA)초경량비행장치공역",
+        "abstract": "(UA)초경량비행장치공역"
+      }
+    ],
+    "헬기장": [
+      {
+        "name": "lt_p_aishcstrip",
+        "title": "헬기장",
+        "abstract": "헬기장"
+      }
+    ],
+    "경량항공기이착륙장": [
+      {
+        "name": "lt_c_aisfldc",
+        "title": "경량항공기이착륙장",
+        "abstract": "경량항공기이착륙장"
       }
     ],
     "연속지적": [
@@ -950,6 +1020,32 @@
         "type": "sop:lt_c_aisacmcType"
       }
     ],
+    "lt_c_aisaltc": [
+      {
+        "name": "alert_labe",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alt_lbl_1",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alt_lbl_2",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alt_lbl_3",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_aisaltc",
+        "type": "sop:lt_c_aisaltcType"
+      }
+    ],
     "lt_c_aisatzc": [
       {
         "name": "atm_label",
@@ -1050,6 +1146,24 @@
         "type": "sop:lt_c_aisdngcType"
       }
     ],
+    "lt_c_aisfldc": [
+      {
+        "name": "fld_lbl_1",
+        "type": "xsd:string"
+      },
+      {
+        "name": "fld_label",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_aisfldc",
+        "type": "sop:lt_c_aisfldcType"
+      }
+    ],
     "lt_c_aismoac": [
       {
         "name": "moa_label",
@@ -1134,6 +1248,88 @@
       {
         "name": "lt_c_aisresc",
         "type": "sop:lt_c_aisrescType"
+      }
+    ],
+    "lt_c_aisrflc": [
+      {
+        "name": "refueling_",
+        "type": "xsd:string"
+      },
+      {
+        "name": "rfl_lbl_1",
+        "type": "xsd:string"
+      },
+      {
+        "name": "rfl_lbl_2",
+        "type": "xsd:string"
+      },
+      {
+        "name": "rfl_lbl_3",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_aisrflc",
+        "type": "sop:lt_c_aisrflcType"
+      }
+    ],
+    "lt_c_aistmac": [
+      {
+        "name": "tma_lbl_1",
+        "type": "xsd:string"
+      },
+      {
+        "name": "tma_lbl_2",
+        "type": "xsd:string"
+      },
+      {
+        "name": "tma_lbl_3",
+        "type": "xsd:string"
+      },
+      {
+        "name": "tma_lbl_4",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_aistmac",
+        "type": "sop:lt_c_aistmacType"
+      }
+    ],
+    "lt_c_aisuac": [
+      {
+        "name": "ident_txt",
+        "type": "xsd:string"
+      },
+      {
+        "name": "name_txt",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uac_lbl_1",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uac_lbl_2",
+        "type": "xsd:string"
+      },
+      {
+        "name": "uac_lbl_3",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiSurfacePropertyType"
+      },
+      {
+        "name": "lt_c_aisuac",
+        "type": "sop:lt_c_aisuacType"
       }
     ],
     "lt_c_fsdifrsts": [
@@ -3534,6 +3730,28 @@
         "type": "sop:lt_c_wkmstrmType"
       }
     ],
+    "lt_l_aisrouteu": [
+      {
+        "name": "ats_lbl_1",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ats_lbl_2",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ats_lbl",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:MultiLineStringPropertyType"
+      },
+      {
+        "name": "lt_l_aisrouteu",
+        "type": "sop:lt_l_aisrouteuType"
+      }
+    ],
     "lt_l_sprd": [
       {
         "name": "eng_rn",
@@ -3587,1058 +3805,93 @@
         "name": "lt_l_sprd",
         "type": "sop:lt_l_sprdType"
       }
+    ],
+    "lt_p_aishcstrip": [
+      {
+        "name": "x",
+        "type": "xsd:decimal"
+      },
+      {
+        "name": "y",
+        "type": "xsd:decimal"
+      },
+      {
+        "name": "long",
+        "type": "xsd:string"
+      },
+      {
+        "name": "lat",
+        "type": "xsd:string"
+      },
+      {
+        "name": "str_nam",
+        "type": "xsd:string"
+      },
+      {
+        "name": "org_nam",
+        "type": "xsd:string"
+      },
+      {
+        "name": "str_use",
+        "type": "xsd:string"
+      },
+      {
+        "name": "str_adr",
+        "type": "xsd:string"
+      },
+      {
+        "name": "stt_cde",
+        "type": "xsd:string"
+      },
+      {
+        "name": "alt_val",
+        "type": "xsd:string"
+      },
+      {
+        "name": "int_len",
+        "type": "xsd:string"
+      },
+      {
+        "name": "int_grd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "sht_grd",
+        "type": "xsd:string"
+      },
+      {
+        "name": "lnd_siz",
+        "type": "xsd:string"
+      },
+      {
+        "name": "pad_siz",
+        "type": "xsd:string"
+      },
+      {
+        "name": "hor_rad",
+        "type": "xsd:string"
+      },
+      {
+        "name": "com_dat",
+        "type": "xsd:string"
+      },
+      {
+        "name": "use_dat",
+        "type": "xsd:string"
+      },
+      {
+        "name": "use_typ",
+        "type": "xsd:string"
+      },
+      {
+        "name": "ag_geom",
+        "type": "gml:PointPropertyType"
+      },
+      {
+        "name": "lt_p_aishcstrip",
+        "type": "sop:lt_p_aishcstripType"
+      }
     ]
   },
-  "samples": {
-    "dt_d160": {
-      "statuses": [
-        "광주 도심:ERROR",
-        "전남 화순 산간:ERROR",
-        "경북 청도 산간:ERROR"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lp_pa_cbnd_bubun": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:OK"
-      ],
-      "feature_count": 5,
-      "property_keys": [
-        "addr",
-        "bonbun",
-        "bubun",
-        "gosi_month",
-        "gosi_year",
-        "jibun",
-        "jiga",
-        "pnu"
-      ],
-      "sample_properties": {
-        "gosi_year": "2025",
-        "pnu": "1276025025100660000",
-        "jibun": "66 도",
-        "bonbun": "66도",
-        "bubun": "",
-        "addr": "전남광주통합특별시 화순군 화순읍 훈리 66",
-        "gosi_month": "01",
-        "jiga": "155200"
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "광주 도심"
-    },
-    "lt_c_ademd": {
-      "statuses": [
-        "광주 도심:ERROR",
-        "전남 화순 산간:ERROR",
-        "경북 청도 산간:ERROR"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_adri": {
-      "statuses": [
-        "광주 도심:ERROR",
-        "전남 화순 산간:ERROR",
-        "경북 청도 산간:ERROR"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_adsido": {
-      "statuses": [
-        "광주 도심:ERROR",
-        "전남 화순 산간:ERROR",
-        "경북 청도 산간:ERROR"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_adsigg": {
-      "statuses": [
-        "광주 도심:ERROR",
-        "전남 화순 산간:ERROR",
-        "경북 청도 산간:ERROR"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_agrixue101": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:OK"
-      ],
-      "feature_count": 1,
-      "property_keys": [
-        "admin_cd",
-        "alias",
-        "bon_bun",
-        "bu_bun",
-        "dnum",
-        "dyear",
-        "mnum",
-        "remark",
-        "sido_cd",
-        "sido_name",
-        "sigg_name",
-        "sigungu_cd",
-        "std_sggcd",
-        "ucode",
-        "uname"
-      ],
-      "sample_properties": {
-        "bu_bun": "000",
-        "sido_name": "전남광주통합특별시",
-        "sigg_name": "화순군",
-        "uname": "농업진흥구역",
-        "mnum": "64600001276020180069UEA1100193000",
-        "remark": "",
-        "alias": "",
-        "std_sggcd": "12760",
-        "admin_cd": "6460000",
-        "sido_cd": "12",
-        "sigungu_cd": "760",
-        "dyear": "2018",
-        "dnum": "0069",
-        "ucode": "UEA110",
-        "bon_bun": "0193"
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "광주 도심"
-    },
-    "lt_c_agrixue102": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:OK"
-      ],
-      "feature_count": 5,
-      "property_keys": [
-        "admin_cd",
-        "alias",
-        "bon_bun",
-        "bu_bun",
-        "dnum",
-        "dyear",
-        "mnum",
-        "remark",
-        "sido_cd",
-        "sido_name",
-        "sigg_name",
-        "sigungu_cd",
-        "ucode",
-        "uname"
-      ],
-      "sample_properties": {
-        "uname": "영농여건불리농지",
-        "mnum": "49000001276020101105UEG1000005058",
-        "remark": "",
-        "alias": "",
-        "admin_cd": "4900000",
-        "sido_cd": "12",
-        "sigungu_cd": "760",
-        "dyear": "2010",
-        "dnum": "1105",
-        "ucode": "UEG100",
-        "bon_bun": "0005",
-        "bu_bun": "058",
-        "sido_name": "전남광주통합특별시",
-        "sigg_name": "화순군"
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "광주 도심"
-    },
-    "lt_c_aisacmc": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_aisatzc": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_aiscatc": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_aisctrc": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_aisdngc": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_aismoac": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_aisprhc": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_aisresc": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_fsdifrsts": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:OK"
-      ],
-      "feature_count": 5,
-      "property_keys": [
-        "name",
-        "toyanghyun"
-      ],
-      "sample_properties": {
-        "toyanghyun": "B₂",
-        "name": "갈색약건산림토양"
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "광주 도심"
-    },
-    "lt_c_kfdrssigugrade": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:OK"
-      ],
-      "feature_count": 1,
-      "property_keys": [
-        "class00h",
-        "class01h",
-        "class02h",
-        "class03h",
-        "class04h",
-        "class05h",
-        "class06h",
-        "class07h",
-        "class08h",
-        "class09h",
-        "class10h",
-        "class11h",
-        "class12h",
-        "class13h",
-        "class14h",
-        "class15h",
-        "class16h",
-        "class17h",
-        "class18h",
-        "class19h",
-        "class20h",
-        "class21h",
-        "class22h",
-        "class23h",
-        "value00h",
-        "value01h",
-        "value02h",
-        "value03h",
-        "value04h",
-        "value05h",
-        "value06h",
-        "value07h",
-        "value08h",
-        "value09h",
-        "value10h",
-        "value11h",
-        "value12h",
-        "value13h",
-        "value14h",
-        "value15h",
-        "value16h",
-        "value17h",
-        "value18h",
-        "value19h",
-        "value20h",
-        "value21h",
-        "value22h",
-        "value23h",
-        "ymd"
-      ],
-      "sample_properties": {
-        "ymd": "20140112",
-        "value00h": "29",
-        "class00h": "낮음",
-        "value01h": "29",
-        "class01h": "낮음",
-        "value02h": "30",
-        "class02h": "낮음",
-        "value03h": "29",
-        "class03h": "낮음",
-        "value04h": "0",
-        "class04h": "",
-        "value05h": "29",
-        "class05h": "낮음",
-        "value06h": "29",
-        "class06h": "낮음",
-        "value07h": "29",
-        "class07h": "낮음",
-        "value08h": "29",
-        "class08h": "낮음",
-        "value09h": "29",
-        "class09h": "낮음",
-        "value10h": "34",
-        "class10h": "낮음",
-        "value11h": "0",
-        "class11h": "",
-        "value12h": "36",
-        "class12h": "낮음",
-        "value13h": "37",
-        "class13h": "낮음",
-        "value14h": "35",
-        "class14h": "낮음",
-        "value15h": "0",
-        "class15h": "",
-        "value16h": "0",
-        "class16h": "",
-        "value17h": "0",
-        "class17h": "",
-        "value18h": "0",
-        "class18h": "",
-        "value19h": "0",
-        "class19h": "",
-        "value20h": "0",
-        "class20h": "",
-        "value21h": "0",
-        "class21h": "",
-        "value22h": "0",
-        "class22h": "",
-        "value23h": "0",
-        "class23h": ""
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "광주 도심"
-    },
-    "lt_c_lhblpn": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_spbd": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:OK"
-      ],
-      "feature_count": 5,
-      "property_keys": [
-        "bd_mgt_sn",
-        "bul_eng_nm",
-        "buld_nm",
-        "buld_nm_dc",
-        "buld_no",
-        "gro_flo_co",
-        "gu",
-        "rd_nm",
-        "sido",
-        "sigungu"
-      ],
-      "sample_properties": {
-        "buld_nm_dc": "",
-        "buld_no": "15",
-        "rd_nm": "일심동길",
-        "sigungu": "화순군",
-        "sido": "전남광주통합특별시",
-        "gro_flo_co": "0",
-        "bul_eng_nm": "",
-        "buld_nm": "",
-        "gu": "화순읍",
-        "bd_mgt_sn": "4679025028100620000046206"
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "광주 도심"
-    },
-    "lt_c_tfismpa": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_ud801": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 5,
-      "property_keys": [
-        "dnum",
-        "dyear",
-        "sido_name",
-        "sigg_name",
-        "uname"
-      ],
-      "sample_properties": {
-        "uname": "개발제한구역",
-        "dyear": "0000",
-        "dnum": "0000",
-        "sido_name": "전남광주통합특별시",
-        "sigg_name": "화순군"
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "광주 도심"
-    },
-    "lt_c_uf151": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_uf602": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_uf901": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_um221": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_um301": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_um710": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_um901": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_uo101": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:OK"
-      ],
-      "feature_count": 5,
-      "property_keys": [
-        "dnum",
-        "dyear",
-        "remark",
-        "sido_name",
-        "sigg_name",
-        "uname"
-      ],
-      "sample_properties": {
-        "dnum": "0017",
-        "sido_name": "전남광주통합특별시",
-        "sigg_name": "화순군",
-        "remark": "",
-        "uname": "상대보호구역",
-        "dyear": "2018"
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "광주 도심"
-    },
-    "lt_c_uo301": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:OK"
-      ],
-      "feature_count": 5,
-      "property_keys": [
-        "admin_cd",
-        "alias",
-        "bon_bun",
-        "bu_bun",
-        "dnum",
-        "dyear",
-        "mnum",
-        "remark",
-        "sido_cd",
-        "sido_name",
-        "sigg_name",
-        "sigungu_cd",
-        "std_sggcd",
-        "ucode",
-        "uname"
-      ],
-      "sample_properties": {
-        "sigg_name": "화순군",
-        "uname": "역사문화환경보존지역",
-        "dyear": "2008",
-        "dnum": "0004",
-        "ucode": "UOC800",
-        "bon_bun": "0010",
-        "bu_bun": "001",
-        "sido_name": "전남광주통합특별시",
-        "mnum": "64600001276020080004UOC8000010001",
-        "remark": "",
-        "alias": "",
-        "std_sggcd": "12760",
-        "admin_cd": "6460000",
-        "sido_cd": "12",
-        "sigungu_cd": "760"
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "광주 도심"
-    },
-    "lt_c_uo501": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_up201": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_up401": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_upisuq171": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 2,
-      "property_keys": [
-        "atr_nam",
-        "atrb_se",
-        "dgm_ar",
-        "dgm_lt",
-        "dgm_nm",
-        "exc_nam",
-        "lcl_nam",
-        "lclas_cl",
-        "mls_nam",
-        "mlsfc_cl",
-        "ntfc_sn",
-        "pmi_nam",
-        "present_sn",
-        "scl_nam",
-        "sclas_cl",
-        "sig_nam",
-        "signgu_se",
-        "wtnnc_sn"
-      ],
-      "sample_properties": {
-        "lcl_nam": "개발행위허가제한지역",
-        "mls_nam": "미분류",
-        "scl_nam": "미분류",
-        "atr_nam": "개발행위허가제한지역",
-        "pmi_nam": "",
-        "exc_nam": "",
-        "present_sn": "46790UQ171PS000000000002",
-        "lclas_cl": "UQQ900",
-        "mlsfc_cl": "",
-        "sclas_cl": "",
-        "atrb_se": "UQQ900",
-        "wtnnc_sn": "46790ARZ000000000665",
-        "ntfc_sn": "46790NTC000000000382",
-        "dgm_nm": "개발행위허가제한지역",
-        "dgm_ar": "142293",
-        "dgm_lt": "1621",
-        "signgu_se": "46790",
-        "sig_nam": "46"
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "광주 도심"
-    },
-    "lt_c_uq111": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:OK"
-      ],
-      "feature_count": 5,
-      "property_keys": [
-        "dnum",
-        "dyear",
-        "sido_name",
-        "sigg_name",
-        "uname"
-      ],
-      "sample_properties": {
-        "uname": "제1종일반주거지역",
-        "dyear": "2010",
-        "dnum": "0426",
-        "sido_name": "전남광주통합특별시",
-        "sigg_name": "화순군"
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "광주 도심"
-    },
-    "lt_c_uq112": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:OK"
-      ],
-      "feature_count": 2,
-      "property_keys": [
-        "dnum",
-        "dyear",
-        "sido_name",
-        "sigg_name",
-        "uname"
-      ],
-      "sample_properties": {
-        "uname": "계획관리지역",
-        "dyear": "2010",
-        "dnum": "0426",
-        "sido_name": "전남광주통합특별시",
-        "sigg_name": "화순군"
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "광주 도심"
-    },
-    "lt_c_uq113": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:OK"
-      ],
-      "feature_count": 1,
-      "property_keys": [
-        "dnum",
-        "dyear",
-        "sido_name",
-        "sigg_name",
-        "uname"
-      ],
-      "sample_properties": {
-        "uname": "농림지역",
-        "dyear": "2010",
-        "dnum": "0426",
-        "sido_name": "전남광주통합특별시",
-        "sigg_name": "화순군"
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "광주 도심"
-    },
-    "lt_c_uq114": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_uq121": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 2,
-      "property_keys": [
-        "dnum",
-        "dyear",
-        "sido_name",
-        "sigg_name",
-        "uname"
-      ],
-      "sample_properties": {
-        "uname": "자연경관지구",
-        "dyear": "2010",
-        "dnum": "0426",
-        "sido_name": "전남광주통합특별시",
-        "sigg_name": "화순군"
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "광주 도심"
-    },
-    "lt_c_uq123": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 2,
-      "property_keys": [
-        "dnum",
-        "dyear",
-        "sido_name",
-        "sigg_name",
-        "uname"
-      ],
-      "sample_properties": {
-        "uname": "고도지구",
-        "dyear": "2024",
-        "dnum": "0032",
-        "sido_name": "전남광주통합특별시",
-        "sigg_name": "화순군"
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "전남 화순 산간"
-    },
-    "lt_c_uq124": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_uq125": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_uq126": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_uq128": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:OK"
-      ],
-      "feature_count": 5,
-      "property_keys": [
-        "dnum",
-        "dyear",
-        "sido_name",
-        "sigg_name",
-        "uname"
-      ],
-      "sample_properties": {
-        "sigg_name": "화순군",
-        "uname": "자연취락지구",
-        "dyear": "2024",
-        "dnum": "0032",
-        "sido_name": "전남광주통합특별시"
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "광주 도심"
-    },
-    "lt_c_uq129": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_uq130": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_uq162": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:OK"
-      ],
-      "feature_count": 5,
-      "property_keys": [
-        "dnum",
-        "dyear",
-        "sido_name",
-        "sigg_name",
-        "uname"
-      ],
-      "sample_properties": {
-        "uname": "기타공원시설",
-        "dyear": "2008",
-        "dnum": "0125",
-        "sido_name": "전남광주통합특별시",
-        "sigg_name": "화순군"
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "광주 도심"
-    },
-    "lt_c_wgisarwet": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_wgisnpdo": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_wgisnpgug": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 1,
-      "property_keys": [
-        "park_name"
-      ],
-      "sample_properties": {
-        "park_name": "무등산"
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "광주 도심"
-    },
-    "lt_c_wgisnpgun": {
-      "statuses": [
-        "광주 도심:NOT_FOUND",
-        "전남 화순 산간:NOT_FOUND",
-        "경북 청도 산간:NOT_FOUND"
-      ],
-      "feature_count": 0,
-      "property_keys": [],
-      "sample_properties": {},
-      "geometry_type": "",
-      "hit_at": ""
-    },
-    "lt_c_wkmstrm": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:OK"
-      ],
-      "feature_count": 3,
-      "property_keys": [
-        "cat_nam",
-        "riv_nm"
-      ],
-      "sample_properties": {
-        "riv_nm": "벌고천",
-        "cat_nam": "지방2급하천"
-      },
-      "geometry_type": "MultiPolygon",
-      "hit_at": "광주 도심"
-    },
-    "lt_l_sprd": {
-      "statuses": [
-        "광주 도심:OK",
-        "전남 화순 산간:OK",
-        "경북 청도 산간:OK"
-      ],
-      "feature_count": 5,
-      "property_keys": [
-        "rn"
-      ],
-      "sample_properties": {
-        "rn": "자치샘로"
-      },
-      "geometry_type": "MultiLineString",
-      "hit_at": "광주 도심"
-    }
-  }
+  "samples": {}
 }

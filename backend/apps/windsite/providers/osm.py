@@ -105,8 +105,10 @@ class OsmGridProvider(LayerProvider):
 
     category = '인프라'
     item_name = '전력계통 연계(변전소·송전선로)'
-    data_source = 'OpenStreetMap Overpass + 수기 입력'
+    data_source = '한전 분산전원 연계정보 + OpenStreetMap Overpass'
     required_settings = ()
+    #: 없어도 OSM으로 변전소 위치는 찾는다. 있으면 여유용량까지 판정한다.
+    optional_settings = ('KEPCO_API_KEY',)
     default_law = '송·배전용 전기설비 이용규정'
 
     #: 탐색 반경
