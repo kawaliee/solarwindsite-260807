@@ -3,6 +3,7 @@ import type {
   CompareCandidate,
   CompareResult,
   EvaluationResult,
+  GeocodeResult,
   LawRef,
   PermitStep,
   ProviderConfigRow,
@@ -44,6 +45,15 @@ export const windsiteApi = {
     ),
 
   config: () => req<{ results: ProviderConfigRow[]; note: string }>('/config/'),
+
+  /**
+   * 지오코딩 — 좌표 → 주소·행정구역 (또는 주소 → 좌표).
+   * 지도를 클릭했을 때 사업지 주소와 시·도/시·군·구를 자동으로 채우는 데 쓴다.
+   * 시·군·구는 조례 조회 기준이므로 백엔드에서 정규화된 값이 온다
+   * (예: '수원시 장안구' → '수원시').
+   */
+  geocode: (p: { lat: number; lng: number } | { address: string }) =>
+    req<GeocodeResult>('/geocode/', { method: 'POST', body: JSON.stringify(p) }),
 
   /** 후보지 비교 (최대 5곳) */
   compare: (candidates: CompareCandidate[]) =>

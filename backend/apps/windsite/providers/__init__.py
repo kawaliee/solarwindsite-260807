@@ -8,7 +8,8 @@ from .heritage_wms import (                          # noqa: F401
     HeritageSurveyAreaProvider,
 )
 from .landslide import LandslideProvider                                   # noqa: F401
-from .others import LocalOrdinanceProvider, MilitaryAirspaceProvider     # noqa: F401
+from .military import MilitaryZoneProvider                                 # noqa: F401
+from .others import LocalOrdinanceProvider                               # noqa: F401
 from .wind import WindResourceProvider, nearest_stations                   # noqa: F401
 from .cadastral import CadastralProvider                               # noqa: F401
 from .vworld import VworldLayerProvider, build_vworld_providers        # noqa: F401

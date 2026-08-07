@@ -34,7 +34,8 @@ from .providers.ned import (
 )
 from .providers.osm import OsmGridProvider, QuietFacilityProvider
 from .providers.wind import WindResourceProvider
-from .providers.others import LocalOrdinanceProvider, MilitaryAirspaceProvider
+from .providers.military import MilitaryZoneProvider
+from .providers.others import LocalOrdinanceProvider
 from .providers.vworld import build_vworld_providers
 from .schemas import (
     DIFFICULTY_PENALTY,
@@ -76,7 +77,7 @@ def build_providers(sido: str = '', sigungu: str = '', substations=None):
         HeritageSpatialProvider(),                         # 국가유산 (SHP 적재)
         HeritageSurveyAreaProvider(),                      # 국가유산조사구역 (WMS)
         HeritageDistributionMapProvider(),                 # 문화유적분포지도 (WMS)
-        MilitaryAirspaceProvider(),                        # 군사 협의 안내
+        MilitaryZoneProvider(),                            # 군사기지법상 보호구역
         LocalOrdinanceProvider(sido=sido, sigungu=sigungu),  # 지자체 조례
         QuietFacilityProvider(sido=sido, sigungu=sigungu),   # 정온시설 동심원
         WindResourceProvider(),                            # 풍황

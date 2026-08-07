@@ -100,6 +100,23 @@ export interface ProviderConfigRow {
   active_keys: string[];
 }
 
+/** 지오코딩 — POST /geocode/ */
+export interface GeocodeResult {
+  lat: number;
+  lng: number;
+  /** 지번주소 (좌표→주소 방향) */
+  address?: string;
+  /** 도로명주소 — 지점에 따라 없을 수 있다 */
+  road_address?: string;
+  /** 주소→좌표 방향에서 정제된 주소 */
+  matched?: string;
+  sido: string;
+  /** 조례 조회 기준으로 정규화된 값 ('수원시 장안구' → '수원시') */
+  sigungu: string;
+  /** 정규화 전 원본 */
+  sigungu_full?: string;
+}
+
 /** 후보지 비교 — POST /compare/ */
 export interface ComparisonRow {
   rank: number;

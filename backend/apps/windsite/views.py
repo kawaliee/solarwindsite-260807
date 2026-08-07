@@ -323,8 +323,15 @@ def geocode_view(request):
                         status=http.HTTP_400_BAD_REQUEST)
     rg = reverse_geocode(lat, lng)
     if not rg:
-        return Response({'detail': 'V-World 역지오코딩에 실패했습니다(인증키 미설정).'},
-                        status=http.HTTP_404_NOT_FOUND)
+        # 실패 원인을 뭉뚱그리지 않는다. 바다·비주소 지역을 찍은 경우와
+        # 인증키가 없는 경우는 사용자가 할 일이 완전히 다르다.
+        from django.conf import settings
+        if not getattr(settings, 'VWORLD_API_KEY', ''):
+            detail = 'VWORLD_API_KEY가 설정되지 않아 주소를 조회할 수 없습니다.'
+        else:
+            detail = ('해당 좌표에서 주소를 찾지 못했습니다. '
+                      '해상이거나 주소가 부여되지 않은 지역일 수 있습니다.')
+        return Response({'detail': detail}, status=http.HTTP_404_NOT_FOUND)
     return Response({'lat': lat, 'lng': lng, **rg})
 
 

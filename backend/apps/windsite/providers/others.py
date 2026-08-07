@@ -29,48 +29,10 @@ from .base import LayerProvider, SiteQuery
 
 
 # ======================================================================
-# 7. 군사·비행안전 규제 — 공개 API 부재
+# 7. 군사·비행안전 규제 → providers/military.py 의 MilitaryZoneProvider로 이관
+#    "공개 API 부재"로 UNKNOWN 고정이던 항목이다. 실제로는 토지이용계획
+#    (V-World NED getLandUseAttr)에 UNE 코드군으로 실려 있어 판정이 가능하다.
 # ======================================================================
-class MilitaryAirspaceProvider(LayerProvider):
-    category = '안전/문화재'
-    item_name = '군사기지·비행안전구역'
-    data_source = '국방부/관할부대 (공개 API 미제공)'
-    required_settings = ()
-    default_law = '군사기지 및 군사시설 보호법'
-    default_article = '제10조(비행안전구역에서의 금지 또는 제한) · 제13조(협의)'
-
-    def analyze(self, q: SiteQuery) -> AnalysisItem:
-        # 항공 공역은 별도 레이어로 이미 판정하고 있다. 여기서 다루는 것은
-        # 그 레이어들이 담지 못하는 **군사기지법상 보호구역(통제보호·제한보호·
-        # 비행안전 제1~6구역)** 과 레이더 전파영향이다. 이 둘만 공개 API가 없다.
-        from ..models import RegulationLayer
-
-        judged = list(RegulationLayer.objects
-                      .filter(is_active=True, category='안전/문화재',
-                              layer_id__contains='ais')
-                      .values_list('title', flat=True))
-        covered = ', '.join(t for t in judged if t)[:200]
-
-        return self.item(
-            status=Status.UNKNOWN,
-            reason=(
-                '「군사기지 및 군사시설 보호법」상 **보호구역(통제보호구역·제한보호구역·'
-                '비행안전구역 제1~6구역)** 지정 현황과 항공 레이더 전파영향은 좌표 기반 '
-                '공개 API가 제공되지 않아 자동 판정이 불가합니다. '
-                '풍력발전기는 높이가 커 표면높이 제한 및 레이더 간섭 검토 대상이 되는 '
-                '경우가 많습니다. '
-                + (f'다만 항공 공역은 별도 항목으로 판정하고 있습니다 — {covered}.'
-                   if covered else '')
-            ),
-            difficulty=Difficulty.HIGH,
-            confidence=Confidence.MEDIUM,
-            source_url='https://www.mnd.go.kr',
-            action_required=(
-                '① 지자체를 경유해 관할부대에 군사시설 보호구역 저촉 여부 질의 '
-                '② 표면높이 초과 시 관할부대심의위원회 협의(비행안전영향 검토) '
-                '③ 공군 레이더 전파영향 검토 요청'
-            ),
-        )
 
 
 # ======================================================================

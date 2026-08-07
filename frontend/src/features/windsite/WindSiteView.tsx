@@ -39,6 +39,34 @@ export default function WindSiteView() {
   const [compareResult, setCompareResult] = useState<CompareResult | null>(null);
   const [comparing, setComparing] = useState(false);
 
+  // 지도 클릭 → 역지오코딩 진행 상태
+  const [locating, setLocating] = useState(false);
+
+  /**
+   * 지도에서 지점을 찍으면 주소·행정구역을 자동으로 채운다.
+   *
+   * 시·군·구는 조례 조회의 기준값이라 수기 입력에 의존하면 오타 하나로
+   * 이격거리 판정이 통째로 UNKNOWN이 된다. 좌표에서 바로 끌어오는 편이 안전하다.
+   * 조회에 실패해도 좌표 지정 자체는 유효하므로 검토를 막지 않는다.
+   */
+  const pickSite = async (a: number, o: number) => {
+    setLat(a);
+    setLng(o);
+    setLocating(true);
+    try {
+      const g = await windsiteApi.geocode({ lat: a, lng: o });
+      setAddress(g.address || g.road_address || '');
+      setSido(g.sido || '');
+      setSigungu(g.sigungu || '');
+      setError('');
+    } catch {
+      // 바다·비주소 지역이거나 V-World 조회 실패. 좌표는 그대로 살린다.
+      setError('클릭 지점의 주소를 찾지 못했습니다. 주소·행정구역을 직접 입력하십시오.');
+    } finally {
+      setLocating(false);
+    }
+  };
+
   useEffect(() => {
     windsiteApi.laws().then(d => setLaws(d.results)).catch(() => setLaws([]));
     windsiteApi.config().then(d => setConfig(d.results)).catch(() => setConfig([]));
@@ -139,7 +167,7 @@ export default function WindSiteView() {
           <div className="ops-card-bd">
             <SitePicker
               lat={lat} lng={lng} radiusM={radiusM}
-              onPick={(a, o) => { setLat(a); setLng(o); }}
+              onPick={pickSite}
             />
             <div className="ws-coordrow">
               <label>위도<input type="number" step="0.00001" value={lat ?? ''}
@@ -156,7 +184,9 @@ export default function WindSiteView() {
           <div className="ops-card-hd"><span className="tag">INPUT</span> 검토 조건</div>
           <div className="ops-card-bd">
             <label className="ws-fld">
-              <span>사업지 주소 <em>(표시용)</em></span>
+              <span>
+                사업지 주소 <em>{locating ? '(주소 조회 중…)' : '(지도 클릭 시 자동 입력)'}</em>
+              </span>
               <input type="text" value={address} placeholder="경상북도 ○○군 ○○면 산 ○○번지"
                 onChange={e => setAddress(e.target.value)} />
             </label>

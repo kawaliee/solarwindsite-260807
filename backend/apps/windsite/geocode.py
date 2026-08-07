@@ -84,13 +84,42 @@ def reverse_geocode(lat: float, lng: float) -> dict | None:
             return None
         # 지번(parcel) 결과 우선, 없으면 첫 결과
         best = next((x for x in results if x.get('type') == 'parcel'), results[0])
+        road = next((x for x in results if x.get('type') == 'road'), None)
         st = best.get('structure', {}) or {}
+        sido, sigungu = split_admin(st)
         return {
-            'sido': st.get('level1', ''),        # 시·도
-            'sigungu': st.get('level2', ''),     # 시·군·구
-            'address': best.get('text', ''),
+            'sido': sido,                                   # 시·도
+            'sigungu': sigungu,                             # 조례 조회용 (정규화)
+            'sigungu_full': st.get('level2', ''),           # 원본 (예: '수원시 장안구')
+            'address': best.get('text', ''),                # 지번주소
+            'road_address': (road or {}).get('text', ''),   # 도로명주소 (없을 수 있음)
             'structure': st,
         }
     except Exception as e:                                  # noqa: BLE001
         logger.warning('V-World reverse geocode 실패: %s', e)
         return None
+
+
+def split_admin(structure: dict) -> tuple[str, str]:
+    """
+    V-World structure → (시·도, 조례 조회용 시·군·구)
+
+    실측으로 확인한 예외가 둘 있다.
+
+      · 특례시의 구는 level2가 **'수원시 장안구'** 처럼 두 토막으로 온다.
+        도시·군계획 조례는 **시 단위**로 제정되므로 앞 토막만 써야 조회가 걸린다.
+        ('창원시 진해구', '고양시 덕양구'도 같다)
+
+      · 세종특별자치시는 단층제라 level2가 **빈 문자열**이다.
+        이때는 시·도명이 곧 조례 제정 주체다.
+    """
+    sido = (structure.get('level1') or '').strip()
+    lv2 = (structure.get('level2') or '').strip()
+
+    if not lv2:
+        return sido, sido            # 세종특별자치시 등 단층제
+
+    parts = lv2.split()
+    if len(parts) >= 2 and parts[-1].endswith('구'):
+        return sido, parts[0]        # '수원시 장안구' → '수원시'
+    return sido, lv2
