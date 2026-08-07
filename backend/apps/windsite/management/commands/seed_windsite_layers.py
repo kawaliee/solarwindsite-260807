@@ -314,6 +314,37 @@ LAYER_RULES: list[dict] = [
          reason_template='상수원보호구역은 행위제한이 강해 발전시설 설치가 사실상 어렵습니다. '
                          '입지 변경을 우선 검토하십시오.',
          law='수도법', article='제7조(상수원보호구역 지정 등)'),
+    # ── 필지 지역지구(토지이용계획) — 개별 레이어로 조회되지 않는 규제를 잡는다 ──
+    dict(layer='필지지역지구', condition_key='수변구역',
+         condition_desc='4대강 수계법상 수변구역',
+         status='CONDITIONAL', difficulty='CRITICAL',
+         reason_template='수변구역은 상수원 수질보전을 위해 지정되어 오염물질 배출시설 등의 '
+                         '설치가 제한됩니다. 해당 수계법의 행위제한을 확인하십시오.',
+         law='한강수계 상수원수질개선 및 주민지원 등에 관한 법률', article='제4조·제5조'),
+    dict(layer='필지지역지구', condition_key='생태·경관보전지역',
+         condition_desc='자연환경보전법상 생태·경관보전지역',
+         status='CONDITIONAL', difficulty='CRITICAL',
+         reason_template='생태·경관보전지역은 핵심구역에서 개발행위가 원칙적으로 금지됩니다. '
+                         '구역 구분(핵심/완충/전이)을 확인하십시오.',
+         law='자연환경보전법', article='제15조(생태·경관보전지역에서의 행위제한)'),
+    dict(layer='필지지역지구', condition_key='대공방어협조구역',
+         condition_desc='군사기지법상 대공방어협조구역 — 고도 제한 직결',
+         status='CONDITIONAL', difficulty='HIGH',
+         reason_template='대공방어협조구역은 일정 높이 이상 구조물 설치 시 관할부대 협의 '
+                         '대상입니다. 풍력발전기는 높이가 커 해당될 가능성이 높습니다.',
+         law='군사기지 및 군사시설 보호법', article='제13조(행정기관의 처분등에 관한 협의)'),
+    dict(layer='필지지역지구', condition_key='수질보전특별대책지역',
+         condition_desc='환경정책기본법상 특별대책지역',
+         status='CONDITIONAL', difficulty='HIGH',
+         reason_template='수질보전 특별대책지역은 오염총량 관리와 입지 제한이 강화됩니다.',
+         law='환경정책기본법', article='제38조(특별종합대책의 수립)'),
+    dict(layer='필지지역지구', condition_key='토지거래계약',
+         condition_desc='토지거래계약 허가구역',
+         status='CONDITIONAL', difficulty='MEDIUM',
+         reason_template='토지거래계약 허가구역은 부지 매입 시 사전 허가가 필요해 '
+                         '용지 확보 일정에 영향을 줍니다.',
+         law='부동산 거래신고 등에 관한 법률', article='제11조(허가구역 내 토지거래에 대한 허가)'),
+
     dict(layer='상수원보호구역', condition_key='상수원보호기타',
          condition_desc='상수원 상류 공장설립 승인·제한지역 (실측 확인된 구역명)',
          status='CONDITIONAL', difficulty='LOW',

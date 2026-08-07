@@ -261,6 +261,111 @@ class ForestClassificationProvider(ParcelBasedProvider):
 
 
 # ======================================================================
+class LandUseZoneProvider(ParcelBasedProvider):
+    """
+    필지 지역지구 전체 — 토지이용계획확인원에 표기되는 모든 지역·지구·구역.
+
+    개별 레이어를 하나씩 큐레이션하면 반드시 빠뜨리는 것이 생긴다(수변구역·하천망 등).
+    이 어댑터는 필지에 걸린 **모든** 지역지구를 그대로 제시해 그 공백을 메운다.
+
+    ⚠️ 산지구분은 ForestClassificationProvider가 별도로 판정하므로 여기서는 제외한다.
+    """
+
+    category = '규제/법령'
+    item_name = '필지 지역지구(토지이용계획)'
+    default_law = '토지이용규제 기본법'
+    default_article = '제8조(지역·지구등의 지정)'
+
+    #: 산지구분 — 별도 항목에서 다루므로 중복 표기하지 않는다
+    FOREST_CODES = ('UFM100', 'UFM110', 'UFM120', 'UFM200')
+
+    #: 도시계획시설(도로·광장 등)은 수가 많고 풍력 입지 판정과 무관해 요약에서만 다룬다
+    FACILITY_PREFIX = ('UQS', 'UQT')
+
+    def analyze(self, q: SiteQuery) -> AnalysisItem:
+        parcels, total = self._parcels(q)
+        if not parcels:
+            return self.unknown(
+                reason='검토 반경 내 필지를 특정하지 못해 지역지구를 조회할 수 없습니다.')
+
+        zones: dict[str, dict] = {}
+        for p in parcels:
+            try:
+                rows = NedClient.call('getLandUseAttr', 'landUses', p['pnu'])
+            except Exception:                                   # noqa: BLE001
+                logger.exception('지역지구 조회 실패 pnu=%s', p['pnu'])
+                continue
+            for r in rows:
+                name = (r.get('prposAreaDstrcCodeNm') or '').strip()
+                code = (r.get('prposAreaDstrcCode') or '').strip()
+                if not name or code in self.FOREST_CODES:
+                    continue
+                z = zones.setdefault(name, {'name': name, 'code': code,
+                                            'conflict': 0, 'touch': 0})
+                if r.get('cnflcAtNm') == '접함':
+                    z['touch'] += 1
+                else:
+                    z['conflict'] += 1
+
+        if not zones:
+            return self.unknown(
+                reason='필지 지역지구 정보를 조회하지 못했습니다.',
+                action_required='토지이용계획확인원을 직접 확인하십시오.',
+            )
+
+        facilities = [z for z in zones.values()
+                      if z['code'].startswith(self.FACILITY_PREFIX)]
+        regs = [z for z in zones.values()
+                if not z['code'].startswith(self.FACILITY_PREFIX)]
+
+        status, difficulty, hits = self._resolve(regs)
+
+        names = ', '.join(f'{z["name"]}' for z in
+                          sorted(regs, key=lambda z: -z['conflict'])[:14])
+        head = (f'조회 필지에 걸린 지역·지구·구역 {len(regs)}종 — {names}'
+                f'{" 외" if len(regs) > 14 else ""}.')
+        if facilities:
+            head += f' (도시계획시설 {len(facilities)}종은 제외)'
+
+        note = ''
+        if hits:
+            note = (' 이 중 풍력 입지에 영향이 큰 항목 — '
+                    + ', '.join(f'{h["name"]}({h["reason"]})' for h in hits[:4]) + '.')
+
+        return self.item(
+            status=status,
+            reason=head + note + self._coverage_note(parcels, total),
+            difficulty=difficulty,
+            confidence=Confidence.MEDIUM,
+            source_url='https://www.eum.go.kr',
+            action_required=(
+                '토지이용계획확인원을 발급받아 각 지역지구의 행위제한을 확인하십시오. '
+                '개별 레이어로 조회되지 않는 규제가 여기에 표기될 수 있습니다.'
+            ),
+            raw={'zones': sorted(regs, key=lambda z: -z['conflict']),
+                 'facilities': facilities, 'matched_rules': hits,
+                 'parcels': parcels, 'total_parcels': total},
+        )
+
+    def _resolve(self, zones: list[dict]):
+        """DB 규칙에 걸리는 지역지구가 있으면 가장 불리한 판정을 채택한다."""
+        from ..models import RegulationRule
+
+        rules = list(RegulationRule.objects.filter(layer='필지지역지구', is_active=True))
+        hits = []
+        for z in zones:
+            for r in rules:
+                if r.condition_key and r.condition_key in z['name']:
+                    hits.append({**z, 'status': r.status, 'difficulty': r.difficulty,
+                                 'reason': r.reason_template[:80]})
+                    break
+        if not hits:
+            return Status.POSSIBLE, Difficulty.LOW, []
+        worst = max(hits, key=lambda h: _DIFF_ORDER.index(h['difficulty']))
+        return Status(worst['status']), Difficulty(worst['difficulty']), hits
+
+
+# ======================================================================
 class LandOwnershipProvider(ParcelBasedProvider):
     """토지 소유구분 — 국유지·공유지 여부 (토지사용승낙 확보 경로가 달라진다)"""
 
