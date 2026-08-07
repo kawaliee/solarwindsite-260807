@@ -88,7 +88,7 @@ class LocalOrdinanceProvider(LayerProvider):
         self.sigungu = sigungu
 
     def analyze(self, q: SiteQuery) -> AnalysisItem:
-        from ..models import LocalOrdinance   # 지연 import (앱 로딩 순서)
+        from .. import ordinances                # 지연 import (앱 로딩 순서)
 
         if not self.sigungu:
             return self.unknown(
@@ -96,42 +96,52 @@ class LocalOrdinanceProvider(LayerProvider):
                 action_required='주소 또는 행정구역을 입력하면 조례를 조회합니다.',
             )
 
-        qs = LocalOrdinance.objects.filter(sigungu=self.sigungu, energy_type__in=['WIND', 'ALL'])
-        if self.sido:
-            qs = qs.filter(sido=self.sido)
-        rules = list(qs)
+        # DB에 없으면 자치법규 OPEN API로 그 자리에서 수집한다
+        rules = ordinances.ensure_ordinances(self.sido, self.sigungu)
 
         if not rules:
             return self.item(
                 status=Status.UNKNOWN,
                 reason=(
-                    f'{self.sido} {self.sigungu}의 풍력 이격거리 조례가 내부 DB에 등록되어 있지 않습니다. '
-                    '조례는 지자체별 편차가 크고 개정이 잦아 임의 판단하지 않습니다.'
+                    f'{self.sido} {self.sigungu}의 풍력 이격거리 조례를 '
+                    '자치법규 OPEN API에서 자동 조회했으나 이격거리 조항을 찾지 못했습니다. '
+                    '해당 지자체에 이격 규정이 없거나, 도시·군계획 조례가 아닌 '
+                    '별도 조례·지침에 있을 수 있습니다. 임의 판단하지 않습니다.'
                 ),
                 difficulty=Difficulty.HIGH,
                 confidence=Confidence.LOW,
-                action_required='자치법규정보시스템(elis.go.kr)에서 해당 지자체 도시·군계획 조례를 확인해 DB에 등록하십시오.',
+                action_required='자치법규정보시스템(elis.go.kr)에서 해당 지자체 조례를 직접 확인하고, '
+                                'python manage.py sync_ordinances --sigungu <시군구> --apply 로 등록하십시오.',
             )
 
+        order = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
         lines = []
         worst_diff = Difficulty.LOW
-        for r in rules:
-            lines.append(f'{r.target}: {r.distance_m:,}m ({r.ordinance_name} {r.article})')
-            if ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].index(r.difficulty) > \
-               ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].index(worst_diff.value):
+        for r in sorted(rules, key=lambda x: -x.distance_m):
+            # 대상 코드(RESIDENTIAL 등)가 아니라 사람이 읽는 이름으로 적는다.
+            # 같은 대상에 본문·단서 두 기준이 있으면 상세가 없으면 구분되지 않는다.
+            label = r.get_target_display()
+            if r.target_detail:
+                label += f' — {r.target_detail}'
+            lines.append(f'{label}: {r.distance_m:,}m ({r.ordinance_name} {r.article})')
+            if order.index(r.difficulty) > order.index(worst_diff.value):
                 worst_diff = Difficulty(r.difficulty)
 
-        low_conf = [r for r in rules if r.confidence == 'LOW']
+        # 원문 대조를 마친 조례는 HIGH로 저장된다 — 그 신뢰도를 그대로 반영한다
+        worst_conf = min((r.confidence for r in rules),
+                         key=lambda c: ['LOW', 'MEDIUM', 'HIGH'].index(c))
+        verified = [r.verified_at for r in rules if r.verified_at]
         return self.item(
             status=Status.CONDITIONAL,
             reason=(
                 f'{self.sido} {self.sigungu} 이격거리 기준 — ' + ' / '.join(lines) +
                 '. 실제 저촉 여부는 대상 정온시설·주거지의 실측 거리 확인이 필요합니다.'
+                + (f' (원문 대조 {max(verified)})' if verified else '')
             ),
             difficulty=worst_diff,
             law=rules[0].ordinance_name,
             article=rules[0].article,
-            confidence=Confidence.LOW if low_conf else Confidence.MEDIUM,
+            confidence=Confidence(worst_conf),
             source_url=rules[0].source_url,
             action_required='현행 조례 원문을 재확인하고 실측 이격거리를 산출하십시오.',
             raw={'rules': lines},

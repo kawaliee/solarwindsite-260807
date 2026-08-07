@@ -417,7 +417,7 @@ class QuietFacilityProvider(LayerProvider):
 
     # ------------------------------------------------------------------
     def analyze(self, q: SiteQuery) -> AnalysisItem:
-        from ..models import LocalOrdinance                     # 지연 import
+        from .. import ordinances                               # 지연 import
 
         if not geo.GEO_AVAILABLE:
             return self.unknown(
@@ -425,13 +425,10 @@ class QuietFacilityProvider(LayerProvider):
                 action_required='requirements.txt 반영 후 backend 이미지를 재빌드하십시오.',
             )
 
-        rules = []
-        if self.sigungu:
-            qs = LocalOrdinance.objects.filter(
-                sigungu=self.sigungu, energy_type__in=['WIND', 'ALL'])
-            if self.sido:
-                qs = qs.filter(sido=self.sido)
-            rules = list(qs.order_by('-distance_m'))
+        # DB에 없으면 자치법규 OPEN API로 그 자리에서 수집한다.
+        # LocalOrdinanceProvider와 동시에 실행되므로 서비스 쪽에서 직렬화한다.
+        rules = sorted(ordinances.ensure_ordinances(self.sido, self.sigungu),
+                       key=lambda r: r.distance_m, reverse=True)
 
         search_m = max([r.distance_m for r in rules] + [self.FALLBACK_SEARCH_M])
         site = geo.point_metric(q.lat, q.lng)
@@ -451,9 +448,10 @@ class QuietFacilityProvider(LayerProvider):
                     'OSM에 등재된 것이 없습니다.')
             if not rules:
                 return self.unknown(
-                    reason=base + f' 또한 {self.sido} {self.sigungu} 이격거리 조례가 '
-                                  'DB에 등록되어 있지 않아 저촉 여부를 판정할 수 없습니다.',
-                    action_required='자치법규정보시스템(elis.go.kr)에서 조례를 확인해 등록하고, '
+                    reason=base + f' 또한 {self.sido} {self.sigungu} 이격거리 조례를 '
+                                  '자동 조회했으나 이격거리 조항을 확인하지 못해 '
+                                  '저촉 여부를 판정할 수 없습니다.',
+                    action_required='자치법규정보시스템(elis.go.kr)에서 조례를 직접 확인해 등록하고, '
                                     '현장 실사로 정온시설을 확인하십시오.',
                 )
             return self.item(
@@ -499,12 +497,13 @@ class QuietFacilityProvider(LayerProvider):
         if not rules:
             return self.item(
                 status=Status.UNKNOWN,
-                reason=head + f' {self.sido} {self.sigungu} 이격거리 조례가 DB에 없어 '
+                reason=head + f' {self.sido} {self.sigungu} 이격거리 조례를 자치법규 '
+                              'OPEN API에서 자동 조회했으나 이격거리 조항을 찾지 못해 '
                               '저촉 여부는 판정하지 않았습니다.',
                 difficulty=Difficulty.HIGH,
                 confidence=Confidence.LOW,
-                action_required='자치법규정보시스템(elis.go.kr)에서 해당 지자체 조례를 확인해 '
-                                'LocalOrdinance에 등록하십시오.',
+                action_required='자치법규정보시스템(elis.go.kr)에서 해당 지자체 조례를 직접 확인하고, '
+                                'sync_ordinances --sigungu <시군구> --apply 로 등록하십시오.',
                 raw={'facilities': facilities[:20], 'rings': [], 'search_m': search_m},
             )
 
