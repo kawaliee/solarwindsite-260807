@@ -4,8 +4,8 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-# User provided API key fallback
-DEFAULT_TAVILY_API_KEY = "<REDACTED>"
+# 인증키는 소스에 두지 않는다. .env(TAVILY_API_KEY)에서만 읽는다.
+# 종전에는 실제 키가 여기에 하드코딩돼 있어 저장소에 그대로 남았다.
 
 def search_web_via_tavily(query: str, search_depth: str = "basic") -> dict:
     """
@@ -19,9 +19,9 @@ def search_web_via_tavily(query: str, search_depth: str = "basic") -> dict:
     Returns:
         Tavily 검색 결과 dict (summary, results 등 포함)
     """
-    api_key = getattr(settings, 'TAVILY_API_KEY', DEFAULT_TAVILY_API_KEY)
+    api_key = getattr(settings, 'TAVILY_API_KEY', '')
     if not api_key:
-        return {"error": "Tavily API key not configured."}
+        return {"error": "TAVILY_API_KEY가 설정되지 않아 웹 검색을 수행할 수 없습니다."}
         
     url = "https://api.tavily.com/search"
     payload = {
