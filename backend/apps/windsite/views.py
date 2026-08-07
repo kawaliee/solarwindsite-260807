@@ -23,7 +23,7 @@ def evaluate_site(request):
     입지타당성 검토 실행
 
     POST body:
-      { "lat": 36.1234, "lng": 128.5678, "radius_m": 50,
+      { "lat": 36.1234, "lng": 128.5678, "radius_m": 100,
         "address": "...", "capacity_mw": 60,
         "sido": "경상북도", "sigungu": "청도군" }
     """
@@ -112,7 +112,7 @@ def compare_sites(request):
 
     POST body:
       { "candidates": [
-          {"label":"A안", "lat":..., "lng":..., "radius_m":50, "capacity_mw":60},
+          {"label":"A안", "lat":..., "lng":..., "radius_m":100, "capacity_mw":60},
           {"label":"B안", "address":"전남 화순군 ..."}
         ] }
     """

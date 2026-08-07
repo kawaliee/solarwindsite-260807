@@ -16,7 +16,7 @@ import {
 type Tab = 'result' | 'compare' | 'permits' | 'laws' | 'config';
 
 /** 검토 반경 기본값·허용범위 — 백엔드 engine.py의 같은 이름 상수와 맞춘다 */
-const DEFAULT_RADIUS_M = 50;
+const DEFAULT_RADIUS_M = 100;
 const MIN_RADIUS_M = 50;
 const MAX_RADIUS_M = 20000;
 
