@@ -2,9 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import SitePicker from './SitePicker'
 import { windsiteApi } from './api'
 import {
+  CONFIDENCE_HINT,
   CONFIDENCE_LABEL,
   DIFFICULTY_LABEL,
   STATUS_LABEL,
+  UNKNOWN_REASON_HINT,
+  UNKNOWN_REASON_LABEL,
+  type UnknownReason,
   type AnalysisItem,
   type CompareCandidate,
   type CompareResult,
@@ -484,6 +488,9 @@ function ItemCard({ item }: { item: AnalysisItem }) {
         <span className={`ws-status s-${item.status}`}>{STATUS_LABEL[item.status]}</span>
         <b>{item.item_name}</b>
         <span className={`ws-diff d-${item.difficulty}`}>난이도 {DIFFICULTY_LABEL[item.difficulty]}</span>
+        {/* 판정 결과(status)와 근거의 단단함(confidence)은 다른 축이다.
+            사유 배지를 함께 붙여 '조회 실패'와 '원래 자동 판정이 안 되는 항목'을 구분한다. */}
+        <UnknownReasonBadge item={item} />
         <ConfidenceBadge c={item.confidence} />
       </div>
       <p className="ws-item-reason">{item.reason}</p>
@@ -503,7 +510,22 @@ function ItemCard({ item }: { item: AnalysisItem }) {
 }
 
 function ConfidenceBadge({ c }: { c: 'HIGH' | 'MEDIUM' | 'LOW' }) {
-  return <span className={`ws-conf c-${c}`} title="판정 기준의 검증 수준">{CONFIDENCE_LABEL[c]}</span>;
+  return (
+    <span className={`ws-conf c-${c}`} title={`근거 수준 — ${CONFIDENCE_HINT[c]}`}>
+      근거 {CONFIDENCE_LABEL[c]}
+    </span>
+  );
+}
+
+/** UNKNOWN 항목에만 붙는 사유 배지 — 재시도로 풀리는지 아닌지가 한눈에 보이게 한다 */
+function UnknownReasonBadge({ item }: { item: AnalysisItem }) {
+  if (item.status !== 'UNKNOWN') return null;
+  const why = (item.unknown_reason || '') as UnknownReason;
+  const label = UNKNOWN_REASON_LABEL[why];
+  if (!label) return null;
+  return (
+    <span className={`ws-why w-${why}`} title={UNKNOWN_REASON_HINT[why]}>{label}</span>
+  );
 }
 
 /** 종합등급 배지 — 비교표에서 후보지별 등급을 한눈에 보이게 한다 */

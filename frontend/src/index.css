@@ -1096,6 +1096,17 @@ svg.krmap .site-mk circle { transition: r .15s; }
 }
 .ws-hovercoord { font-variant-numeric: tabular-nums; color: var(--brand); }
 
+/* UNKNOWN 사유 배지 — 재시도로 풀리는 것(FETCH)과 아닌 것을 색으로 가른다 */
+.ws-why {
+  font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+  border: 1px solid transparent; white-space: nowrap;
+}
+.ws-why.w-FETCH     { background: rgba(232,145,72,.16); color: #e89148; border-color: rgba(232,145,72,.4); }
+.ws-why.w-NO_KEY    { background: rgba(232,145,72,.16); color: #e89148; border-color: rgba(232,145,72,.4); }
+.ws-why.w-NO_DATA   { background: rgba(140,160,180,.14); color: var(--ink-soft); border-color: var(--line); }
+.ws-why.w-NO_RULE   { background: rgba(140,160,180,.14); color: var(--ink-soft); border-color: var(--line); }
+.ws-why.w-BY_DESIGN { background: rgba(140,160,180,.10); color: var(--ink-faint); border-color: var(--line); }
+
 .ws-coordrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
 .ws-coordrow label { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--ink-soft); }
 .ws-coordrow input, .ws-fld input {

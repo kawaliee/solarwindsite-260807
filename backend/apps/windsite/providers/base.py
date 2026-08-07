@@ -86,6 +86,7 @@ class LayerProvider(ABC):
                     f'(.env 미설정: {", ".join(self.missing_settings())})'
                 ),
                 action_required=f'{self.data_source} 인증키 발급 후 .env에 등록하면 자동 판정됩니다.',
+                why='NO_KEY',
             )
         try:
             return self.analyze(q)
@@ -94,6 +95,7 @@ class LayerProvider(ABC):
             return self.unknown(
                 reason=f'{self.data_source} 조회 중 오류가 발생했습니다: {type(e).__name__}',
                 action_required='네트워크/인증키 상태를 확인한 뒤 재조회하십시오.',
+                why='FETCH',
             )
 
     @abstractmethod
@@ -105,7 +107,8 @@ class LayerProvider(ABC):
     def item(self, status: Status, reason: str, difficulty: Difficulty,
              law: str = '', article: str = '', confidence: Confidence = Confidence.LOW,
              source_url: str = '', action_required: str = '',
-             raw: dict[str, Any] | None = None) -> AnalysisItem:
+             raw: dict[str, Any] | None = None,
+             unknown_reason: str = '') -> AnalysisItem:
         return AnalysisItem(
             category=self.category,
             item_name=self.item_name,
@@ -119,16 +122,26 @@ class LayerProvider(ABC):
             data_source=self.data_source,
             action_required=action_required,
             raw=raw or {},
+            unknown_reason=unknown_reason if status is Status.UNKNOWN else '',
         )
 
     def unknown(self, reason: str, action_required: str = '',
-                difficulty: Difficulty = Difficulty.MEDIUM) -> AnalysisItem:
+                difficulty: Difficulty = Difficulty.MEDIUM,
+                why: str = 'NO_DATA') -> AnalysisItem:
+        """
+        판정 보류.
+
+        why에 사유를 넣는다. 종전에는 모든 UNKNOWN이 똑같이 보여서
+        '일시적 조회 실패'와 '원래 자동 판정이 안 되는 항목'이 화면에서
+        구분되지 않았다. 앞의 것은 재시도하면 되고 뒤의 것은 재시도해도 소용없다.
+        """
         return self.item(
             status=Status.UNKNOWN,
             reason=reason,
             difficulty=difficulty,
             confidence=Confidence.LOW,
             action_required=action_required or '해당 기관에 직접 조회하여 확인이 필요합니다.',
+            unknown_reason=why,
         )
 
     # ------------------------------------------------------------------

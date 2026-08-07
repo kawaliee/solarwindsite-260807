@@ -100,6 +100,14 @@ class AnalysisItem:
     data_source: str = ''             # 어떤 API/DB에서 왔는지
     raw: dict[str, Any] = field(default_factory=dict)   # 원본 응답 (디버깅/근거)
     action_required: str = ''         # 다음에 해야 할 실무 조치
+    #: UNKNOWN이 된 이유. 화면에서 '조회 실패'와 '판정 불가'를 구분해 보여준다.
+    #:   NO_KEY   인증키 미설정
+    #:   FETCH    조회 실패 (네트워크·API 오류) — 재시도하면 판정될 수 있다
+    #:   NO_DATA  조회는 됐으나 해당 지점에 자료가 없음
+    #:   NO_RULE  자료는 있으나 판정 기준이 없음
+    #:   BY_DESIGN 구조적으로 자동 판정 대상이 아님 (예: 풍황 실측)
+    #: 빈 문자열이면 UNKNOWN이 아니거나 사유가 지정되지 않은 것이다.
+    unknown_reason: str = ''
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -114,6 +122,7 @@ class AnalysisItem:
             'source_url': self.source_url,
             'data_source': self.data_source,
             'action_required': self.action_required,
+            'unknown_reason': self.unknown_reason,
             # raw는 판정 근거(최근접 거리·필지 면적·조회된 구역명 등)를 담는다.
             # 보고서 재생성과 화면 상세 표시가 이 값에 의존하므로 함께 직렬화한다.
             # (각 어댑터가 상위 N건으로 이미 제한해 보관한다)

@@ -441,11 +441,12 @@ class QuietFacilityProvider(LayerProvider):
                 action_required='잠시 후 재시도하거나, OVERPASS_URL에 자체/대체 인스턴스를 '
                                 '지정하십시오. 현장 실사로 정온시설을 확인하십시오.',
                 difficulty=Difficulty.HIGH,
+                why='FETCH',
             )
 
         if not facilities:
             base = (f'반경 {search_m:,}m 내에서 학교·의료·복지 시설과 주거건물이 '
-                    'OSM에 등재된 것이 없습니다.')
+                    'OSM·V-World 건물 어느 쪽에서도 조회되지 않았습니다.')
             if not rules:
                 return self.unknown(
                     reason=base + f' 또한 {self.sido} {self.sigungu} 이격거리 조례를 '
@@ -477,8 +478,9 @@ class QuietFacilityProvider(LayerProvider):
             'confidence': r.confidence,
         } for r in rules]
 
+        facils = [f for f in facilities if f.get('category') == 'FACILITY']
         homes = [f for f in facilities if f.get('category') == 'RESIDENTIAL']
-        facils = [f for f in facilities if f.get('category') != 'RESIDENTIAL']
+        bldgs = [f for f in facilities if f.get('category') == 'BUILDING']
         parts = []
         if facils:
             n = facils[0]
@@ -488,10 +490,19 @@ class QuietFacilityProvider(LayerProvider):
             n = homes[0]
             parts.append(f'주거건물 {len(homes)}동(최근접 {n["name"]} '
                          f'{geo.format_distance(n["distance_m"])})')
+        if bldgs:
+            n = bldgs[0]
+            parts.append(f'용도 미확인 건물 {len(bldgs)}동(최근접 {n["name"]} '
+                         f'{geo.format_distance(n["distance_m"])})')
+        src = ''
+        if bldgs:
+            src = (f' 용도 미확인 {len(bldgs)}동은 V-World 건물 레이어에서만 확인된 것으로 '
+                   '주거·창고·공공청사가 섞여 있을 수 있습니다. 동심원 집계에는 '
+                   '배제할 근거가 없어 포함했습니다.')
         head = (
             f'반경 {search_m:,}m 내 ' + ' · '.join(parts) + '. '
             f'전체 최근접은 {nearest["name"]}({nearest["kind"]}) '
-            f'{geo.format_distance(nearest["distance_m"])}입니다.'
+            f'{geo.format_distance(nearest["distance_m"])}입니다.' + src
         )
 
         if not rules:
@@ -548,6 +559,88 @@ class QuietFacilityProvider(LayerProvider):
 
     # ------------------------------------------------------------------
     def _facilities(self, q: SiteQuery, site, search_m: int) -> tuple[list[dict], str]:
+        """
+        정온시설·주거건물을 **두 소스에서** 모은다.
+
+        OSM만 쓰면 산간·농어촌에서 통째로 빈다. 삼척시 근덕면 궁촌리에서
+        OSM은 반경 2km에 0건이었는데 V-World 건물 레이어에는 주택 6동이 있었다.
+        "OSM에 없음"을 "주거건물 없음"으로 보고하면 조례 저촉을 놓친다.
+
+        OSM은 학교·병원 등 **용도**가 붙어 있고, V-World 건물은 **누락이 적다.**
+        서로를 대체하지 않으므로 합치고 좌표로 중복을 제거한다.
+        """
+        osm_rows, err = self._from_osm(q, site, search_m)
+        vw_rows = self._from_vworld(q, site, search_m)
+
+        merged = list(osm_rows)
+        # 같은 건물이 두 소스에 다 있으면 용도가 붙은 OSM 쪽을 남긴다
+        occupied = {(round(f['lat'], 4), round(f['lng'], 4)) for f in osm_rows}
+        for f in vw_rows:
+            if (round(f['lat'], 4), round(f['lng'], 4)) in occupied:
+                continue
+            merged.append(f)
+        merged.sort(key=lambda f: f['distance_m'])
+
+        # V-World로 건물을 찾았다면 Overpass 실패는 치명적이지 않다
+        if err and vw_rows:
+            err = ''
+        return merged, err
+
+    # ------------------------------------------------------------------
+    def _from_vworld(self, q: SiteQuery, site, search_m: int) -> list[dict]:
+        """V-World 건물 레이어(lt_c_spbd) — OSM 공백을 메운다."""
+        from .. import geo
+        from .vworld import VworldClient
+
+        layer_id = 'lt_c_spbd'
+        try:
+            from ..models import RegulationLayer
+            row = RegulationLayer.objects.filter(code='건물', is_active=True).first()
+            if row and row.layer_id:
+                layer_id = row.layer_id
+        except Exception:                                       # noqa: BLE001
+            pass
+
+        try:
+            feats, _meta = VworldClient.fetch_all(layer_id, q.lat, q.lng, search_m)
+        except Exception:                                       # noqa: BLE001
+            logger.exception('V-World 건물 조회 실패')
+            return []
+
+        out: list[dict] = []
+        for f in feats:
+            g = geo.geom_from_geojson(f.get('geometry'))
+            if g is None:
+                continue
+            try:
+                c = g.centroid
+                gm = geo.to_metric(g)
+                dist = site.distance(gm)
+            except Exception:                                   # noqa: BLE001
+                continue
+            pr = f.get('properties') or {}
+            name = (pr.get('buld_nm') or pr.get('buld_nm_dc') or '').strip()
+            road = (pr.get('rd_nm') or '').strip()
+            no = (pr.get('buld_no') or '').strip()
+            if not name:
+                name = f'{road} {no}'.strip() or '(건물명 미상)'
+            floors = (pr.get('gro_flo_co') or '').strip()
+            out.append({
+                'name': name,
+                'kind': f'건물{"·" + floors + "층" if floors else ""}',
+                # V-World 건물 레이어는 용도를 주지 않는다. 주거로 단정하면
+                # 구로구청 같은 공공청사가 '주거건물'로 집계된다. 별도 분류로 두고
+                # 동심원 집계에는 포함하되(용도를 모르니 배제할 근거가 없다)
+                # 요약 문구에서는 '용도 미확인 건물'로 구분해 적는다.
+                'category': 'BUILDING',
+                'lat': c.y, 'lng': c.x,
+                'distance_m': round(dist, 1),
+                'source': 'vworld',
+            })
+        return out
+
+    # ------------------------------------------------------------------
+    def _from_osm(self, q: SiteQuery, site, search_m: int) -> tuple[list[dict], str]:
         pattern = '|'.join(self.AMENITY_TAGS)
         houses = '|'.join(self.RESIDENTIAL_BUILDINGS)
         ql = f"""[out:json][timeout:90];
@@ -590,6 +683,7 @@ out center tags;"""
                 'lat': c[0], 'lng': c[1],
                 'distance_m': round(_distance_m(site, *c), 1),
                 'osm': f'{el["type"]}/{el.get("id")}',
+                'source': 'osm',
             })
         out.sort(key=lambda f: f['distance_m'])
         return out, ''

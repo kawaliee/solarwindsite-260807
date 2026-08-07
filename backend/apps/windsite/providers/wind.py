@@ -217,6 +217,8 @@ class WindResourceProvider(LayerProvider):
             ),
             difficulty=Difficulty.MEDIUM,
             confidence=Confidence.LOW,
+            # 구조적 미확인 — 현장 계측 외에 대체 수단이 없다. 재시도해도 달라지지 않는다.
+            unknown_reason='BY_DESIGN',
             source_url='https://data.kma.go.kr',
             action_required=(
                 '① 사업 확정 전 현장 풍황계측(허브고도, 통상 1년 이상) 수행 '

@@ -35,6 +35,29 @@ _DIST = r'([0-9][0-9,\.]*)\s*(미터|m|M|킬로미터|km|KM)'
 #: 단서 괄호 — '(단, 군도는 500미터)', '(5호 미만 … 1,500미터)'
 _PAREN = re.compile(r'[(（]([^()（）]*)[)）]')
 
+#: 이격거리가 **아닌** 수치의 문맥. 삼척시 별표 29에서 울타리 높이 2m와
+#: 설비-울타리 간격 3m, '호 산정 방법'의 주택 간 50m가 이격거리로 잘못 잡혔다.
+_NON_SEPARATION = ('높이', '울타리', '산정 방법', '산정방법', '주택 간', '주택간',
+                   '건물 외벽', '차로', '폭')
+#: 수치 앞 어디까지 훑어 위 문맥을 볼지
+_CTX_WINDOW = 40
+
+#: 표 한 행 — '<대상> N미터 이상 이격 M미터 이상 이격'
+#: 태양광·풍력 2열 비교표에서 두 수치를 한 번에 잡아 열을 구분한다.
+#: 라벨에 숫자가 들어가므로('주거밀집지역 (5호 이상)') 숫자를 배제하지 않는다.
+#: 비탐욕 매칭이 뒤따르는 '<수치>미터 이상 이격'을 만족하는 지점까지 알아서 늘어난다.
+_TABLE_ROW = re.compile(
+    r'(?P<label>[^\n]{1,80}?)'
+    r'(?P<d1>[0-9][0-9,\.]*)\s*(?:미터|m|M|킬로미터|km|KM)\s*이상\s*이격\s*'
+    r'(?P<d2>[0-9][0-9,\.]*)\s*(?:미터|m|M|킬로미터|km|KM)\s*이상\s*이격'
+)
+#: 표 머리글 잔여물 — 첫 행 라벨 앞에 '태양에너지 설비 풍력에너지 설비 비고'가 붙는다
+_TABLE_HEAD_JUNK = re.compile(r'^.*(?:설비|비고)\s*')
+#: 표 아래 정의·비고 구간 시작 — 여기서 끊지 않으면 설명문의 수치가 섞인다
+_TABLE_END = re.compile(r'\*\s*상기|[0-9]\.\s*[“"]|\(비고\)')
+#: 별표 번호 — 여러 별표가 한 파일에 붙어 오는 경우 실제 번호를 찾는다
+_APPENDIX_NO = re.compile(r'\[별표\s*(\d+)\s*(?:의\s*\d+)?\]')
+
 #: 이격 대상 판별 — LocalOrdinance.TARGET_CHOICES 로 매핑
 #: 조례 원문은 띄어쓰기가 제각각이라('주거밀집' / '주거 밀집') \s* 를 넣어둔다.
 #: 청도군 '주거 밀집지역'이 공백 하나 때문에 OTHER로 빠지던 것을 바로잡은 것이다.
@@ -263,15 +286,40 @@ def extract_from_appendices(mst: str) -> tuple[dict, list[dict]] | None:
                 continue
         if '풍력' not in text:
             continue
+
+        # ① 태양광·풍력 2열 비교표를 먼저 본다. 표가 있으면 그쪽이 정답이다.
+        table = table_entries_from(text)
+        if table:
+            entries, pos = table
+            return ({'no': _appendix_label(text, pos, ap.get('no')),
+                     'title': ap.get('title', ''), 'text': text}, entries)
+
+        # ② 표가 없으면 항목 기호로 풍력 구간을 잘라낸다 (청도군 '마. 풍력발전시설…')
         block = _wind_block_plain(text)
         if not block:
             continue
         entries = entries_from(block)
         if entries:
-            no = str(ap.get('no', '')).strip()
-            label = f'[별표 {int(no)}]' if no.isdigit() else f'[별표 {no}]'
-            return ({'no': label, 'title': ap.get('title', ''), 'text': text}, entries)
+            pos = text.find(block[:30]) if block else -1
+            return ({'no': _appendix_label(text, pos, ap.get('no')),
+                     'title': ap.get('title', ''), 'text': text}, entries)
     return None
+
+
+def _appendix_label(text: str, pos: int, fallback_no) -> str:
+    """
+    실제 별표 번호를 찾는다.
+
+    자치법규 API는 '별표 1부터 별표 29'를 한 파일로 주는 경우가 있다.
+    그때 ap['no']는 '0001'이라 근거 표기가 틀린다(삼척시는 별표 29가 맞다).
+    본문에서 해당 위치 **앞쪽의 가장 가까운 [별표 N]** 을 근거로 삼는다.
+    """
+    if pos and pos > 0:
+        marks = list(_APPENDIX_NO.finditer(text, 0, pos))
+        if marks:
+            return f'[별표 {marks[-1].group(1)}]'
+    no = str(fallback_no or '').strip()
+    return f'[별표 {int(no)}]' if no.isdigit() else f'[별표 {no}]'
 
 
 def entries_from(block: str) -> list[dict]:
@@ -294,7 +342,7 @@ def entries_from(block: str) -> list[dict]:
 
         for m in re.finditer(_DIST, base):
             dist = _to_meters(m.group(1), m.group(2))
-            if dist is None:
+            if dist is None or _is_non_separation(base, m.start()):
                 continue
             detail = _detail_of(base[:m.start()] or base)
             parent_detail = parent_detail or detail
@@ -307,7 +355,7 @@ def entries_from(block: str) -> list[dict]:
             cond = _condition_of(inner)
             for m in re.finditer(_DIST, inner):
                 dist = _to_meters(m.group(1), m.group(2))
-                if dist is None:
+                if dist is None or _is_non_separation(inner, m.start()):
                     continue
                 entries.append({
                     'target': target,
@@ -335,6 +383,63 @@ def _target_of(line: str) -> str:
     return 'OTHER'
 
 
+def _is_non_separation(text: str, pos: int) -> bool:
+    """수치 바로 앞 문맥이 이격거리가 아닌 규정이면 True."""
+    ctx = text[max(0, pos - _CTX_WINDOW):pos]
+    return any(k in ctx for k in _NON_SEPARATION)
+
+
+# ----------------------------------------------------------------------
+def table_entries_from(text: str) -> tuple[list[dict], int] | None:
+    """
+    태양광·풍력 **2열 비교표**에서 풍력 열만 뽑는다. → (항목들, 표 시작위치)
+
+    삼척시 별표 29가 이 형태다. 표가 평문으로 흘러들어오면 한 줄에 두 수치가
+    나란히 놓이는데, 종전 파서는 앞에 오는 **태양광 수치를 집어갔다.**
+    그 결과 주거밀집 이격이 2,000m인데 500m로 저장됐다 — 판정을 뒤집는 오류다.
+
+        구 분 태양에너지 설비 풍력에너지 설비 비고
+        도로 500미터 이상 이격 1,000미터 이상 이격
+        주거밀집지역 (5호 이상) 500미터 이상 이격 2,000미터 이상 이격
+
+    열 순서는 머리글에서 '태양'과 '풍력'의 등장 순서로 판별한다. 둘 중 하나라도
+    없으면 표로 보지 않는다 — 추측해서 열을 고르지 않는다.
+    """
+    for head_m in re.finditer(r'구\s*분', text):
+        head = text[head_m.end(): head_m.end() + 80]
+        i_sun, i_wind = head.find('태양'), head.find('풍력')
+        if i_sun < 0 or i_wind < 0:
+            continue
+        wind_second = i_wind > i_sun
+
+        body = text[head_m.end():]
+        end = _TABLE_END.search(body)
+        if end:
+            body = body[:end.start()]
+
+        entries: list[dict] = []
+        for row in _TABLE_ROW.finditer(body):
+            label = re.sub(r'\s+', ' ', row.group('label')).strip(' ·,')
+            # 머리글 잔여물('태양에너지 설비 풍력에너지 설비 비고')을 떨어낸다.
+            # 탐욕 매칭이라 마지막 '설비/비고'까지 잘라 대상명만 남는다.
+            label = _TABLE_HEAD_JUNK.sub('', label).strip(' ·,')
+            if not label:
+                continue
+            dist = _to_meters(row.group('d2') if wind_second else row.group('d1'), '미터')
+            if dist is None:
+                continue
+            entries.append({
+                'target': _target_of(label),
+                'detail': label[:60],
+                'distance_m': dist,
+                'sentence': re.sub(r'\s+', ' ', row.group(0)).strip(),
+            })
+
+        if entries:
+            return entries, head_m.start()
+    return None
+
+
 # ----------------------------------------------------------------------
 def _wind_block(text: str) -> str:
     """'풍력'이 등장하는 항(①②③…) 하나만 잘라낸다."""
@@ -356,7 +461,12 @@ def _wind_block_plain(text: str) -> str:
     '풍력발전시설은 …' 부터 다음 대항목(가./나./다.) 직전까지.
     태양광 기준의 수치를 섞으면 판정이 통째로 틀어지므로 범위를 좁게 잡는다.
     """
-    m = re.search(r'[가-힣]\.\s*풍력발전시설', text) or re.search(r'풍력', text)
+    # '마. 풍력발전시설은 …' 같은 항목 시작을 우선 잡는다.
+    # 맨 앞의 '풍력'을 그냥 집으면 삼척시처럼 제목('태양에너지 및 풍력에너지 설비의
+    # 설치에 대한 허가 기준')에 걸려 표와 정의문을 통째로 쓸어담는다.
+    m = (re.search(r'[가-힣]\.\s*풍력\s*(?:발전시설|에너지)', text)
+         or re.search(r'풍력\s*(?:발전시설|에너지\s*설비)\s*(?:은|는)', text)
+         or re.search(r'풍력', text))
     if not m:
         return ''
     tail = text[m.start():]

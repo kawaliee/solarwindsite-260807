@@ -67,6 +67,7 @@ class EcoAreaProvider(LayerProvider):
                 reason=f'생태·경관보전지역 조회 중 오류: {type(e).__name__}. '
                        '데이터 부재가 아니라 조회 실패입니다.',
                 action_required='잠시 후 재조회하십시오.',
+                why='FETCH',
             )
 
         if not areas:

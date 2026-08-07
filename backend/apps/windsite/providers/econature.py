@@ -85,10 +85,12 @@ class EcoNatureMapProvider(LayerProvider):
                 reason=(f'생태자연도 조회에 실패했습니다 — {e}. '
                         '데이터 부재가 아니라 조회 자체가 되지 않은 상태입니다.'),
                 action_required='국립생태원 지오서버 장애일 수 있습니다. 잠시 후 재조회하십시오.',
+                why='FETCH',
             )
         except Exception as e:                                  # noqa: BLE001
             logger.exception('생태자연도 조회 실패')
-            return self.unknown(reason=f'생태자연도 조회 중 오류: {type(e).__name__}')
+            return self.unknown(reason=f'생태자연도 조회 중 오류: {type(e).__name__}',
+                                why='FETCH')
 
         if not features:
             return self.item(
@@ -100,6 +102,7 @@ class EcoNatureMapProvider(LayerProvider):
                 source_url='https://www.nie-ecobank.kr',
                 action_required='환경공간정보서비스(egis.me.go.kr)에서 직접 확인하십시오.',
                 raw={'features': 0},
+                unknown_reason='NO_DATA',
             )
 
         stat = self._measure(q, features)

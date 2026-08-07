@@ -263,9 +263,16 @@ class VworldLayerProvider(LayerProvider):
             props = f.get('properties') or {}
             name = (props.get(lyr.name_field) or '').strip() if lyr.name_field else ''
             rec: dict = {'name': name or self.item_name, 'distance_m': None}
+            extras = []
             for k in (lyr.extra_fields or [])[:6]:
                 if props.get(k):
                     rec[k] = props[k]
+                    extras.append(str(props[k]))
+            # 서버가 명칭 속성을 주지 않는 레이어(probe_status=NO_NAME)는 항목명만
+            # 반복 출력돼 근거가 없다. 부속 속성이라도 붙여야 무엇이 걸렸는지 읽힌다.
+            # 예) 산림입지도 → '산림입지도(B₂)' — B₂는 토양형 코드다.
+            if not name and extras:
+                rec['name'] = f'{self.item_name}({"·".join(extras[:2])})'
             if lyr.altitude_floor_field:
                 rec['altitude_floor_ft'] = parse_altitude_ft(
                     props.get(lyr.altitude_floor_field))
@@ -316,7 +323,14 @@ class VworldLayerProvider(LayerProvider):
                       key=lambda h: h['distance_m'], default=None)
 
         names = ', '.join(dict.fromkeys(h['name'] for h in hits))[:200]
-        if overlapping:
+        # 참고 레이어(role=CONTEXT)는 규제가 아니다. '중첩됩니다'로 적으면
+        # 산림입지도(토양 정보) 같은 항목이 경고처럼 읽힌다.
+        if lyr.role == 'CONTEXT':
+            head = (f'참고 정보 — 대상 지점의 {self.item_name}: {names}. '
+                    '규제 항목이 아니라 현황 참고 자료입니다.'
+                    if overlapping else
+                    f'참고 정보 — 검토 반경 내 {self.item_name}: {names}.')
+        elif overlapping:
             head = f'대상 지점이 {self.item_name} 구역과 중첩됩니다 — {names}.'
         elif nearest:
             head = (f'{self.item_name} 경계로부터 '

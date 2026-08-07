@@ -105,6 +105,7 @@ class LandslideProvider(LayerProvider):
             return self.unknown(
                 reason=f'산사태위험지도 조회 중 오류가 발생했습니다: {type(e).__name__}',
                 action_required='네트워크 상태를 확인한 뒤 재조회하십시오.',
+                why='FETCH',
             )
 
         if not counts:

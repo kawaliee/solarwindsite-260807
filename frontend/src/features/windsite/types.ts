@@ -18,10 +18,39 @@ export const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   CRITICAL: '치명',
 };
 
+/**
+ * 신뢰도는 **판정의 근거가 얼마나 단단한가**이지, 판정이 나왔는지 여부가 아니다.
+ * 종전 'LOW: 미검증'은 판정 실패로 읽혀, 판정이 나온 항목까지 실패로 오인됐다.
+ */
 export const CONFIDENCE_LABEL: Record<Confidence, string> = {
   HIGH: '원문 확인',
   MEDIUM: '교차 확인',
-  LOW: '미검증',
+  LOW: '참고 수준',
+};
+
+export const CONFIDENCE_HINT: Record<Confidence, string> = {
+  HIGH: '법령·조례 원문을 직접 대조한 값입니다.',
+  MEDIUM: '공공 API 응답을 근거로 산출했습니다.',
+  LOW: '보조 지표이거나 자료 누락 가능성이 있어 실사·실측으로 확인이 필요합니다.',
+};
+
+/** UNKNOWN이 된 이유 — 재시도로 풀리는 것과 아닌 것을 구분한다 */
+export type UnknownReason = 'NO_KEY' | 'FETCH' | 'NO_DATA' | 'NO_RULE' | 'BY_DESIGN';
+
+export const UNKNOWN_REASON_LABEL: Record<UnknownReason, string> = {
+  NO_KEY: '인증키 미설정',
+  FETCH: '조회 실패',
+  NO_DATA: '자료 없음',
+  NO_RULE: '판정 기준 없음',
+  BY_DESIGN: '자동 판정 대상 아님',
+};
+
+export const UNKNOWN_REASON_HINT: Record<UnknownReason, string> = {
+  NO_KEY: '.env에 인증키를 등록하면 자동 판정됩니다.',
+  FETCH: '일시적 오류일 수 있습니다. 다시 실행하면 판정될 수 있습니다.',
+  NO_DATA: '해당 지점에 자료가 구축되지 않았습니다. 재시도해도 달라지지 않습니다.',
+  NO_RULE: '자료는 받았으나 판정 기준이 없어 임의 판단하지 않았습니다.',
+  BY_DESIGN: '현장 실측 등 자동화로 대체할 수 없는 항목입니다.',
 };
 
 export interface AnalysisItem {
@@ -38,6 +67,8 @@ export interface AnalysisItem {
   action_required: string;
   /** 판정 근거 원자료 — 최근접 거리·필지 면적·조회된 구역명 등 (어댑터마다 형태가 다름) */
   raw?: Record<string, unknown>;
+  /** status가 UNKNOWN일 때의 사유. 그 외에는 빈 문자열 */
+  unknown_reason?: string;
 }
 
 export interface PermitStep {

@@ -134,6 +134,7 @@ class MilitaryZoneProvider(ParcelBasedProvider):
                        '판정하지 못했습니다. 데이터 부재가 아니라 조회 실패입니다.',
                 action_required='잠시 후 재시도하십시오.',
                 difficulty=Difficulty.HIGH,
+                why='FETCH',
             )
 
         coverage = self._coverage_note(parcels, total)
@@ -162,6 +163,7 @@ class MilitaryZoneProvider(ParcelBasedProvider):
                         f'코드입니다 — {names}. 임의 판단하지 않습니다.' + coverage),
                 action_required='관할부대에 해당 구역의 행위제한을 확인하십시오.',
                 difficulty=Difficulty.HIGH,
+                why='NO_RULE',
             )
 
         worst = max(known, key=lambda j: _DIFF_ORDER.index(j['difficulty'].value))

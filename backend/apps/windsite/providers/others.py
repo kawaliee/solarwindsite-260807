@@ -74,6 +74,7 @@ class LocalOrdinanceProvider(LayerProvider):
                 confidence=Confidence.LOW,
                 action_required='자치법규정보시스템(elis.go.kr)에서 해당 지자체 조례를 직접 확인하고, '
                                 'python manage.py sync_ordinances --sigungu <시군구> --apply 로 등록하십시오.',
+                unknown_reason='NO_RULE',
             )
 
         order = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
