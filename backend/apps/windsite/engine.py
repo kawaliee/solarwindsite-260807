@@ -56,6 +56,14 @@ logger = logging.getLogger(__name__)
 #: 레이어 어댑터 동시 실행 수. V-World 레이어가 수십 개라 순차 실행 시 지연이 크다.
 MAX_WORKERS = 6
 
+#: 검토 반경 기본값(m). 화면 입력·API 기본값·후보지 비교가 모두 이 값을 쓴다.
+#: 반경을 넓히면 조회 필지와 정온시설이 급격히 늘어 판정 범위가 달라지므로
+#: 값을 한 곳에서만 정의한다.
+DEFAULT_RADIUS_M = 50
+#: 입력 허용 범위 — 화면 입력란과 API 검증이 같은 경계를 쓴다.
+MIN_RADIUS_M = 50
+MAX_RADIUS_M = 20000
+
 
 def build_providers(sido: str = '', sigungu: str = '', substations=None):
     """
@@ -86,7 +94,7 @@ def build_providers(sido: str = '', sigungu: str = '', substations=None):
     ]
 
 
-def evaluate(lat: float, lng: float, radius_m: int = 500, address: str = '',
+def evaluate(lat: float, lng: float, radius_m: int = DEFAULT_RADIUS_M, address: str = '',
              capacity_mw: float | None = None, sido: str = '', sigungu: str = '',
              substations=None) -> EvaluationResult:
     q = SiteQuery(lat=lat, lng=lng, radius_m=radius_m, address=address, capacity_mw=capacity_mw)
@@ -139,7 +147,7 @@ def compare(candidates: list[dict]) -> dict:
         label = c.get('label') or c.get('address') or f'후보 {idx}'
         res = evaluate(
             lat=float(c['lat']), lng=float(c['lng']),
-            radius_m=int(c.get('radius_m', 500)),
+            radius_m=int(c.get('radius_m', DEFAULT_RADIUS_M)),
             address=c.get('address', ''),
             capacity_mw=c.get('capacity_mw'),
             sido=c.get('sido', ''), sigungu=c.get('sigungu', ''),

@@ -15,10 +15,15 @@ import {
 
 type Tab = 'result' | 'compare' | 'permits' | 'laws' | 'config';
 
+/** 검토 반경 기본값·허용범위 — 백엔드 engine.py의 같은 이름 상수와 맞춘다 */
+const DEFAULT_RADIUS_M = 50;
+const MIN_RADIUS_M = 50;
+const MAX_RADIUS_M = 20000;
+
 export default function WindSiteView() {
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
-  const [radiusM, setRadiusM] = useState(500);
+  const [radiusM, setRadiusM] = useState(DEFAULT_RADIUS_M);
   const [address, setAddress] = useState('');
   const [sido, setSido] = useState('');
   const [sigungu, setSigungu] = useState('');
@@ -205,8 +210,9 @@ export default function WindSiteView() {
             <div className="ws-two">
               <label className="ws-fld">
                 <span>검토 반경 (m)</span>
-                <input type="number" min={50} max={20000} step={50} value={radiusM}
-                  onChange={e => setRadiusM(Number(e.target.value) || 500)} />
+                <input type="number" min={MIN_RADIUS_M} max={MAX_RADIUS_M} step={50}
+                  value={radiusM}
+                  onChange={e => setRadiusM(Number(e.target.value) || DEFAULT_RADIUS_M)} />
               </label>
               <label className="ws-fld">
                 <span>설비용량 (MW) <em>(선택)</em></span>

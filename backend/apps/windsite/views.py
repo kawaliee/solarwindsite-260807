@@ -9,7 +9,7 @@ from rest_framework import status as http
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .engine import compare, evaluate
+from .engine import DEFAULT_RADIUS_M, MAX_RADIUS_M, MIN_RADIUS_M, compare, evaluate
 from .geocode import geocode, reverse_geocode
 from .models import LawReference, LocalOrdinance, SiteEvaluation
 from .permits import build_roadmap, collect_laws
@@ -23,7 +23,7 @@ def evaluate_site(request):
     입지타당성 검토 실행
 
     POST body:
-      { "lat": 36.1234, "lng": 128.5678, "radius_m": 500,
+      { "lat": 36.1234, "lng": 128.5678, "radius_m": 50,
         "address": "...", "capacity_mw": 60,
         "sido": "경상북도", "sigungu": "청도군" }
     """
@@ -51,10 +51,10 @@ def evaluate_site(request):
                         status=http.HTTP_400_BAD_REQUEST)
 
     try:
-        radius_m = int(d.get('radius_m') or 500)
+        radius_m = int(d.get('radius_m') or DEFAULT_RADIUS_M)
     except (TypeError, ValueError):
-        radius_m = 500
-    radius_m = max(50, min(20000, radius_m))
+        radius_m = DEFAULT_RADIUS_M
+    radius_m = max(MIN_RADIUS_M, min(MAX_RADIUS_M, radius_m))
 
     capacity = d.get('capacity_mw')
     try:
@@ -112,7 +112,7 @@ def compare_sites(request):
 
     POST body:
       { "candidates": [
-          {"label":"A안", "lat":..., "lng":..., "radius_m":500, "capacity_mw":60},
+          {"label":"A안", "lat":..., "lng":..., "radius_m":50, "capacity_mw":60},
           {"label":"B안", "address":"전남 화순군 ..."}
         ] }
     """
@@ -135,7 +135,8 @@ def compare_sites(request):
         prepared.append({
             'label': c.get('label') or address or f'후보 {idx}',
             'lat': lat, 'lng': lng,
-            'radius_m': max(50, min(20000, int(c.get('radius_m') or 500))),
+            'radius_m': max(MIN_RADIUS_M,
+                            min(MAX_RADIUS_M, int(c.get('radius_m') or DEFAULT_RADIUS_M))),
             'address': address, 'sido': sido, 'sigungu': sigungu,
             'capacity_mw': _as_float(c.get('capacity_mw')),
         })
@@ -181,7 +182,8 @@ def evaluation_report(request):
         sido, sigungu, address = _resolve_admin(d, lat, lng)
         result = evaluate(
             lat=lat, lng=lng,
-            radius_m=max(50, min(20000, int(d.get('radius_m') or 500))),
+            radius_m=max(MIN_RADIUS_M,
+                         min(MAX_RADIUS_M, int(d.get('radius_m') or DEFAULT_RADIUS_M))),
             address=address, capacity_mw=_as_float(d.get('capacity_mw')),
             sido=sido, sigungu=sigungu,
         )
@@ -281,6 +283,8 @@ def _result_from_payload(payload, AnalysisItem, Confidence, Coordinates, Difficu
         site_info=SiteInfo(
             address=si.get('address', ''),
             coordinates=Coordinates(lat=coord.get('lat', 0.0), lng=coord.get('lng', 0.0)),
+            # 저장된 이력을 되살리는 자리다. 기본 반경이 500m이던 시절의
+            # 기록이 남아 있으므로 DEFAULT_RADIUS_M로 바꾸지 않는다.
             radius_m=si.get('radius_m', 500), total_area_m2=si.get('total_area_m2', 0.0),
         ),
         overall_feasibility=OverallFeasibility(
