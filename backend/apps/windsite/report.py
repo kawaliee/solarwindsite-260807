@@ -153,15 +153,42 @@ def build_report(result: EvaluationResult, *, sido: str = '', sigungu: str = '',
     doc.add_heading('6. 전력계통 연계', level=1)
     grid = _raw_of(result, '전력계통 연계(변전소·송전선로)')
     subs = grid.get('substations') or []
+    cap_source = grid.get('capacity_source') or ''
+    cap_error = grid.get('capacity_error') or ''
     if subs:
-        _table(doc, ['변전소', '전압(kV)', '직선거리', '출처'],
+        # 여유용량은 한전 분산전원 연계정보에서 변전소명을 정규화해 붙인 값이다.
+        # 종전에는 이 표에 용량 열이 없고 "여유도는 포함되지 않습니다"라는 문구만
+        # 남아 있어, 실제로는 조회된 용량이 보고서에서 통째로 빠져 있었다.
+        def _kw(v):
+            return f'{v:,.0f}' if isinstance(v, (int, float)) else '-'
+
+        _table(doc,
+               ['변전소', '전압(kV)', '직선거리', '변전소 여유(kW)', '선로 여유(kW)', '최대 선로'],
                [[s['name'], str((s.get('voltage') or 0) // 1000 or '-'),
-                 geo.format_distance(s['distance_m']), s.get('osm', '') or '수기']
+                 geo.format_distance(s['distance_m']),
+                 _kw(s.get('margin_substation_kw')),
+                 _kw(s.get('margin_line_kw')),
+                 s.get('best_line') or '-']
                 for s in subs[:8]])
-        doc.add_paragraph(
-            '⚠️ 위 목록은 OpenStreetMap 기반 위치 탐색 결과이며 **접속 가능 용량(계통 여유도)은 '
-            '포함되지 않습니다.** 한전 계통연계 사전검토를 반드시 별도로 신청해야 합니다.'
-        )
+
+        matched = [s for s in subs if s.get('margin_line_kw') is not None]
+        if matched:
+            doc.add_paragraph(
+                f'※ 위치는 OpenStreetMap, 접속 가능 용량은 {cap_source or "한전 분산전원 연계정보"} '
+                f'기준입니다({len(matched)}개소 대조). 단위는 원자료에 명시되지 않아 kW로 '
+                '해석했습니다. **공표 여유용량은 신청 시점에 이미 선점되었을 수 있으므로 '
+                '한전 계통연계 사전검토(기술검토)를 반드시 별도로 신청해야 합니다.**'
+            )
+        elif cap_error:
+            doc.add_paragraph(
+                f'⚠️ 한전 계통 여유용량 조회에 실패해 접속 가능 용량이 비어 있습니다 — {cap_error}. '
+                '데이터 부재가 아니라 조회 실패이므로 재시도하거나 한전ON에서 직접 확인하십시오.'
+            )
+        else:
+            doc.add_paragraph(
+                '⚠️ OSM 변전소 명칭과 한전 자료를 대조하지 못해 접속 가능 용량이 비어 있습니다. '
+                '변전소명이 서로 다르게 표기된 경우입니다. 한전ON에서 직접 확인하십시오.'
+            )
     else:
         doc.add_paragraph('변전소가 조회되지 않았습니다. 한전ON에서 직접 확인이 필요합니다.')
 
@@ -374,13 +401,14 @@ def _regulation_map(result: EvaluationResult, lat: float, lng: float,
 def _surroundings_map(lat: float, lng: float, radius_m: int) -> bytes | None:
     if not geo.GEO_AVAILABLE:
         return None
-    r = max(radius_m * 2, 1000)
+    # 이격 대상이 반경 밖에 있어도 위치 관계를 봐야 하므로 넉넉히 조회한다
+    r = max(radius_m * 2, 2000)
     buildings = [x['geom'] for x in
                  _fetch_geoms(_layer_id('건물', 'lt_c_spbd'), lat, lng, r)]
     roads = [x['geom'] for x in
              _fetch_geoms(_layer_id('도로', 'lt_l_sprd'), lat, lng, r)]
-    if not buildings and not roads:
-        return None
+    # 건물·도로가 없어도 배경 위성영상만으로 주변 현황을 확인할 수 있으므로 그린다.
+    # (산간지는 건물이 0건이라 종전에는 이 지도가 통째로 빠졌다)
     try:
         return maps.surroundings_map(lat, lng, radius_m, buildings, roads)
     except Exception:                                           # noqa: BLE001
