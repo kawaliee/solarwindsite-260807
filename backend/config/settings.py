@@ -217,6 +217,11 @@ KMA_API_KEY = (
 KMA_APIHUB_KEY = os.environ.get('KMA_APIHUB_KEY', '')
 KMA_APIHUB_BASE = os.environ.get('KMA_APIHUB_BASE', 'https://apihub.kma.go.kr/api/typ01/url')
 
+# Tavily 웹 검색 — LLM Function Calling에서 최신 정보 조회에 쓴다.
+# 종전에는 이 항목이 없고 tavily_service.py에 실제 키가 하드코딩돼 있었다.
+# 하드코딩을 걷어내니 settings에 정의가 없다는 사실이 드러나 여기에 추가한다.
+TAVILY_API_KEY = os.environ.get('TAVILY_API_KEY', '')
+
 # 국가법령정보 공동활용 OPEN API (법제처) — 법령·자치법규 원문 대조용.
 # 값은 신청 이메일의 ID(@ 앞부분). 비우면 공용 데모 계정 'test'로 동작하나
 # 사용량 제한이 있어 운영에는 자체 발급 값을 넣는다. 발급: https://open.law.go.kr
