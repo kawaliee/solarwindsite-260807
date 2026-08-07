@@ -98,6 +98,9 @@ services:
     command: npm run dev -- --host 0.0.0.0
     environment:
       VITE_API_BASE: http://localhost:8000/api
+      # 입지검토 배경지도(V-World WMTS)용. 브라우저가 직접 타일을 받으므로
+      # 백엔드 키를 프런트로 넘겨준다. 키가 없어도 OpenTopoMap으로 지도는 뜬다.
+      VITE_VWORLD_KEY: ${VWORLD_API_KEY:-}
     ports:
       - "5173:5173"
     volumes:

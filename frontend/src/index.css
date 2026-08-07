@@ -1046,17 +1046,50 @@ svg.krmap .site-mk circle { transition: r .15s; }
    ===================================================================== */
 .ws-view { flex: 1; overflow-y: auto; padding: 20px 26px 40px; min-width: 0; }
 
-.ws-top { display: grid; grid-template-columns: 380px 1fr; gap: 16px; align-items: start; }
+/* 지도가 주(主), 입력이 부(副). 능선·표고를 눈으로 읽어야 해서 지도에 폭을 몰아준다 */
+.ws-top { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
 .ws-inputcard .ops-card-bd { padding: 12px; }
+.ws-formcard .ops-card-bd { padding: 14px; }
+.ws-formcard .ws-fld { margin-bottom: 10px; }
 
-/* 지도 선택 */
+/* 지도 선택 — Leaflet 슬리피 맵 */
 .ws-picker { position: relative; }
-svg.ws-pickmap { cursor: crosshair; max-height: 460px; }
-svg.ws-pickmap .prov { fill: #0d2233; stroke: #26516c; stroke-width: .8; }
-svg.ws-pickmap:hover .prov { fill: #102b3d; }
-.ws-marker .ws-buffer { fill: rgba(57,211,230,.18); stroke: var(--brand); stroke-width: 1; }
-.ws-marker .ws-pin { fill: var(--brand); stroke: #04121c; stroke-width: 1.5; }
-.ws-marker .ws-cross { stroke: var(--brand); stroke-width: 1; opacity: .7; }
+.ws-leaflet {
+  height: 620px; min-height: 420px; border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--line); background: #0d2233; cursor: crosshair;
+}
+.ws-leaflet .leaflet-container { background: #0d2233; font-family: inherit; }
+
+/* 지정 지점 표식 */
+.ws-pinicon { position: relative; }
+.ws-pinicon .ws-pindot {
+  position: absolute; left: 9px; top: 9px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--brand); box-shadow: 0 0 0 2px #04121c;
+}
+.ws-pinicon .ws-pinring {
+  position: absolute; inset: 0; border: 2px solid var(--brand); border-radius: 50%; opacity: .55;
+}
+
+/* Leaflet 기본 컨트롤을 다크 테마에 맞춘다 */
+.ws-leaflet .leaflet-bar a,
+.ws-leaflet .leaflet-control-layers {
+  background: rgba(8, 24, 36, .92); color: var(--ink); border-color: var(--line);
+}
+.ws-leaflet .leaflet-bar a { color: var(--ink); }
+.ws-leaflet .leaflet-bar a:hover { background: rgba(16, 43, 61, .95); }
+.ws-leaflet .leaflet-control-layers {
+  border-radius: 9px; padding: 8px 10px; font-size: 12px; line-height: 1.9;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .45);
+}
+.ws-leaflet .leaflet-control-layers-separator { border-color: var(--line); }
+.ws-leaflet .leaflet-control-scale-line {
+  background: rgba(8, 24, 36, .8); color: var(--ink-soft); border-color: var(--line);
+}
+.ws-leaflet .leaflet-control-attribution {
+  background: rgba(8, 24, 36, .78); color: var(--ink-faint); font-size: 10px;
+}
+.ws-leaflet .leaflet-control-attribution a { color: var(--ink-soft); }
+
 .ws-pickfoot {
   display: flex; justify-content: space-between; align-items: center;
   font-size: 11px; color: var(--ink-faint); margin-top: 8px;
