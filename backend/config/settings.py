@@ -195,6 +195,13 @@ FOREST_LANDSLIDE_LAYER = os.environ.get('FOREST_LANDSLIDE_LAYER', '')
 HERITAGE_API_KEY = os.environ.get('HERITAGE_API_KEY', '')
 HERITAGE_URL = os.environ.get('HERITAGE_URL', '')
 
+# 국가유산 공간정보 WMS (gis-heritage.go.kr) — 인증키·도메인 검증이 없음을 실측 확인.
+# SHP으로 배포되지 않는 문화유적분포지도·국가유산조사구역을 이 경로로 조회한다.
+HERITAGE_WMS_URL = os.environ.get(
+    'HERITAGE_WMS_URL', 'https://gis-heritage.go.kr/checkKey.do')
+HERITAGE_WMS_DOMAIN = os.environ.get(
+    'HERITAGE_WMS_DOMAIN', 'https://gis-heritage.go.kr/')
+
 # 기상청 ASOS (공공데이터포털) — 종관기상관측 일자료·시간자료.
 # 값은 DATA_GO_KR_KEY와 동일한 포털 인증키다.
 _RAW_KMA_API_KEY = os.environ.get('KMA_API_KEY', '')

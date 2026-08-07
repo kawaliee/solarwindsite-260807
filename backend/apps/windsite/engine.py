@@ -19,6 +19,10 @@ from .permits import build_roadmap, collect_laws
 from .providers.base import SiteQuery
 from .providers.cadastral import CadastralProvider
 from .providers.econature import EcoNatureMapProvider
+from .providers.heritage_wms import (
+    HeritageDistributionMapProvider,
+    HeritageSurveyAreaProvider,
+)
 from .providers.landslide import LandslideProvider
 from .providers.local_spatial import HeritageSpatialProvider
 from .providers.ned import (
@@ -68,6 +72,8 @@ def build_providers(sido: str = '', sigungu: str = '', substations=None):
         EcoNatureMapProvider(),                            # 생태자연도
         LandslideProvider(),                               # 산사태위험등급
         HeritageSpatialProvider(),                         # 국가유산 (SHP 적재)
+        HeritageSurveyAreaProvider(),                      # 국가유산조사구역 (WMS)
+        HeritageDistributionMapProvider(),                 # 문화유적분포지도 (WMS)
         MilitaryAirspaceProvider(),                        # 군사 협의 안내
         LocalOrdinanceProvider(sido=sido, sigungu=sigungu),  # 지자체 조례
         QuietFacilityProvider(sido=sido, sigungu=sigungu),   # 정온시설 동심원
