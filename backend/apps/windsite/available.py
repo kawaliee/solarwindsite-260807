@@ -35,7 +35,9 @@ from __future__ import annotations
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
-from . import geo, jurisdiction
+import re
+
+from . import buildings, geo, jurisdiction
 from .providers.vworld import VworldClient
 from .schemas import Status
 
@@ -118,20 +120,60 @@ def _layer_geoms(area_geom, layer) -> tuple[list, str]:
     return out, ('구역 일부만 조회됨' if meta.get('truncated') else '')
 
 
+def _rule_set(rules) -> dict:
+    """
+    지자체 조례를 항목별로 정리한다.
+
+    반환 {'house_n': 5, 'house_ge': 2000, 'house_lt': 2000,
+          'livestock': 2000, 'quiet': 1000}
+    값이 없으면 키가 빠진다 — 조례에 없는 대상에 임의로 거리를 붙이지 않는다.
+    """
+    out: dict = {}
+    for r in rules:
+        d = (r.target_detail or '')
+        if r.target == 'RESIDENTIAL':
+            m = re.search(r'(\d+)\s*호', d)
+            if m:
+                out['house_n'] = int(m.group(1))
+            # '5호 미만'처럼 미만을 명시한 행이 하위 구간이다.
+            key = 'house_lt' if '미만' in d else 'house_ge'
+            out[key] = max(out.get(key, 0), r.distance_m)
+        elif r.target == 'QUIET_FACILITY':
+            out['quiet'] = max(out.get('quiet', 0), r.distance_m)
+        elif '축사' in d or '가축' in d:
+            out['livestock'] = max(out.get('livestock', 0), r.distance_m)
+    # 한쪽만 있으면 같은 값으로 본다 (구간 구분이 없는 조례)
+    if 'house_ge' in out and 'house_lt' not in out:
+        out['house_lt'] = out['house_ge']
+    return out
+
+
 def _facility_buffers(area_geom, slices, separation_zone=None) -> tuple[dict, list[str]]:
     """
-    지자체 조각별로 그 지자체의 이격거리만큼 버퍼를 씌운다.
+    지자체 조각별로 조례 이격거리 버퍼를 만든다.
 
-    시설은 행정구역을 가리지 않고 모은다. 조문이 "주거밀집지역으로부터
-    직선거리 N미터"라고만 하고 관할구역으로 한정하지 않는 것이 일반적이라,
-    경계 너머 마을도 이격 대상이다. 반경만 조각별 조례를 따른다.
+    종전에는 용도를 가리지 않고 **모든 건물**에 조례 최대 반경을 씌워
+    검토 구역의 97.8%가 배제로 잡혔다. 조례가 규율하는 것은 주택·축사·
+    정온시설이고 부속 건축물은 명시적으로 제외되는데, 창고 한 채까지
+    주거 2,000m를 만들어 내고 있었다.
+
+    이제 [[buildings]]가 건축물대장 주용도로 갈라준 것을 항목별로 쓴다.
+      · 주택   50m 군집 → N호 이상/미만으로 거리를 나눠 적용
+      · 축사   축사 항목 거리
+      · 정온   정온시설 항목 거리
+      · 창고·부속건축물  버퍼 없음
+      · 대장 미등재      버퍼 없음. 다만 '용도 미확인 N동'으로 올려 조건부로 남긴다
+
+    시설은 행정구역을 가리지 않고 모은다. 조문이 관할구역으로 한정하지 않는
+    것이 일반적이라 경계 너머 마을도 이격 대상이다. 거리만 조각별 조례를 따른다.
 
     separation_zone을 주면 그 안에서만 이격 위반을 센다. 배치선 검토에서
-    **발전기 지점**만 넘기는 용도다. 조례의 이격거리는 '풍력발전시설'에
-    대한 것이고 소음원도 발전기지, 지중 집전선로나 진입도로가 아니다.
-    연결선 구간까지 주거 2,000m를 적용하면 실제 규제보다 훨씬 넓게 배제된다.
+    발전기 지점만 넘기는 용도다 — 조례가 규율하는 것은 발전시설이지
+    지중 집전선로나 진입도로가 아니다.
     """
-    max_dist = max((r.distance_m for s in slices for r in s['rules']), default=0)
+    rule_sets = {s['code']: _rule_set(s['rules']) for s in slices if s['rules']}
+    max_dist = max((v for rs in rule_sets.values() for v in rs.values()
+                    if isinstance(v, int)), default=0)
     if not max_dist:
         return {}, []
 
@@ -139,53 +181,57 @@ def _facility_buffers(area_geom, slices, separation_zone=None) -> tuple[dict, li
     try:
         feats, meta = VworldClient.fetch_area(FACILITY_LAYER, search)
     except Exception as e:                                      # noqa: BLE001
-        # 여기서 터지면 이격 판정이 통째로 빠진다. 빠졌다는 사실을 올린다.
         logger.warning('이격 대상 시설 조회 실패: %s', e)
         return {}, [f'이격 대상 시설을 조회하지 못했습니다 ({type(e).__name__}). '
                     f'조례 이격거리 제약이 결과에 반영되지 않았습니다.']
+
     notes: list[str] = []
     if meta.get('strategy') == 'failed':
         return {}, [f'이격 대상 시설 조회 실패: {meta.get("error")}']
     if meta.get('truncated'):
         notes.append('이격 대상 시설이 일부만 조회되었습니다 (구역이 넓어 잘림).')
-
-    # 건물 도형을 그대로 버퍼링하면 끝나지 않는다. 영양 16km² 구역에서
-    # 5,711동을 합치면 정점이 67,754개인데, 여기에 2km 버퍼를 씌우는 연산이
-    # 300초를 넘겨도 끝나지 않았다(파싱 0.8s · union 0.5s는 문제가 아니다).
-    #
-    # 2km 반경 앞에서 건물 하나의 모양은 의미가 없으므로 격자로 뭉친다.
-    # 대신 반경에 격자 대각선의 절반을 더해, 뭉치면서 잘려나가는 부분이
-    # 없도록 한다. 결과는 참값보다 **넓어질 뿐 좁아지지 않는다** —
-    # 이격 판정에서 좁아지는 오차는 위반을 놓치는 것이라 허용할 수 없다.
-    cells: set[tuple[int, int]] = set()
-    for f in feats:
-        g = geo.geom_from_geojson(f.get('geometry'))
-        if g is None:
-            continue
-        c = geo.to_metric(g).centroid
-        cells.add((int(c.x // FACILITY_GRID_M), int(c.y // FACILITY_GRID_M)))
-    if not cells:
+    if not feats:
         return {}, notes + ['구역 주변에서 이격 대상 시설이 조회되지 않았습니다.']
 
-    half = FACILITY_GRID_M / 2.0
-    merged = geo.union([
-        geo.Point(i * FACILITY_GRID_M + half, j * FACILITY_GRID_M + half)
-        for i, j in cells
-    ])
+    codes = [s['code'] for s in slices]
+    cls = buildings.classify(feats, codes)
+    c = cls['counts']
     notes.append(
-        f'이격 대상 시설 {len(feats):,}동을 {FACILITY_GRID_M}m 격자 {len(cells):,}개로 '
-        f'묶어 계산했습니다 (반경에 {GRID_SAFETY_M}m를 더해 과소 배제를 막았습니다).')
+        '이격 대상 시설 %d동 분류 — 주택 %d · 축사 %d · 정온시설 %d · '
+        '대상 아님(창고·부속 등) %d · **용도 미확인 %d**'
+        % (sum(c.values()), c.get(buildings.CAT_HOUSING, 0),
+           c.get(buildings.CAT_LIVESTOCK, 0), c.get(buildings.CAT_QUIET, 0),
+           c.get(buildings.CAT_NOT_TARGET, 0) + c.get(buildings.CAT_ANNEX, 0),
+           c.get(buildings.CAT_UNKNOWN, 0)))
+    if c.get(buildings.CAT_UNKNOWN):
+        notes.append(
+            '용도 미확인 %d동은 건축물대장에 등재되지 않은 건물입니다. 무허가·농막·'
+            '폐가일 수도, 실거주 중인 주택일 수도 있어 이격 대상 여부를 단정할 수 '
+            '없습니다. 버퍼를 씌우지 않았으므로 현장 확인이 필요합니다.'
+            % c[buildings.CAT_UNKNOWN])
+    notes.append(
+        '조례는 주민등록 실거주 주택만을 대상으로 하고 빈집을 제외하나, 그 정보는 '
+        '공개되지 않습니다. 아래 값은 대장상 주택 기준의 상한선입니다.')
+
+    # 주택은 조례가 정한 거리로 군집을 만들어 호수를 센다
+    house_groups = buildings.clusters(cls[buildings.CAT_HOUSING])
     by_slice: dict[str, object] = {}
     for s in slices:
-        if not s['rules']:
+        rs = rule_sets.get(s['code'])
+        if not rs:
             continue
-        # 같은 조각 안에서도 대상별 반경이 다르다. 가장 엄격한 값을 쓰면
-        # 도로 500m 기준이 주거 2,000m로 부풀어 과대 배제가 된다. 대신
-        # 대상 구분 없이 시설 위치만 알고 있으므로, 현 단계에서는 조례
-        # 최대값을 쓰고 대상별 분리는 시설 분류가 붙은 뒤로 미룬다.
-        d = max(r.distance_m for r in s['rules'])
-        buf = merged.buffer(d + GRID_SAFETY_M)
-        piece = geo.clip(buf, s['geom'])
+        parts = []
+        n_req = rs.get('house_n', 0)
+        for g in house_groups:
+            d = rs.get('house_ge' if (n_req and len(g) >= n_req) else 'house_lt')
+            if d:
+                parts.append(geo.union(g).buffer(d))
+        for cat, key in ((buildings.CAT_LIVESTOCK, 'livestock'),
+                         (buildings.CAT_QUIET, 'quiet')):
+            d = rs.get(key)
+            if d and cls[cat]:
+                parts.append(geo.union(cls[cat]).buffer(d))
+        piece = geo.clip(geo.union(parts), s['geom']) if parts else None
         if piece is not None and separation_zone is not None:
             piece = geo.clip(piece, separation_zone)
         if piece is not None:
@@ -314,7 +360,7 @@ def _compute(area, separation_zone=None, layout: dict | None = None) -> dict:
     for code, piece in buffers.items():
         conditional_parts.append(piece)
         by_reason.append({
-            'layer': f'조례 이격거리 (용도 미확인 건물 기준, {code})',
+            'layer': f'조례 이격거리 ({code})',
             'status': Status.CONDITIONAL.value,
             'area_m2': float(piece.area),
             'ratio': float(piece.area) / total,
@@ -322,8 +368,8 @@ def _compute(area, separation_zone=None, layout: dict | None = None) -> dict:
         })
     if buffers:
         buf_notes.append(
-            '이격 버퍼는 용도가 확인되지 않은 건물 전체에 조례 최대 반경을 씌운 '
-            '값이라 실제보다 넓습니다. 배제가 아닌 조건부로 집계했습니다.')
+            '조례 이격은 대장상 주택·축사·정온시설에만 적용했습니다. 실거주·빈집 '
+            '여부는 확인할 수 없어 조건부로 집계합니다.')
 
     blocked = geo.union(blocked_parts)
     conditional = geo.subtract(geo.union(conditional_parts), blocked) \
