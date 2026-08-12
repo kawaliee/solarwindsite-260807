@@ -222,6 +222,21 @@ KMA_APIHUB_BASE = os.environ.get('KMA_APIHUB_BASE', 'https://apihub.kma.go.kr/ap
 # 하드코딩을 걷어내니 settings에 정의가 없다는 사실이 드러나 여기에 추가한다.
 TAVILY_API_KEY = os.environ.get('TAVILY_API_KEY', '')
 
+# 건축물대장 (공공데이터포털) — 건물의 **주용도**를 얻는 유일한 공식 경로다.
+# V-World 건물 레이어(lt_c_spbd)에는 용도 속성이 없고 관리번호(bd_mgt_sn)만 있어,
+# 조례의 '주택'과 '부속 건축물'을 가릴 수 없다. 그 구분이 없으면 창고·농막까지
+# 이격 대상이 되어 배제면적이 크게 부풀어난다.
+#   값은 DATA_GO_KR_KEY와 같은 포털 인증키다. .env에 값은 있었으나 여기에
+#   정의가 없어 그동안 읽히지 않고 있었다.
+_RAW_BLDG_LEDGER_API_KEY = os.environ.get('BLDG_LEDGER_API_KEY', '')
+BLDG_LEDGER_API_KEY = (
+    (unquote(_RAW_BLDG_LEDGER_API_KEY) if '%' in _RAW_BLDG_LEDGER_API_KEY
+     else _RAW_BLDG_LEDGER_API_KEY)
+    or DATA_GO_KR_KEY
+)
+BLDG_LEDGER_BASE = os.environ.get(
+    'BLDG_LEDGER_BASE', 'https://apis.data.go.kr/1613000/BldRgstHubService')
+
 # 국가법령정보 공동활용 OPEN API (법제처) — 법령·자치법규 원문 대조용.
 # 값은 신청 이메일의 ID(@ 앞부분). 비우면 공용 데모 계정 'test'로 동작하나
 # 사용량 제한이 있어 운영에는 자체 발급 값을 넣는다. 발급: https://open.law.go.kr
