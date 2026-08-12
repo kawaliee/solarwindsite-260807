@@ -16,14 +16,18 @@ interface SitePickerProps {
  * 풍력 입지는 능선·표고·사면향이 곧 사업성이라 등고선이 보이지 않으면 지도의 의미가 없다.
  * 그래서 슬리피 맵(Leaflet)으로 바꾸고 지형도를 기본 배경으로 둔다.
  *
- * 배경지도
- *   · 지형·등고선  OpenTopoMap (등고선 + 음영기복) — 기본값
+ * 배경지도 (목록 순서대로)
+ *   · 위성영상     V-World Satellite — 기본 배경
  *   · 일반지도     V-World Base (국토지리정보원 수치지도, 한글 지명)
- *   · 위성영상     V-World Satellite
- *   · 지명·경계    V-World Hybrid — 위성/지형 위에 겹치는 오버레이
+ *   · 일반지도     OSM
+ *   · 지형·등고선  OpenTopoMap (등고선 + 음영기복)
+ *   · 지명·경계    V-World Hybrid — 배경 위에 겹치는 오버레이, 기본 켜짐
+ *
+ * 위성영상만으로는 지명을 읽을 수 없어 사업지를 찾기 어렵다. 그래서 지명·경계
+ * 오버레이를 기본으로 켜 둔다. 어느 배경 위에서도 투명 배경으로 겹쳐진다.
  *
  * V-World 타일은 VITE_VWORLD_KEY가 있을 때만 등록한다. 키가 없어도
- * OpenTopoMap·OSM·Esri로 지도는 그대로 뜬다(판정 기능과 무관).
+ * OpenTopoMap·OSM으로 지도는 그대로 뜬다(판정 기능과 무관).
  */
 
 const VWORLD_KEY: string = import.meta.env.VITE_VWORLD_KEY || '';
@@ -58,33 +62,38 @@ export default function SitePicker({ lat, lng, radiusM, onPick }: SitePickerProp
     const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19, attribution: '© OpenStreetMap contributors',
     });
-    const esriTerrain = L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: 19, attribution: 'Esri, USGS, NOAA' });
-
-    const bases: Record<string, L.TileLayer> = {
-      '지형·등고선': topo,
-      '일반지도 (OSM)': osm,
-      '지형도 (Esri)': esriTerrain,
-    };
+    // 목록에 넣는 순서가 곧 화면에 보이는 순서다 — 위성영상을 맨 위, 지형을 맨 아래에 둔다.
+    const bases: Record<string, L.TileLayer> = {};
     const overlays: Record<string, L.TileLayer> = {};
+    let satellite: L.TileLayer | null = null;
+    let hybrid: L.TileLayer | null = null;
 
     if (VWORLD_KEY) {
+      satellite = L.tileLayer(vw('Satellite', 'jpeg'), {
+        maxZoom: 19, maxNativeZoom: 18, attribution: '© 국토교통부 V-World',
+      });
+      bases['위성영상 (V-World)'] = satellite;
       bases['일반지도 (V-World)'] = L.tileLayer(vw('Base', 'png'), {
         maxZoom: 19, attribution: '© 국토교통부 V-World',
       });
-      bases['위성영상 (V-World)'] = L.tileLayer(vw('Satellite', 'jpeg'), {
-        maxZoom: 19, maxNativeZoom: 18, attribution: '© 국토교통부 V-World',
-      });
-      overlays['지명·경계 표기'] = L.tileLayer(vw('Hybrid', 'png'), {
+    }
+    bases['일반지도 (OSM)'] = osm;
+    bases['지형·등고선'] = topo;
+
+    if (VWORLD_KEY) {
+      hybrid = L.tileLayer(vw('Hybrid', 'png'), {
         maxZoom: 19, opacity: 0.9, attribution: '© 국토교통부 V-World',
       });
+      overlays['지명·경계 표기'] = hybrid;
     }
+
+    // 키가 없으면 위성 타일 자체가 없다. 그때는 지형도로 내려앉아야 지도가 빈 화면이 되지 않는다.
+    const initialBase = satellite ?? topo;
 
     const map = L.map(hostRef.current, {
       center: lat != null && lng != null ? [lat, lng] : KR_CENTER,
       zoom: lat != null && lng != null ? SITE_ZOOM : KR_ZOOM,
-      layers: [topo],
+      layers: hybrid ? [initialBase, hybrid] : [initialBase],
       zoomControl: true,
       minZoom: 6,
       maxZoom: 19,
