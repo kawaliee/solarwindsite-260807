@@ -190,25 +190,45 @@ def with_ordinances(area_geom) -> tuple[list[dict], dict]:
     """
     split() 결과에 지자체별 이격거리 조례를 붙인다.
 
-    조례를 못 구한 조각은 rules=[] 로 두고 meta['missing']에 올린다.
-    이 조각은 배제도 가용도 아닌 **판정 보류** 면적이 된다. 조례를 모른 채
-    가용으로 세면 사업에 유리한 쪽으로 틀리게 되고, 배제로 세면 멀쩡한
-    부지를 버리게 된다. 어느 쪽도 사실이 아니므로 따로 센다.
+    규정이 비어 있는 이유를 세 갈래로 가른다. 뭉뚱그리면 면적 집계가 틀어진다.
+
+      HAS_RULES  이격 규정 있음        → 그 반경으로 버퍼
+      NO_RULE    조례를 확인했고 규정 없음 → **버퍼 없음. 정상 판정이다**
+      그 외       확인하지 못함          → 판정 보류
+
+    가운데를 보류로 묶으면, 조례상 제한이 없어 멀쩡히 쓸 수 있는 땅까지
+    '모르는 땅'이 되어 가용면적이 실제보다 작게 나온다. 태백시가 그 예다 —
+    도시계획 조례 조문 104개와 별표 25건을 전부 판독했고 풍력 이격 조항이
+    실제로 없다. 이건 모르는 게 아니라 아는 것이다.
+
+    반대로 확인하지 못한 조각을 가용으로 세면 사업에 유리한 쪽으로 틀리고,
+    배제로 세면 멀쩡한 부지를 버린다. 그래서 그것만 따로 센다.
     """
     from . import ordinances
 
     slices, meta = split(area_geom)
-    missing: list[str] = []
+    unverified: list[str] = []
+    no_rule: list[str] = []
     for s in slices:
         try:
-            rules = ordinances.ensure_ordinances(s['sido'], s['sigungu'])
+            rules, state = ordinances.ordinance_state(s['sido'], s['sigungu'])
         except Exception as e:                                  # noqa: BLE001
             logger.warning('조례 조회 실패 %s %s: %s', s['sido'], s['sigungu'], e)
-            rules = []
+            rules, state = [], ordinances.UNVERIFIED
         s['rules'] = list(rules)
-        if not rules:
-            missing.append(f"{s['sido']} {s['sigungu']}")
+        s['ordinance_state'] = state
+        label = f"{s['sido']} {s['sigungu']}"
+        if state == ordinances.NO_RULE:
+            no_rule.append(label)
+        elif state != ordinances.HAS_RULES:
+            unverified.append(label)
 
-    meta['missing_ordinance'] = missing
-    meta['pending_area_m2'] = sum(s['area_m2'] for s in slices if not s['rules'])
+    meta['ordinance_auth_error'] = ordinances.auth_failure()
+    # 조례상 이격 제한이 없다고 **확인된** 지자체. 보류가 아니라 정상 판정이다.
+    meta['no_rule'] = no_rule
+    # 확인하지 못한 지자체. 이 조각만 판정 보류로 센다.
+    meta['unverified'] = unverified
+    meta['pending_area_m2'] = sum(
+        s['area_m2'] for s in slices
+        if s['ordinance_state'] not in (ordinances.HAS_RULES, ordinances.NO_RULE))
     return slices, meta

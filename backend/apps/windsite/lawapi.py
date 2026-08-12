@@ -38,6 +38,20 @@ class LawApiError(RuntimeError):
     pass
 
 
+class LawApiAuthError(LawApiError):
+    """
+    사용자 검증 실패 — 조례·법령 부재와 반드시 구분해야 한다.
+
+    law.go.kr은 OC와 별개로 **계정에 등록된 서버 IP/도메인**을 대조한다.
+    등록 IP에서 온 요청이 아니면 OC가 맞아도 거절한다. 국내 가정용·모바일
+    회선은 유동 IP라 이 상황이 주기적으로 재발한다.
+
+    이때 응답이 <Response><result>…</result></Response> 형태여서 <law>가
+    0건으로 파싱된다. 그대로 두면 '해당 지자체에 조례가 없다'로 읽혀,
+    IP만 고치면 되는 문제가 데이터 부재로 둔갑한다.
+    """
+
+
 def _oc() -> str:
     return getattr(settings, 'LAW_API_OC', '') or 'test'
 
@@ -54,9 +68,21 @@ def _get(url: str, params: dict, timeout: float = 60.0) -> ET.Element:
     res.raise_for_status()
     text = res.text
     try:
-        return ET.fromstring(text)
+        root = ET.fromstring(text)
     except ET.ParseError as e:
         raise LawApiError(f'XML 파싱 실패: {text[:200]}') from e
+
+    # 정상 응답은 <LawSearch>/<Law> 등이고 <result>를 갖지 않는다.
+    # 오류만 <Response><result>메시지</result><msg>안내</msg></Response> 로 온다.
+    if root.tag == 'Response':
+        msg = (root.findtext('result') or '').strip()
+        detail = (root.findtext('msg') or '').strip()
+        full = f'{msg} {detail}'.strip() or '알 수 없는 오류'
+        if '검증' in msg or '인증' in msg or 'IP' in detail:
+            raise LawApiAuthError(full)
+        raise LawApiError(full)
+
+    return root
 
 
 # ======================================================================

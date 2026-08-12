@@ -117,16 +117,79 @@ def ensure_ordinances(sido: str, sigungu: str) -> list:
             return rows
         try:
             result = sync_sigungu(sido, sigungu, apply=True)
+        except lawapi.LawApiAuthError as e:
+            # 조례가 없는 게 아니라 서버 IP 미등록 등으로 못 물어본 것이다.
+            # 이걸 miss로 캐시하면 인증을 고친 뒤에도 하루 동안 계속 빈손이 된다.
+            # 실패 사실은 남기되 재시도를 막지 않는다.
+            logger.warning('조례 조회 인증 실패 %s %s: %s', sido, sigungu, e)
+            _note_auth_failure(str(e))
+            return []
         except Exception:                                       # noqa: BLE001
             logger.exception('조례 자동 수집 실패 %s %s', sido, sigungu)
             result = None
         if not result or not result['entries']:
+            # 빈손인 이유를 남긴다. '조례를 확인했는데 이격 규정이 없다'와
+            # '조례 자체를 못 찾았다'는 전혀 다른 사실이다. 앞은 그 지자체에
+            # 조례상 이격 제한이 없다는 확정 정보이고, 뒤는 모른다는 뜻이다.
+            reason = NO_RULE if (result and result.get('ordinance')) else NOT_FOUND
             try:
-                cache.set(miss_key, True, _MISS_TTL)
+                cache.set(miss_key, reason, _MISS_TTL)
             except Exception:                                   # noqa: BLE001
                 pass
             return []
         return fetched()
+
+
+#: ensure_ordinances가 빈 목록을 돌려준 이유
+NO_RULE = 'NO_RULE'        # 조례를 확인했고 풍력 이격 규정이 없다 (확정)
+NOT_FOUND = 'NOT_FOUND'    # 해당 조례를 찾지 못했다 (미확인)
+UNVERIFIED = 'UNVERIFIED'  # 인증 실패 등으로 물어보지 못했다 (미확인)
+HAS_RULES = 'HAS_RULES'
+
+
+def ordinance_state(sido: str, sigungu: str) -> tuple[list, str]:
+    """
+    (규정 목록, 상태) 를 돌려준다.
+
+    ensure_ordinances()는 빈 목록만 주므로 '규정이 없다'와 '모른다'가
+    구분되지 않는다. 면적을 집계할 때 이 둘을 같이 다루면, 이격 제한이
+    없어 멀쩡히 쓸 수 있는 땅까지 판정 보류로 묶여 가용면적이 실제보다
+    작게 나온다. (태백시 도시계획 조례 — 조문 104개·별표 25건 전부
+    판독했으나 풍력 이격 조항이 실제로 없다)
+    """
+    rules = ensure_ordinances(sido, sigungu)
+    if rules:
+        return rules, HAS_RULES
+    if auth_failure():
+        return [], UNVERIFIED
+    try:
+        reason = cache.get(f'windsite:ord_miss:{sido}:{sigungu}')
+    except Exception:                                           # noqa: BLE001
+        reason = None
+    if reason == NO_RULE:
+        return [], NO_RULE
+    return [], NOT_FOUND
+
+
+#: 최근 인증 실패 메시지. 조례가 비었을 때 '없음'인지 '못 물어봄'인지
+#: 화면·보고서에서 구분해 쓰기 위한 것이다.
+_AUTH_FAILURE_KEY = 'windsite:law_auth_fail'
+_AUTH_FAILURE_TTL = 60 * 30
+
+
+def _note_auth_failure(message: str) -> None:
+    try:
+        cache.set(_AUTH_FAILURE_KEY, message, _AUTH_FAILURE_TTL)
+    except Exception:                                           # noqa: BLE001
+        pass
+
+
+def auth_failure() -> str:
+    """최근 30분 내 law.go.kr 인증 실패 메시지. 없으면 빈 문자열."""
+    try:
+        return cache.get(_AUTH_FAILURE_KEY) or ''
+    except Exception:                                           # noqa: BLE001
+        return ''
 
 
 def forget_miss(sido: str, sigungu: str) -> None:
