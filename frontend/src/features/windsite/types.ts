@@ -233,6 +233,26 @@ export interface AreaLayout {
   corridor_area_m2: number;
 }
 
+export interface GrandfatherOrdinance {
+  sigungu: string;
+  ordinance: string;
+  article: string;
+  effective_date: string;
+  /** 발전사업허가일이 조례 시행일보다 앞선다는 사실. 면제 확정이 아니다 */
+  permit_earlier: boolean;
+  addenda: string;
+}
+
+export interface Grandfathering {
+  permit_date: string;
+  review_required: boolean;
+  ordinances: GrandfatherOrdinance[];
+  note: string;
+  /** 조례 이격을 적용하지 않을 경우의 제약없음 면적 (참고용) */
+  free_if_exempt_m2?: number;
+  ordinance_area_m2?: number;
+}
+
 export interface AreaResult {
   ring: LatLng[];
   total: AreaBlock;
@@ -249,6 +269,7 @@ export interface AreaResult {
   blanket: AreaReason[];
   /** 배치선 검토일 때만 채워진다 */
   layout: AreaLayout | null;
+  grandfathering: Grandfathering | null;
   jurisdictions: AreaJurisdiction[];
   jurisdiction_meta: Record<string, unknown>;
   /** 조회하지 못한 레이어 — 있으면 못 본 제약이 있다는 뜻이다 */

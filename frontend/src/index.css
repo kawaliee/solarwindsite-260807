@@ -1729,3 +1729,21 @@ select.fs-input { cursor: pointer; }
 .ws-addrlist .addr { color: #dbe7f2; line-height: 1.4; word-break: keep-all; }
 .ws-addrlist .ll { grid-column: 2; color: #6b7f94; font-size: 11px; }
 .ws-addr-empty { margin: 0; font-size: 12px; color: #6b7f94; }
+
+/* 조례 경과규정 검토 */
+.ws-area-gf { margin-top: 12px; padding: 10px 12px; border-radius: 8px;
+  background: #111c26; border: 1px solid #22303f; }
+.ws-area-gf.hot { background: rgba(57,211,230,.07); border-color: rgba(57,211,230,.4); }
+.ws-area-gf h5 { margin: 0 0 6px; font-size: 12px; color: #dbe7f2; }
+.ws-area-gf ul { margin: 0 0 6px; padding-left: 15px; font-size: 12px; color: #c3d3e2; }
+.ws-area-gf b { color: #39d3e6; }
+.ws-area-gf .flag { font-style: normal; color: #e8c37a; font-weight: 600; }
+.ws-area-gf p { margin: 6px 0 0; font-size: 11px; line-height: 1.5; color: #8fa3b8; }
+.ws-area-gf p.scenario { color: #c3d3e2; font-size: 12px; }
+.ws-area-gf p.scenario em { font-style: normal; color: #7f93a8; font-size: 11px; }
+.ws-area-gf details { margin-top: 8px; }
+.ws-area-gf summary { cursor: pointer; font-size: 11px; color: #7f93a8; }
+.ws-area-gf pre { margin: 6px 0 0; padding: 8px; max-height: 170px; overflow: auto;
+  background: #0c141c; border-radius: 6px; font-size: 11px; line-height: 1.6;
+  color: #a9bccd; white-space: pre-wrap; word-break: break-all; }
+.ws-radrow .opt { color: #6b7f94; }

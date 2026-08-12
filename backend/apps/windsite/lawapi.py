@@ -258,7 +258,71 @@ def fetch_ordinance_articles(mst: str) -> dict:
         'title': (jo.findtext('조제목') or '').strip(),
         'text': (jo.findtext('조내용') or '').strip(),
     } for jo in root.iter('조')]
-    return {'meta': meta, 'articles': articles}
+    return {'meta': meta, 'articles': articles, 'addenda': _addenda(root)}
+
+
+#: 부칙에서 골라낼 문구. 경과조치·적용례가 있으면 조례 개정 전에 허가를 받은
+#: 사업에 종전 기준이 적용될 수 있어, 이격거리 판정 결과가 통째로 뒤집힌다.
+_ADDENDA_KEYS = ('경과조치', '적용례', '종전의', '시행일')
+
+
+#: 부칙 회차 구분자. API가 모든 개정 부칙을 한 덩어리로 돌려주므로
+#: 머리말을 기준으로 잘라야 회차별로 읽을 수 있다.
+#: 날짜 표기가 두 가지다 — 옛 회차는 '(2003·06·05)', 최근 회차는 '<2025. 2. 28.>'.
+#: 하나만 처리하면 정작 중요한 최근 개정의 공포일을 놓친다.
+_ADDENDA_SPLIT = re.compile(
+    r'부\s*칙\s*(?:[(（<]\s*(?:조례\s*제\s*\d+\s*호\s*,\s*)?'
+    r'(\d{4})\s*[·.\-]\s*(\d{1,2})\s*[·.\-]\s*(\d{1,2})\s*\.?\s*[)）>])?')
+
+
+def _addenda(root) -> list[dict]:
+    """
+    부칙 → [{'promulgated': 'YYYYMMDD'|'', 'text': …}] (최신이 뒤).
+
+    조문(articles)에는 부칙이 **들어 있지 않다.** 별도 태그로 오고, 게다가
+    모든 개정 회차가 한 문자열로 붙어 있어 직접 잘라야 한다.
+    """
+    blob = ''
+    for bu in root.iter('부칙내용'):
+        blob += ' ' + ' '.join((bu.text or '').split())
+    if not blob.strip():
+        for bu in root.iter('부칙'):
+            blob += ' ' + ' '.join(''.join(bu.itertext()).split())
+    blob = blob.strip()
+    if not blob:
+        return []
+
+    out: list[dict] = []
+    marks = list(_ADDENDA_SPLIT.finditer(blob))
+    for i, m in enumerate(marks):
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(blob)
+        text = blob[m.end():end].strip()
+        if not text:
+            continue
+        date = ''
+        if m.group(1):
+            date = '%s%02d%02d' % (m.group(1), int(m.group(2)), int(m.group(3)))
+        out.append({'promulgated': date, 'text': text})
+    return out or [{'promulgated': '', 'text': blob}]
+
+
+def relevant_addenda(addenda: list[dict], limit: int = 6) -> str:
+    """
+    부칙 중 경과조치·적용례만 추려 인용 가능한 문자열로 만든다.
+
+    최신 개정이 대개 결정적이므로 **뒤에서부터** 고른다. 판정은 하지 않는다 —
+    부칙이 특정 사업에 적용되는지는 관할 지자체가 판단할 문제이고, 여기서는
+    사용자가 직접 읽을 수 있게 근거를 붙여주는 것까지가 역할이다.
+    """
+    picked = []
+    for a in reversed(addenda or []):
+        t = a.get('text') or ''
+        if any(k in t for k in _ADDENDA_KEYS[:2]):        # 경과조치·적용례
+            date = a.get('promulgated') or ''
+            picked.append((f'[{date} 개정] ' if date else '') + t[:900])
+        if len(picked) >= limit:
+            break
+    return '\n\n'.join(picked)
 
 
 # ======================================================================

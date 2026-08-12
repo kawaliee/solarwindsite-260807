@@ -192,6 +192,17 @@ def auth_failure() -> str:
         return ''
 
 
+def _as_date(yyyymmdd: str):
+    """'20250808' → date. 형식이 다르면 None (추측하지 않는다)."""
+    t = (yyyymmdd or '').strip()
+    if len(t) != 8 or not t.isdigit():
+        return None
+    try:
+        return date(int(t[:4]), int(t[4:6]), int(t[6:]))
+    except ValueError:
+        return None
+
+
 def forget_miss(sido: str, sigungu: str) -> None:
     """자동 수집 실패 기록을 지운다 (커맨드로 수동 수집한 뒤 호출)."""
     try:
@@ -247,18 +258,25 @@ def sync_sigungu(sido: str, sigungu: str, apply: bool = False) -> dict:
 
     if apply:
         out['applied'], out['flagged'] = persist(sido, sigungu, target, label,
-                                                 art, entries)
+                                                 art, entries,
+                                                 addenda=body.get('addenda'))
     return out
 
 
 # ----------------------------------------------------------------------
 @transaction.atomic
 def persist(sido: str, sigungu: str, target: dict, label: str,
-            art: dict, entries: list[dict]) -> tuple[int, int]:
+            art: dict, entries: list[dict], addenda: list[dict] | None = None
+            ) -> tuple[int, int]:
     """추출 결과를 반영한다. → (반영 건수, 미확인 표시 건수)"""
     from .models import LawArticle, LocalOrdinance
 
     detail_url = 'https://www.law.go.kr/LSW/ordinInfoP.do?ordinSeq=' + target['mst']
+    # 시행일과 부칙을 함께 보관한다. 조례 개정 전에 발전사업허가를 받은 사업은
+    # 부칙 경과조치로 종전 기준이 적용될 수 있어 이격 판정이 통째로 뒤집힌다.
+    # 시행일을 모르면 그 검토 자체가 촉발되지 않는다.
+    eff = _as_date(target.get('effective_date', ''))
+    addenda_text = lawapi.relevant_addenda(addenda or [])
 
     # 원문 보관 — 판정 근거를 원문으로 되돌릴 수 있게
     LawArticle.objects.update_or_create(
@@ -293,6 +311,8 @@ def persist(sido: str, sigungu: str, target: dict, label: str,
                 difficulty='HIGH',
                 confidence='HIGH',            # 원문 대조 완료
                 verified_at=date.today(),
+                effective_date=eff,
+                addenda=addenda_text,
                 source_url=detail_url,
                 note=f"원문 대조 (시행 {fmt_date(target.get('effective_date', ''))}): "
                      f"{e['sentence'][:250]}",

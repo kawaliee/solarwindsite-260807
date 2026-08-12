@@ -330,8 +330,10 @@ def union(geoms: list) -> Any:
 
 
 def subtract(base: Any, cutter: Any) -> Any:
-    """base − cutter. cutter가 없으면 base 그대로."""
+    """base − cutter. base가 없으면 None, cutter가 없으면 base 그대로."""
     _require()
+    if base is None or base.is_empty:
+        return None
     if cutter is None or cutter.is_empty:
         return base
     r = base.difference(cutter)

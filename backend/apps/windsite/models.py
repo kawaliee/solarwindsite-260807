@@ -219,6 +219,13 @@ class LocalOrdinance(models.Model):
     confidence = models.CharField(max_length=10, choices=CONFIDENCE_CHOICES, default='LOW')
     source_url = models.URLField(blank=True)
     verified_at = models.DateField('조례 확인일', null=True, blank=True)
+    #: 조례 시행일. 이 날짜 **이전에** 발전사업허가를 받은 사업은 부칙
+    #: 경과조치로 종전 기준이 적용될 수 있어, 결론이 통째로 뒤집힌다.
+    #: 시행일을 모르면 그 검토 자체가 촉발되지 않으므로 반드시 보관한다.
+    effective_date = models.DateField('조례 시행일', null=True, blank=True)
+    #: 부칙 원문 중 경과조치·적용례 부분. 적용 여부는 관할 지자체가 판단하므로
+    #: 시스템은 판정하지 않고 근거를 그대로 보여주기만 한다.
+    addenda = models.TextField('부칙(경과조치·적용례)', blank=True)
     note = models.TextField(blank=True)
 
     class Meta:

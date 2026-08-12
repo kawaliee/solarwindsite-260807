@@ -39,15 +39,16 @@ export const windsiteApi = {
   evaluate: (p: EvaluateParams) =>
     req<EvaluationResult>('/evaluate/', { method: 'POST', body: JSON.stringify(p) }),
 
-  evaluateArea: (ring: LatLng[]) =>
+  evaluateArea: (ring: LatLng[], permitDate = '') =>
     req<AreaResult>('/evaluate-area/', {
       method: 'POST',
-      body: JSON.stringify({ ring }),
+      body: JSON.stringify({ ring, permit_date: permitDate }),
     }),
 
   /** 발전기 배치선 검토 — turbines는 1호기부터 순서대로 */
   evaluateLayout: (
     turbines: LatLng[], turbineRadiusM: number, corridorRadiusM: number,
+    permitDate = '',
   ) =>
     req<AreaResult>('/evaluate-area/', {
       method: 'POST',
@@ -55,6 +56,7 @@ export const windsiteApi = {
         turbines,
         turbine_radius_m: turbineRadiusM,
         corridor_radius_m: corridorRadiusM,
+        permit_date: permitDate,
       }),
     }),
 

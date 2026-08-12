@@ -65,6 +65,19 @@ def evaluate_area(request):
                             status=http.HTTP_400_BAD_REQUEST)
         ring.append((lat, lng))
 
+    # 발전사업허가일 — 조례 시행일보다 앞서면 부칙 경과조치 검토 대상이 된다.
+    # 형식이 어긋나면 조용히 무시하지 않고 400으로 돌려준다. 날짜를 잘못 넣은
+    # 채 '경과규정 해당 없음'으로 읽히면 결론이 통째로 달라진다.
+    permit_date = None
+    raw_pd = (d.get('permit_date') or '').strip()
+    if raw_pd:
+        try:
+            permit_date = datetime.strptime(raw_pd, '%Y-%m-%d').date()
+        except ValueError:
+            return Response(
+                {'detail': 'permit_date 는 YYYY-MM-DD 형식이어야 합니다.'},
+                status=http.HTTP_400_BAD_REQUEST)
+
     def _radius(key: str, fallback: int) -> int:
         try:
             v = int(d.get(key) or fallback)
@@ -79,9 +92,10 @@ def evaluate_area(request):
                 turbine_radius_m=_radius('turbine_radius_m',
                                          available.DEFAULT_TURBINE_RADIUS_M),
                 corridor_radius_m=_radius('corridor_radius_m',
-                                          available.DEFAULT_CORRIDOR_RADIUS_M))
+                                          available.DEFAULT_CORRIDOR_RADIUS_M),
+                permit_date=permit_date)
         else:
-            result = available.compute(ring)
+            result = available.compute(ring, permit_date=permit_date)
     except ValueError as e:
         return Response({'detail': str(e)}, status=http.HTTP_400_BAD_REQUEST)
     except jurisdiction.BoundaryUnavailable as e:
@@ -128,6 +142,8 @@ def _area_payload(r: dict, ring: list) -> dict:
         'blanket': r['blanket'],
         # 배치선 검토일 때만 채워진다 (발전기 좌표·반경·구간별 면적).
         'layout': r.get('layout'),
+        # 조례 경과규정 검토 — 시스템은 면제를 판정하지 않고 근거만 제시한다.
+        'grandfathering': r.get('grandfathering'),
         'jurisdictions': r['jurisdictions'],
         'jurisdiction_meta': r['jurisdiction_meta'],
         'fetch_failures': r['fetch_failures'],

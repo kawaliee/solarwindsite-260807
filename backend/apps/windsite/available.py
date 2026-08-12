@@ -120,6 +120,51 @@ def _layer_geoms(area_geom, layer) -> tuple[list, str]:
     return out, ('구역 일부만 조회됨' if meta.get('truncated') else '')
 
 
+def _grandfathering(slices, permit_date) -> dict:
+    """
+    조례 시행일과 발전사업허가일을 대조해 경과규정 검토 대상인지 표시한다.
+
+    **면제를 판정하지 않는다.** 부칙이 그 사업에 적용되는지는 관할 지자체가
+    판단할 문제이고, 문언도 조례마다 다르다("허가를 받은 경우"인지 "실시계획
+    승인"인지 "착공"인지). 여기서는 날짜가 앞선다는 사실과 부칙 원문을
+    보여주는 데까지가 역할이다.
+
+    발전사업허가일을 받지 않았어도 조례 시행일은 항상 싣는다. 그것만으로도
+    "우리 허가는 그 전인데?"라는 검토가 촉발된다.
+    """
+    rows = []
+    flagged = False
+    for s in slices:
+        for r in s.get('rules') or []:
+            eff = getattr(r, 'effective_date', None)
+            if not eff:
+                continue
+            earlier = bool(permit_date and permit_date < eff)
+            flagged = flagged or earlier
+            rows.append({
+                'sigungu': s['sigungu'],
+                'ordinance': r.ordinance_name,
+                'article': r.article,
+                'effective_date': eff.isoformat(),
+                'permit_earlier': earlier,
+                'addenda': (r.addenda or '')[:2000],
+            })
+            break                     # 지자체당 한 건이면 충분하다
+    return {
+        'permit_date': permit_date.isoformat() if permit_date else '',
+        # True면 '조례 시행일보다 허가일이 앞선다'는 사실만 뜻한다. 면제 확정이 아니다.
+        'review_required': flagged,
+        'ordinances': rows,
+        'note': ('발전사업허가일이 조례 시행일보다 앞섭니다. 부칙 경과조치에 따라 '
+                 '종전 기준이 적용될 수 있으므로 관할 지자체 확인이 필요합니다. '
+                 '아래 "조례 이격 미적용 시" 값은 참고용이며 면제 확정이 아닙니다.'
+                 if flagged else
+                 '발전사업허가일을 입력하면 조례 시행일과 대조해 경과규정 검토 '
+                 '대상 여부를 표시합니다.' if not permit_date else
+                 '발전사업허가일이 조례 시행일 이후이므로 현행 조례가 적용됩니다.'),
+    }
+
+
 def _rule_set(rules) -> dict:
     """
     지자체 조례를 항목별로 정리한다.
@@ -245,7 +290,7 @@ DEFAULT_TURBINE_RADIUS_M = 500
 DEFAULT_CORRIDOR_RADIUS_M = 100
 
 
-def compute(area_ring: list) -> dict:
+def compute(area_ring: list, permit_date=None) -> dict:
     """
     사업구역(폴리곤)의 제약도를 만든다.
 
@@ -254,12 +299,13 @@ def compute(area_ring: list) -> dict:
     area = geo.polygon_metric(area_ring)
     if area is None:
         raise ValueError('사업구역 폴리곤이 유효하지 않습니다 (꼭짓점 3개 이상 필요).')
-    return _compute(area)
+    return _compute(area, permit_date=permit_date)
 
 
 def compute_layout(turbines: list,
                    turbine_radius_m: int = DEFAULT_TURBINE_RADIUS_M,
-                   corridor_radius_m: int = DEFAULT_CORRIDOR_RADIUS_M) -> dict:
+                   corridor_radius_m: int = DEFAULT_CORRIDOR_RADIUS_M,
+                   permit_date=None) -> dict:
     """
     발전기 배치선의 제약도를 만든다.
 
@@ -279,7 +325,7 @@ def compute_layout(turbines: list,
     area = geo.union([spots, route])
     if area is None:
         raise ValueError('배치선으로 검토 구역을 만들지 못했습니다.')
-    return _compute(area, separation_zone=spots, layout={
+    return _compute(area, separation_zone=spots, permit_date=permit_date, layout={
         'turbines': [[round(a, 6), round(o, 6)] for a, o in turbines],
         'turbine_radius_m': turbine_radius_m,
         'corridor_radius_m': corridor_radius_m,
@@ -289,7 +335,8 @@ def compute_layout(turbines: list,
     })
 
 
-def _compute(area, separation_zone=None, layout: dict | None = None) -> dict:
+def _compute(area, separation_zone=None, layout: dict | None = None,
+             permit_date=None) -> dict:
     total = float(area.area)
 
     slices, jmeta = jurisdiction.with_ordinances(area)
@@ -357,8 +404,10 @@ def _compute(area, separation_zone=None, layout: dict | None = None) -> dict:
     # 주거밀집 2,000m를 씌우면 과대 배제가 된다(삼척 12km² 구역에서 73%).
     # 확인되지 않은 것을 금지로 단정하지 않고 조건부로 둔다. 건물 용도
     # 분류가 붙으면 확인된 주거·정온시설만 배제로 옮긴다.
+    ord_parts = []
     for code, piece in buffers.items():
         conditional_parts.append(piece)
+        ord_parts.append(piece)
         by_reason.append({
             'layer': f'조례 이격거리 ({code})',
             'status': Status.CONDITIONAL.value,
@@ -377,6 +426,19 @@ def _compute(area, separation_zone=None, layout: dict | None = None) -> dict:
 
     free = geo.subtract(geo.subtract(area, blocked), conditional)
     pending_m2 = jmeta.get('pending_area_m2', 0.0)
+
+    # 조례 개정 전에 발전사업허가를 받은 사업은 부칙 경과조치로 종전 기준이
+    # 적용될 수 있다. 적용 여부는 관할 지자체가 판단하므로 **여기서 빼지 않고**,
+    # 뺐을 때의 값을 함께 낸다. 이 항목 하나가 결론을 통째로 뒤집기 때문에
+    # 언급하지 않으면 보고서가 사실과 크게 다른 결론을 내게 된다.
+    grand = _grandfathering(slices, permit_date)
+    if ord_parts:
+        ord_union = geo.union(ord_parts)
+        cond_wo = geo.subtract(conditional, ord_union) if conditional is not None else None
+        free_wo = geo.subtract(geo.subtract(area, geo.subtract(blocked, ord_union)),
+                               cond_wo)
+        grand['free_if_exempt_m2'] = float(free_wo.area) if free_wo is not None else 0.0
+        grand['ordinance_area_m2'] = float(ord_union.area) if ord_union is not None else 0.0
 
     def m2(g):
         return float(g.area) if g is not None else 0.0
@@ -414,6 +476,8 @@ def _compute(area, separation_zone=None, layout: dict | None = None) -> dict:
         'notes': buf_notes,
         # 배치선 검토일 때만 채워진다. 폴리곤 검토면 None.
         'layout': layout,
+        # 조례 경과규정 검토 — 시스템은 판정하지 않고 근거와 시나리오만 제시한다.
+        'grandfathering': grand,
         'geoms': {'area': area, 'blocked': blocked,
                   'conditional': conditional, 'free': free},
     }

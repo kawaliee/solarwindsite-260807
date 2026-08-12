@@ -66,6 +66,8 @@ export default function WindSiteView() {
    */
   const [turbineAddrs, setTurbineAddrs] = useState<(string | null)[]>([]);
   const [corridorR, setCorridorR] = useState(100);
+  /** 발전사업허가일 — 조례 시행일보다 앞서면 부칙 경과조치 검토 대상이 된다 */
+  const [permitDate, setPermitDate] = useState('');
   const [areaResult, setAreaResult] = useState<AreaResult | null>(null);
   const [areaLoading, setAreaLoading] = useState(false);
 
@@ -79,8 +81,8 @@ export default function WindSiteView() {
     setAreaLoading(true); setError('');
     try {
       setAreaResult(layout
-        ? await windsiteApi.evaluateLayout(ring, turbineR, corridorR)
-        : await windsiteApi.evaluateArea(ring));
+        ? await windsiteApi.evaluateLayout(ring, turbineR, corridorR, permitDate)
+        : await windsiteApi.evaluateArea(ring, permitDate));
     } catch (e) {
       setError(e instanceof Error ? e.message : '구역 검토에 실패했습니다.');
     } finally {
@@ -293,6 +295,14 @@ export default function WindSiteView() {
                   <input type="number" min={50} max={20000} step={10} value={corridorR}
                     onChange={e => setCorridorR(Number(e.target.value) || 100)} /></label>
                 <em>이격거리 조례는 발전기 위치에만 적용됩니다 (연결선은 소음원이 아님)</em>
+              </div>
+            )}
+            {pickMode !== 'point' && (
+              <div className="ws-radrow">
+                <label>발전사업허가일 <span className="opt">(선택)</span>
+                  <input type="date" value={permitDate}
+                    onChange={e => setPermitDate(e.target.value)} /></label>
+                <em>조례 시행일보다 앞서면 부칙 경과조치 검토 대상으로 표시합니다</em>
               </div>
             )}
             <SitePicker
@@ -740,6 +750,36 @@ function AreaSummary({ r }: { r: AreaResult }) {
           <b>잠정치</b> — 이격 버퍼는 용도가 확인되지 않은 건물 전체에 조례 최대
           반경을 씌운 값이라 실제보다 넓습니다. 건물 용도 분류가 반영되면 줄어듭니다.
         </p>
+      )}
+      {r.grandfathering && r.grandfathering.ordinances.length > 0 && (
+        <div className={`ws-area-gf${r.grandfathering.review_required ? ' hot' : ''}`}>
+          <h5>조례 경과규정 검토</h5>
+          <ul>
+            {r.grandfathering.ordinances.map((o, i) => (
+              <li key={i}>
+                {o.sigungu} · {o.ordinance} {o.article} —{' '}
+                <b>시행 {o.effective_date}</b>
+                {o.permit_earlier && <em className="flag"> 허가일이 앞섬</em>}
+              </li>
+            ))}
+          </ul>
+          <p>{r.grandfathering.note}</p>
+          {r.grandfathering.review_required &&
+            r.grandfathering.free_if_exempt_m2 != null && (
+            <p className="scenario">
+              조례 이격을 적용하지 않을 경우 제약 없음 면적{' '}
+              <b>{(r.grandfathering.free_if_exempt_m2 / 1e4).toLocaleString()} ha</b>
+              {' '}({((r.grandfathering.free_if_exempt_m2 / r.total.area_m2) * 100).toFixed(1)}%)
+              <em> — 참고용이며 면제 확정이 아닙니다</em>
+            </p>
+          )}
+          {r.grandfathering.ordinances.some(o => o.addenda) && (
+            <details>
+              <summary>부칙 원문 보기</summary>
+              <pre>{r.grandfathering.ordinances.map(o => o.addenda).filter(Boolean)[0]}</pre>
+            </details>
+          )}
+        </div>
       )}
       {r.fetch_failures.length > 0 && (
         <p className="ws-area-warn err">
