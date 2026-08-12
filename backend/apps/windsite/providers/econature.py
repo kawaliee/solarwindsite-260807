@@ -11,8 +11,11 @@
 ⚠️ 실측으로 확인한 사항 (2026-08)
   · 상류가 국립생태원 지오서버(nie-ecobank)라 **간헐적으로 다운**된다.
     이때 공공데이터포털이 HTTP_ERROR(04)를 돌려주므로 '데이터 없음'과 구분해야 한다
-  · 응답은 GeoJSON이 아니라 **GML을 JSON으로 옮긴 형태**다.
-    featureMember[].tbl_opn_eczm.geom.MultiPolygon.polygonMember… 로 내려간다
+  · **outputFormat을 반드시 명시해야 한다.** 빼면 GML(text/xml)이 와서
+    JSON 파싱이 매번 깨진다. 예전에는 기본값이 GML을 JSON화한 형태
+    (featureMember[].tbl_opn_eczm.geom…)였으나 지금은 순수 GML이다.
+    outputFormat=application/json 을 주면 표준 GeoJSON이 온다.
+    상류가 또 바뀔 수 있어 _normalize()가 두 형태를 모두 읽는다
   · maxFeatures 미지정 시 **500건에서 잘린다**
   · 좌표계는 EPSG:5186(중부원점). 데이터가 그 좌표계라 그대로 계산한다
 
@@ -45,6 +48,13 @@ ECO_CRS = 'EPSG:5186'
 
 #: 한 번에 받을 최대 피처 수. 미지정 시 500에서 잘린다.
 MAX_FEATURES = 3000
+
+#: 출력 형식. **반드시 명시해야 한다.**
+#: 지정하지 않으면 이 WFS는 GML(text/xml)을 돌려주고, 그 200 응답을 JSON으로
+#: 읽다가 매번 깨져 생태자연도가 영구 UNKNOWN이 됐다. 데이터가 없어서가 아니라
+#: 형식이 달라서 못 읽던 것이다. 'json'도 통하지만 표준 표기를 쓴다.
+#: (format=json / type=json 은 무시되고 GML이 온다 — 실측)
+OUTPUT_FORMAT = 'application/json'
 
 
 class EcoNatureMapProvider(LayerProvider):
@@ -159,6 +169,7 @@ class EcoNatureMapProvider(LayerProvider):
             'bbox': f'{site[0] - r},{site[1] - r},{site[0] + r},{site[1] + r}',
             'layers': LAYER,
             'maxFeatures': str(MAX_FEATURES),
+            'outputFormat': OUTPUT_FORMAT,
         }
 
         def call() -> dict:
@@ -174,10 +185,7 @@ class EcoNatureMapProvider(LayerProvider):
             return payload
 
         payload = httpcache.get_or_set('econature', params, call)
-        members = payload.get('featureMember') or []
-        if isinstance(members, dict):
-            members = [members]
-        feats = [m.get(LAYER) or {} for m in members]
+        feats = _normalize(payload)
         return feats, len(feats) >= MAX_FEATURES
 
     # ------------------------------------------------------------------
@@ -194,7 +202,7 @@ class EcoNatureMapProvider(LayerProvider):
             grade = _int(f.get('eczm_grad'))
             if grade is None:
                 continue
-            poly = _gml_to_shape(f.get('geom'))
+            poly = f.get('_shape')
             if poly is None:
                 continue
             try:
@@ -230,6 +238,39 @@ class EcoNatureMapProvider(LayerProvider):
 
 class EcoServiceError(RuntimeError):
     """상류 서비스 오류 — 데이터 부재와 구분한다."""
+
+
+# ----------------------------------------------------------------------
+def _normalize(payload: dict) -> list[dict]:
+    """
+    응답을 속성 dict + '_shape'(shapely 도형) 형태로 평탄화한다.
+
+    이 서비스는 같은 URL로 두 가지 형태를 돌려준 전력이 있다.
+      · GeoJSON            features[].properties / features[].geometry
+      · GML을 JSON화한 것   featureMember[].tbl_opn_eczm.geom.MultiPolygon…
+
+    지금은 outputFormat을 명시해 GeoJSON을 받지만, 상류가 또 바뀌어도
+    조용히 0건이 되지 않도록 두 형태를 모두 읽는다. 0건은 '1등급 없음'으로
+    읽히기 때문에 형식 문제로 비는 것이 가장 위험하다.
+    """
+    feats = payload.get('features')
+    if isinstance(feats, list):
+        out = []
+        for f in feats:
+            props = dict(f.get('properties') or {})
+            props['_shape'] = geo.geom_from_geojson(f.get('geometry'))
+            out.append(props)
+        return out
+
+    members = payload.get('featureMember') or []
+    if isinstance(members, dict):
+        members = [members]
+    out = []
+    for m in members:
+        props = dict(m.get(LAYER) or {})
+        props['_shape'] = _gml_to_shape(props.get('geom'))
+        out.append(props)
+    return out
 
 
 # ----------------------------------------------------------------------
