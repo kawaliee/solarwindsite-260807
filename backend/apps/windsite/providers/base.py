@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -22,23 +23,68 @@ logger = logging.getLogger(__name__)
 
 
 class SiteQuery:
-    """검토 대상 지점"""
+    """
+    검토 대상 — 점+반경 또는 사업구역 폴리곤.
+
+    대규모 육상풍력은 사업구역이 면이라 점 하나로 표현되지 않는다. 그렇다고
+    어댑터 20여 종을 한꺼번에 갈아엎을 수는 없으므로, **두 모드를 한 객체로
+    감싸고 기존 인터페이스를 그대로 유지**한다.
+
+      · 점 모드   geom = 반경 원
+      · 구역 모드 geom = 사업구역 폴리곤, lat/lng·radius_m는 그 외접원
+
+    덕분에 아직 손대지 않은 어댑터도 구역 모드에서 '구역을 덮는 원'을 조회해
+    말이 되는 결과를 낸다. 다만 판정 문구가 '검토 반경'이라 실제보다 넓게
+    읽히므로, 면 판정이 중요한 어댑터부터 is_area로 분기해 옮겨간다.
+    """
 
     def __init__(self, lat: float, lng: float, radius_m: int = 500,
-                 address: str = '', capacity_mw: float | None = None):
-        self.lat = lat
-        self.lng = lng
-        self.radius_m = radius_m
+                 address: str = '', capacity_mw: float | None = None,
+                 area_ring: list | None = None):
         self.address = address
         self.capacity_mw = capacity_mw
+        self.area_ring = area_ring or None
+
+        self._geom = None
+        if self.area_ring:
+            from .. import geo
+            self._geom = geo.polygon_metric(self.area_ring)
+            if self._geom is None:
+                raise ValueError('사업구역 폴리곤이 유효하지 않습니다 (꼭짓점 3개 이상 필요).')
+            # 구역 모드에서도 점 기반 어댑터가 동작하도록 외접원을 대표값으로 둔다
+            self.lat, self.lng, self.radius_m = geo.circumscribed(self._geom)
+        else:
+            self.lat = lat
+            self.lng = lng
+            self.radius_m = radius_m
+
+    # ------------------------------------------------------------------
+    @property
+    def is_area(self) -> bool:
+        return self._geom is not None
+
+    @property
+    def geom(self):
+        """검토 도형(EPSG:5179). 점 모드면 반경 원을 만들어 돌려준다."""
+        if self._geom is None:
+            from .. import geo
+            self._geom = geo.point_metric(self.lat, self.lng).buffer(self.radius_m)
+        return self._geom
+
+    @property
+    def bounds(self) -> tuple:
+        return self.geom.bounds
 
     @property
     def area_m2(self) -> float:
-        """검토 반경의 원 면적"""
-        import math
+        """검토 면적. 구역이면 실제 폴리곤 면적, 점이면 반경 원 면적."""
+        if self._geom is not None:
+            return float(self._geom.area)
         return math.pi * (self.radius_m ** 2)
 
     def __repr__(self) -> str:
+        if self.is_area:
+            return f'<SiteQuery area {self.area_m2 / 1e6:.2f}km² r_out={self.radius_m}m>'
         return f'<SiteQuery {self.lat},{self.lng} r={self.radius_m}m>'
 
 

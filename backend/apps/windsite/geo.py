@@ -15,18 +15,20 @@ from __future__ import annotations
 
 import functools
 import math
+import re
 from typing import Any
 
 try:                                                            # pragma: no cover
     from pyproj import Transformer
-    from shapely.geometry import Point, shape
+    from shapely.geometry import Point, Polygon, box, shape
     from shapely.geometry.base import BaseGeometry
-    from shapely.ops import transform as shapely_transform
+    from shapely.ops import transform as shapely_transform, unary_union
     GEO_AVAILABLE = True
     GEO_IMPORT_ERROR = ''
 except Exception as _e:                                         # noqa: BLE001
     Transformer = None                                          # type: ignore[assignment]
-    Point = shape = BaseGeometry = shapely_transform = None     # type: ignore[assignment]
+    Point = Polygon = box = shape = BaseGeometry = None         # type: ignore[assignment]
+    shapely_transform = unary_union = None                      # type: ignore[assignment]
     GEO_AVAILABLE = False
     GEO_IMPORT_ERROR = f'{type(_e).__name__}: {_e}'
 
@@ -100,6 +102,185 @@ def distance_m(site_metric, geom_metric) -> float:
 def area_m2(geom_metric) -> float:
     _require()
     return float(getattr(geom_metric, 'area', 0.0))
+
+
+# ----------------------------------------------------------------------
+# 사업구역(폴리곤) 연산
+#
+# 점+반경 검토는 원 하나로 끝나지만, 대규모 육상풍력은 사업구역이 면이다.
+# 아래 유틸은 그 면을 다루는 데 필요한 최소 집합이다.
+# ----------------------------------------------------------------------
+
+#: V-World 데이터 API가 geomFilter로 받는 polygon/box의 **요청면적 상한**.
+#: 서버 실측으로 확인된 값이다. 초과하면 INVALID_RANGE로 거절하며
+#: 오류 본문에 "polygon, box경우 요청면적이 10km² 이내"라고 명시된다.
+MAX_FILTER_AREA_M2 = 10_000_000
+
+#: 조회 타일 한 변(m). 3,000m = 9km²로 상한에 8.5% 여유를 둔다.
+#: 여유가 필요한 이유: 서버는 4326으로 되돌린 도형의 면적을 재는데
+#: 그 값이 5179 실면적보다 1~2% 크게 나온다(실측: 16.00km² → 16.26km²).
+TILE_SIDE_M = 3000
+
+#: 타일 수 상한. 64장 = 576km²(57,600ha)로, 실제 사업구역을 훨씬 넘는다.
+#: 잘못 그린 구역이 수백 회 호출로 번지는 것을 막는 안전장치다.
+MAX_TILES = 64
+
+#: 외접원 반경에 얹는 여유 비율. shapely buffer()의 다각형 근사 오차를 덮는다.
+#: 기본 분할(quad_segs=8)에서 근사 다각형은 참원보다 최대 약 0.24% 작다.
+_CIRCUM_MARGIN = 0.01
+
+
+def polygon_metric(ring: list) -> Any:
+    """[(lat, lng), …] → UTM-K 폴리곤. 3점 미만이면 None."""
+    _require()
+    pts = [(float(a), float(o)) for a, o in ring]
+    if len(pts) < 3:
+        return None
+    t = _transformer(GEOGRAPHIC_CRS, METRIC_CRS)
+    xy = [t.transform(lng, lat) for lat, lng in pts]
+    g = Polygon(xy)
+    if not g.is_valid:
+        g = g.buffer(0)
+    return g if not g.is_empty else None
+
+
+def to_geographic(geom_metric: Any) -> Any:
+    """UTM-K 도형 → WGS84 도형"""
+    _require()
+    t = _transformer(METRIC_CRS, GEOGRAPHIC_CRS)
+    return shapely_transform(t.transform, geom_metric)
+
+
+#: shapely의 .wkt는 'POLYGON ((…' 처럼 타입명 뒤에 공백을 넣는다. 표준 표기지만
+#: V-World geomFilter 파서는 이걸 타입 미상으로 보고 거절한다(실측). 공백을 지운
+#: 'POLYGON((…' 는 통과한다. 지오메트리 내용과 무관한 순전한 표기 문제다.
+_WKT_TYPE_GAP = re.compile(r'^([A-Z]+)\s+\(')
+
+
+def wkt_4326(geom_metric: Any, precision: int = 7) -> str:
+    """
+    UTM-K 도형 → geomFilter에 실을 WGS84 WKT.
+
+    좌표 자릿수를 고정하는 건 미관 때문이 아니라 **캐시 키를 안정시키기 위해서**다.
+    부동소수 끝자리가 흔들리면 같은 타일이 매번 다른 키가 되어 캐시가 죽는다.
+    1e-7도는 약 1.1cm라 필터 정밀도에는 영향이 없다.
+    """
+    _require()
+
+    def _round(xs, ys, zs=None):
+        # shapely는 좌표 배열을 통째로 넘기는 경로를 먼저 시도한다.
+        # 스칼라만 받는 함수를 주면 예외를 내고 원소별로 다시 부르는데,
+        # 예외에 기대지 않도록 두 경우를 모두 직접 처리한다.
+        try:
+            return ([round(v, precision) for v in xs],
+                    [round(v, precision) for v in ys])
+        except TypeError:
+            return round(xs, precision), round(ys, precision)
+
+    raw = shapely_transform(_round, to_geographic(geom_metric)).wkt
+    return _WKT_TYPE_GAP.sub(r'\1(', raw)
+
+
+def tiles(geom_metric: Any, side_m: int = TILE_SIDE_M) -> tuple[list, dict]:
+    """
+    구역을 덮는 격자 타일 목록을 만든다.
+
+    타일은 **구역에 맞춰 자르지 않고 격자에 스냅된 정사각형 그대로** 돌려준다.
+    구역 모양대로 자르면 조회량은 조금 줄지만, 구역을 손볼 때마다 필터 도형이
+    달라져 캐시가 전부 무효가 된다. 격자에 고정하면 구역을 수정해도 겹치는
+    타일은 그대로 재사용된다 — 검토를 반복하는 실사용 패턴에서 이쪽이 훨씬 싸다.
+
+    반환: (타일 폴리곤 목록, meta)
+      meta['capped']  타일 수 상한에 걸려 잘렸는지 (True면 결과가 구역 전체를 덮지 않는다)
+    """
+    _require()
+    minx, miny, maxx, maxy = geom_metric.bounds
+    i0, i1 = math.floor(minx / side_m), math.floor(maxx / side_m)
+    j0, j1 = math.floor(miny / side_m), math.floor(maxy / side_m)
+
+    out = []
+    capped = False
+    for i in range(i0, i1 + 1):
+        for j in range(j0, j1 + 1):
+            t = box(i * side_m, j * side_m, (i + 1) * side_m, (j + 1) * side_m)
+            # 바운딩박스만 겹치고 실제로는 안 닿는 타일을 걸러 헛호출을 막는다
+            if not t.intersects(geom_metric):
+                continue
+            if len(out) >= MAX_TILES:
+                capped = True
+                break
+            out.append(t)
+        if capped:
+            break
+
+    return out, {
+        'capped': capped,
+        'side_m': side_m,
+        'tile_area_m2': side_m * side_m,
+        'requested': len(out),
+    }
+
+
+def circumscribed(geom_metric: Any) -> tuple[float, float, int]:
+    """
+    도형을 덮는 원 → (중심 lat, 중심 lng, 반경 m).
+
+    면적 상한이 없는 POINT+buffer 조회로 구역 전체를 한 번에 훑을 때,
+    그리고 아직 면을 모르는 어댑터에 대표 지점을 넘길 때 쓴다.
+    최소외접원이 아니라 무게중심 기준이라 약간 크지만, 덮는 것이 보장되면 된다.
+
+    반경에 여유(_CIRCUM_MARGIN)를 더한다. shapely의 buffer()는 원을 다각형으로
+    근사하는데 그 다각형은 원 **안쪽**에 들어가므로, 딱 맞는 반경으로는
+    구역 꼭짓점이 근사 원 밖으로 삐져나온다. 서버 조회는 참원이라 문제없지만,
+    이 값으로 포함 검사를 하는 코드가 조용히 틀리는 것을 막는다.
+    """
+    _require()
+    c = geom_metric.centroid
+    r = max(c.distance(Point(x, y)) for x, y in _outer_coords(geom_metric))
+    lng, lat = to_geographic_xy(c.x, c.y)
+    return lat, lng, int(math.ceil(r * (1 + _CIRCUM_MARGIN) + 1))
+
+
+def _outer_coords(geom_metric: Any):
+    """폴리곤/멀티폴리곤의 바깥 경계 좌표를 모두 훑는다."""
+    geoms = getattr(geom_metric, 'geoms', None)
+    if geoms is not None:
+        for g in geoms:
+            yield from _outer_coords(g)
+        return
+    ext = getattr(geom_metric, 'exterior', None)
+    if ext is not None:
+        yield from ext.coords
+    else:
+        yield from geom_metric.coords
+
+
+def union(geoms: list) -> Any:
+    """도형 합집합. 빈 목록이면 None."""
+    _require()
+    valid = [g for g in geoms if g is not None and not g.is_empty]
+    if not valid:
+        return None
+    u = unary_union(valid)
+    return None if u.is_empty else u
+
+
+def subtract(base: Any, cutter: Any) -> Any:
+    """base − cutter. cutter가 없으면 base 그대로."""
+    _require()
+    if cutter is None or cutter.is_empty:
+        return base
+    r = base.difference(cutter)
+    return None if r.is_empty else r
+
+
+def clip(geom: Any, mask: Any) -> Any:
+    """geom ∩ mask. 겹치지 않으면 None."""
+    _require()
+    if geom is None or mask is None:
+        return None
+    r = geom.intersection(mask)
+    return None if r.is_empty else r
 
 
 def haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:

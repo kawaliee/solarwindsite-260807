@@ -144,6 +144,169 @@ class VworldClient:
             'total_pages': total_pages,
         }
 
+    # ------------------------------------------------------------------
+    # 구역(폴리곤) 조회
+    #
+    # 서버 실측으로 확인된 제약이 둘 있다.
+    #   1) geomFilter가 polygon/box면 **요청면적 10km² 이내**여야 한다.
+    #      (3,000m 정사각형 9.00km² 통과 / 3,162m 10.00km² 거절 — 서버는
+    #       4326으로 되돌린 면적을 재므로 실면적보다 1.6% 크게 나온다)
+    #   2) POINT+buffer에는 면적 상한이 **없다**. 100km 반경도 받는다.
+    #
+    # 그래서 레이어를 밀도로 갈라 쓴다. 대부분의 규제 레이어는 피처가 적어
+    # 외접원 1회로 끝나고, 연속지적도·건물처럼 조밀한 것만 타일로 나눈다.
+    # 어느 쪽인지는 하드코딩하지 않고 건수를 먼저 물어 정한다.
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def count(cls, layer_id: str, lat: float, lng: float, radius_m: int) -> int | None:
+        """
+        반경 안의 피처 수. **조회 실패면 None, 피처가 없으면 0.**
+
+        이 둘을 반드시 갈라야 한다. V-World는 결과가 없을 때 status='NOT_FOUND'를
+        주는데, 이걸 실패로 묶으면 "규제구역이 없다"가 "조회하지 못했다"로 둔갑한다.
+        반대로 실패를 0으로 묶으면 사업에 유리한 쪽으로 잘못 판정하게 된다.
+
+        size=1·geometry=false라 응답이 수백 바이트다. 이 한 번으로 타일 분할
+        여부를 정할 수 있으므로, 조밀한 레이어에서 큰 응답을 헛받는 것보다 싸다.
+        """
+        payload = cls.fetch(layer_id, lat, lng, radius_m, size=1, geometry=False)
+        st = cls.status_of(payload)
+        if st == 'NOT_FOUND':
+            return 0
+        if st != 'OK':
+            return None
+        return cls.total_pages(payload)      # size=1이면 페이지 수 = 피처 수
+
+    @staticmethod
+    def fetch_wkt(layer_id: str, wkt: str, size: int = 1000,
+                  geometry: bool = True, page: int = 1) -> dict:
+        """geomFilter에 도형을 직접 넘겨 조회한다 (버퍼 없음)."""
+        params = {
+            'service': 'data',
+            'request': 'GetFeature',
+            'data': layer_id,
+            'key': settings.VWORLD_API_KEY,
+            'domain': getattr(settings, 'VWORLD_DOMAIN', '') or 'localhost',
+            'geomFilter': wkt,
+            'size': str(size),
+            'page': str(page),
+            'format': 'json',
+            'crs': 'EPSG:4326',
+            'geometry': 'true' if geometry else 'false',
+        }
+
+        def call() -> dict:
+            res = LayerProvider.get(VWORLD_DATA_URL, params, timeout=30.0)
+            res.raise_for_status()
+            return res.json()
+
+        return httpcache.get_or_set('vworld', params, call)
+
+    @classmethod
+    def fetch_all_wkt(cls, layer_id: str, wkt: str, max_pages: int = 10,
+                      geometry: bool = True) -> tuple[list[dict], dict]:
+        """fetch_all의 도형 버전 — 페이지를 끝까지 넘긴다."""
+        collected: list[dict] = []
+        first: dict = {}
+        total_pages = 1
+        page = 1
+        while page <= max_pages:
+            payload = cls.fetch_wkt(layer_id, wkt, size=cls.MAX_SIZE,
+                                    geometry=geometry, page=page)
+            if page == 1:
+                first = payload
+                if cls.status_of(payload) != 'OK':
+                    return [], {'payload': payload, 'truncated': False, 'pages': 0,
+                                'error': cls.error_text(payload)}
+                total_pages = cls.total_pages(payload)
+            feats = cls.features(payload)
+            collected.extend(feats)
+            if len(feats) < cls.MAX_SIZE or page >= total_pages:
+                break
+            page += 1
+
+        return collected, {'payload': first, 'truncated': total_pages > max_pages,
+                           'pages': page, 'total_pages': total_pages, 'error': ''}
+
+    @staticmethod
+    def feature_key(f: dict) -> str:
+        """중복 제거 키. 타일이 겹치면 같은 피처가 두 번 온다."""
+        fid = f.get('id')
+        if fid:
+            return str(fid)
+        props = f.get('properties') or {}
+        for k in ('pnu', 'PNU', 'uid', 'id', 'ID'):
+            if props.get(k):
+                return f'{k}:{props[k]}'
+        # 식별자가 없으면 도형으로 가른다. 같은 피처는 같은 좌표열을 갖는다.
+        return repr(f.get('geometry'))
+
+    @classmethod
+    def fetch_area(cls, layer_id: str, area_geom, geometry: bool = True,
+                   max_pages: int = 10) -> tuple[list[dict], dict]:
+        """
+        사업구역을 덮는 피처를 모두 모은다.
+
+        구역 **밖** 피처도 그대로 돌려준다. 이격거리 판정은 구역 경계 너머의
+        주거지·도로까지 봐야 하므로, 자르는 판단은 호출자에게 맡긴다.
+        """
+        lat, lng, r = geo.circumscribed(area_geom)
+        n = cls.count(layer_id, lat, lng, r)
+        if n is None:
+            payload = cls.fetch(layer_id, lat, lng, r, size=1, geometry=False)
+            return [], {'strategy': 'failed', 'truncated': False, 'tiles': 0,
+                        'error': cls.error_text(payload) or '조회 실패',
+                        'total': None, 'payload': payload}
+        if n == 0:
+            # 조회는 됐고 해당 없음. 실패와 구분되게 strategy를 남긴다.
+            return [], {'strategy': 'empty', 'truncated': False, 'tiles': 1,
+                        'total': 0, 'radius_m': r, 'error': ''}
+
+        # 외접원 한 번으로 다 받을 수 있으면 타일을 나눌 이유가 없다
+        if n <= cls.MAX_SIZE * max_pages:
+            feats, meta = cls.fetch_all(layer_id, lat, lng, r,
+                                        max_pages=max_pages, geometry=geometry)
+            meta.update(strategy='circle', tiles=1, total=n, radius_m=r,
+                        error=meta.get('error', ''))
+            return feats, meta
+
+        tiles, tmeta = geo.tiles(area_geom)
+        seen: set[str] = set()
+        merged: list[dict] = []
+        fetched = 0
+        truncated = False
+        errors: list[str] = []
+        for t in tiles:
+            feats, meta = cls.fetch_all_wkt(layer_id, geo.wkt_4326(t),
+                                            max_pages=max_pages, geometry=geometry)
+            if meta.get('error'):
+                errors.append(meta['error'])
+            truncated = truncated or meta.get('truncated', False)
+            fetched += len(feats)
+            for f in feats:
+                k = cls.feature_key(f)
+                if k in seen:
+                    continue
+                seen.add(k)
+                merged.append(f)
+
+        return merged, {
+            'strategy': 'tiles',
+            'tiles': len(tiles),
+            # 인접 타일은 경계를 걸친 피처를 둘 다 돌려준다. fetched와 len(merged)가
+            # 같다면 중복 제거가 아무 일도 하지 않은 것이고, 그건 feature_key가
+            # 피처를 식별하지 못한다는 뜻이다 — 면적이 부풀어도 티가 안 난다.
+            'fetched': fetched,
+            'deduped': fetched - len(merged),
+            # 타일 상한에 걸리면 구역 일부가 조회되지 않은 것이다. 잘렸다는 사실을
+            # 반드시 위로 올려야 한다 — 조용히 넘어가면 '규제 없음'으로 읽힌다.
+            'truncated': truncated or tmeta.get('capped', False),
+            'tiles_capped': tmeta.get('capped', False),
+            'total': n,
+            'error': '; '.join(errors[:3]),
+        }
+
     @staticmethod
     def total_pages(payload: dict) -> int:
         try:
