@@ -25,6 +25,94 @@ interface SitePickerProps {
                free: [number, number][][] } | null;
 }
 
+/**
+ * 배치선을 radiusM만큼 부풀린 띠의 외곽선을 만든다 (실제 미터 기준).
+ *
+ * 발전기 반경은 L.circle이 미터로 그려주지만 연결선은 그런 게 없다. 폴리라인
+ * 굵기는 화면 픽셀이라 확대·축소하면 실제 폭과 무관해진다 — 검토 폭이
+ * 100m인지 1km인지 눈으로 가늠할 수 없다. 그래서 직접 만든다.
+ *
+ * 위경도는 각도라 그대로 오프셋할 수 없으므로, 선 중앙을 원점으로 하는
+ * 국소 평면(미터)으로 옮겨 계산하고 되돌린다. 수 km 범위에서는 오차가
+ * 1m 아래라 시각화 목적에 충분하다. 실제 판정용 버퍼는 서버가 EPSG:5179로
+ * 따로 계산하므로 이 값은 화면 표시에만 쓴다.
+ */
+//: 호를 몇 도 단위로 쪼갤지. 각도가 작을수록 원에 가깝다.
+//: 11.25°(8조각/반바퀴)면 실측 오차가 1.9%로 눈에 띄었다. L.circle과 비슷한
+//: 매끄러움을 내려면 이 정도가 필요하다.
+const ARC_STEP_RAD = Math.PI / 32;   // 5.625° → 이론 오차 0.12%
+
+export function corridorRing(pts: [number, number][], radiusM: number): [number, number][] {
+  if (pts.length < 2 || radiusM <= 0) return [];
+  const lat0 = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+  const lng0 = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+  const mLat = 111_320;
+  const mLng = 111_320 * Math.cos((lat0 * Math.PI) / 180);
+  const toXY = ([a, o]: [number, number]) => [(o - lng0) * mLng, (a - lat0) * mLat];
+  const toLL = ([x, y]: number[]): [number, number] =>
+    [lat0 + y / mLat, lng0 + x / mLng];
+
+  const P = pts.map(toXY);
+  // 각 구간의 단위 법선. 길이 0인 구간(같은 자리 두 번 클릭)은 건너뛴다.
+  const seg: { a: number[]; b: number[]; n: number[] }[] = [];
+  for (let i = 0; i < P.length - 1; i++) {
+    const dx = P[i + 1][0] - P[i][0];
+    const dy = P[i + 1][1] - P[i][1];
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-6) continue;
+    seg.push({ a: P[i], b: P[i + 1], n: [-dy / len, dx / len] });
+  }
+  if (!seg.length) return [];
+
+  // 호는 **부호 있는 스윕**으로 그린다. 목표 각도만 주고 최단 방향으로 돌게
+  // 하면 정확히 반바퀴(π)일 때 방향이 정해지지 않는다. 끝단 캡이 그 경우인데,
+  // 반대로 돌면 캡이 배치선을 가로질러 띠가 중심선까지 파고든다.
+  const arcBy = (c: number[], from: number, sweep: number, out: number[][]) => {
+    // 스윕 크기에 비례해 조각 수를 정한다. 고정 개수로 하면 반바퀴 캡이
+    // 작은 꼭짓점 호와 같은 수로 쪼개져 눈에 띄게 각져 보인다.
+    const steps = Math.max(2, Math.ceil(Math.abs(sweep) / ARC_STEP_RAD));
+    for (let k = 1; k < steps; k++) {
+      const t = from + (sweep * k) / steps;
+      out.push([c[0] + radiusM * Math.cos(t), c[1] + radiusM * Math.sin(t)]);
+    }
+  };
+  const ang = (v: number[]) => Math.atan2(v[1], v[0]);
+  const turn = (from: number, to: number) => {
+    let d = to - from;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d < -Math.PI) d += 2 * Math.PI;
+    return d;
+  };
+  const off = (p: number[], n: number[], s: number) =>
+    [p[0] + n[0] * radiusM * s, p[1] + n[1] * radiusM * s];
+
+  // 왼쪽 offset을 정방향으로, 오른쪽을 역방향으로 이어 하나의 닫힌 고리를 만든다.
+  // 꼭짓점에서는 양쪽 모두 회전각만큼 호를 넣는다. 안쪽에서 살짝 겹치지만
+  // fillRule='nonzero'면 구멍이 생기지 않는다.
+  const left: number[][] = [];
+  const right: number[][] = [];
+  seg.forEach((s, i) => {
+    left.push(off(s.a, s.n, 1), off(s.b, s.n, 1));
+    right.push(off(s.a, s.n, -1), off(s.b, s.n, -1));
+    const nx = seg[i + 1];
+    if (nx) {
+      const d = turn(ang(s.n), ang(nx.n));
+      arcBy(s.b, ang(s.n), d, left);
+      arcBy(s.b, ang(s.n) + Math.PI, d, right);
+    }
+  });
+
+  // 법선 n은 진행방향 u를 반시계로 90° 돌린 것이다. 따라서 캡이 진행방향
+  // 바깥으로 부풀려면 두 캡 모두 시계방향(-π)으로 돌아야 한다.
+  const last = seg[seg.length - 1];
+  const first = seg[0];
+  const ring: number[][] = [...left];
+  arcBy(last.b, ang(last.n), -Math.PI, ring);                    // 끝 캡
+  ring.push(...right.reverse());
+  arcBy(first.a, ang(first.n) + Math.PI, -Math.PI, ring);        // 시작 캡
+  return ring.map(toLL);
+}
+
 /** 제약 등급별 표시색 — 배경이 위성영상이라 채도를 높이고 투명도를 낮춘다 */
 const OVERLAY_STYLE: Record<string, L.PathOptions> = {
   blocked: { color: '#ff4d4f', weight: 1, fillColor: '#ff4d4f', fillOpacity: 0.42 },
@@ -191,12 +279,18 @@ export default function SitePicker({
     if (mode === 'layout') {
       // 발전기를 찍은 순서대로 잇는다. 그 선이 집전선로·진입도로 경로가 된다.
       if (ring.length >= 2) {
-        g.addLayer(L.polyline(ring, { color: '#39d3e6', weight: 3 }));
-        // 연결선 검토폭을 눈으로 가늠할 수 있게 반투명 굵은 선을 겹친다.
-        // 실제 버퍼는 서버가 미터로 계산하므로 이건 어디까지나 눈금이다.
-        g.addLayer(L.polyline(ring, {
-          color: '#39d3e6', weight: 1, opacity: 0.35, dashArray: '3 5',
-        }));
+        // 검토 폭을 실제 미터로 그린다. 발전기 반경과 같은 기준이라야
+        // 둘의 크기를 눈으로 비교할 수 있다.
+        const band = corridorRing(ring, corridorRadiusM);
+        if (band.length >= 4) {
+          g.addLayer(L.polygon(band, {
+            color: '#39d3e6', weight: 1, opacity: 0.7,
+            fillColor: '#39d3e6', fillOpacity: 0.12,
+            // 꼭짓점 라운드 조인이 안쪽에서 겹치므로 nonzero여야 구멍이 없다
+            fillRule: 'nonzero',
+          }));
+        }
+        g.addLayer(L.polyline(ring, { color: '#39d3e6', weight: 2 }));
       }
       ring.forEach(([a, o], i) => {
         // 발전기 검토반경은 화면 배율과 무관하게 '실제 미터'로 그린다
