@@ -72,7 +72,26 @@
 `lt_c_adsido` · `lt_c_adsigg` · `lt_c_ademd` · `lt_c_adri` · `dt_d160`(토지소유공간정보)
 
 응답: `data 파라미터의 값이 유효한 범위를 넘었습니다`
-→ 행정구역 판별은 기존 `geocode.py`의 **역지오코딩 API**로 처리하며, 이 레이어들에 의존하지 않습니다.
+
+→ 지점 하나의 행정구역 판별은 `geocode.py`의 **역지오코딩 API**로 처리합니다.
+
+> **정정 (2026-08)** — 조회 불가한 것은 **데이터 API(`req/data`)뿐**입니다.
+> **WFS 엔드포인트(`req/wfs`)로는 `lt_c_adsigg`가 정상 조회됩니다.**
+> 사업구역을 관할 지자체별로 나누려면 경계 **폴리곤**이 필요한데
+> 역지오코딩으로는 얻을 수 없어, `jurisdiction.py`가 이 경로를 씁니다.
+>
+> ```
+> GET https://api.vworld.kr/req/wfs
+>     SERVICE=WFS  REQUEST=GetFeature  VERSION=1.1.0
+>     TYPENAME=lt_c_adsigg          ← 소문자만 통함 (대문자는 거부)
+>     SRSNAME=EPSG:5179  BBOX=minx,miny,maxx,maxy
+>     OUTPUT=application/json
+> ```
+> - VERSION은 **1.1.0**이어야 합니다. 2.0.0은 ServiceExceptionReport를 돌려줍니다
+> - 속성: `sig_cd`(5자리 코드, PNU 앞 5자리와 동일) · `sig_kor_nm` · `full_nm`
+> - 좌표계가 **EPSG:5179 그대로** 와서 재투영이 필요 없습니다
+> - 한 지자체가 여러 피처로 쪼개져 옵니다(삼척시 5건) — `sig_cd`로 합쳐야 합니다
+> - 시군구 경계는 **육지만** 덮습니다. 해안 구역은 바다만큼 미포함으로 남습니다
 
 ## 5. V-World가 제공하지 않아 별도 조달이 필요한 레이어
 
