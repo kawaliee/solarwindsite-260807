@@ -137,15 +137,23 @@ def _grandfathering(slices, permit_date) -> dict:
     for s in slices:
         for r in s.get('rules') or []:
             eff = getattr(r, 'effective_date', None)
-            if not eff:
+            # 소급 여부를 가르는 날짜는 조례 최신 시행일이 아니라 **경과조치를
+            # 담은 개정의 시행일**이다. 그 값을 못 구했을 때만 최신 시행일로
+            # 대신하고, 어느 쪽을 썼는지 화면에 밝힌다.
+            gf = getattr(r, 'grandfather_date', None)
+            cutoff = gf or eff
+            if not cutoff:
                 continue
-            earlier = bool(permit_date and permit_date < eff)
+            earlier = bool(permit_date and permit_date < cutoff)
             flagged = flagged or earlier
             rows.append({
                 'sigungu': s['sigungu'],
                 'ordinance': r.ordinance_name,
                 'article': r.article,
-                'effective_date': eff.isoformat(),
+                'effective_date': eff.isoformat() if eff else '',
+                'cutoff_date': cutoff.isoformat(),
+                'cutoff_is_transition': bool(gf),
+                'cutoff_basis': getattr(r, 'grandfather_basis', '') or '',
                 'permit_earlier': earlier,
                 'addenda': (r.addenda or '')[:2000],
             })

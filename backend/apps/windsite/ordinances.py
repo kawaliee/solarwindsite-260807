@@ -277,6 +277,9 @@ def persist(sido: str, sigungu: str, target: dict, label: str,
     # 시행일을 모르면 그 검토 자체가 촉발되지 않는다.
     eff = _as_date(target.get('effective_date', ''))
     addenda_text = lawapi.relevant_addenda(addenda or [])
+    pt = lawapi.power_transition(addenda or [])
+    gf_date = _as_date((pt or {}).get('date', ''))
+    gf_basis = (pt or {}).get('date_basis', '')
 
     # 원문 보관 — 판정 근거를 원문으로 되돌릴 수 있게
     LawArticle.objects.update_or_create(
@@ -312,6 +315,8 @@ def persist(sido: str, sigungu: str, target: dict, label: str,
                 confidence='HIGH',            # 원문 대조 완료
                 verified_at=date.today(),
                 effective_date=eff,
+                grandfather_date=gf_date,
+                grandfather_basis=gf_basis,
                 addenda=addenda_text,
                 source_url=detail_url,
                 note=f"원문 대조 (시행 {fmt_date(target.get('effective_date', ''))}): "

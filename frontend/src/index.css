@@ -1747,3 +1747,4 @@ select.fs-input { cursor: pointer; }
   background: #0c141c; border-radius: 6px; font-size: 11px; line-height: 1.6;
   color: #a9bccd; white-space: pre-wrap; word-break: break-all; }
 .ws-radrow .opt { color: #6b7f94; }
+.ws-area-gf .basis { font-style: normal; color: #6b7f94; font-size: 11px; }

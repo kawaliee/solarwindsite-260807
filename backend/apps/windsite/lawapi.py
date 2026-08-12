@@ -314,15 +314,67 @@ def relevant_addenda(addenda: list[dict], limit: int = 6) -> str:
     부칙이 특정 사업에 적용되는지는 관할 지자체가 판단할 문제이고, 여기서는
     사용자가 직접 읽을 수 있게 근거를 붙여주는 것까지가 역할이다.
     """
-    picked = []
+    def fmt(a: dict) -> str:
+        d = a.get('promulgated') or ''
+        return (f'[{d} 개정] ' if d else '') + (a.get('text') or '')[:900]
+
+    cand = [a for a in (addenda or [])
+            if any(k in (a.get('text') or '') for k in _ADDENDA_KEYS[:2])]
+    # 발전사업허가·풍력을 직접 언급한 경과조치를 맨 앞에 둔다. 이 조항 하나가
+    # 이격거리 판정을 통째로 뒤집으므로 다른 경과조치에 묻히면 안 된다.
+    hot = [a for a in cand if any(k in (a.get('text') or '') for k in _POWER_KEYS)]
+    rest = [a for a in reversed(cand) if a not in hot]
+    return '\n\n'.join(fmt(a) for a in (hot + rest)[:limit])
+
+
+#: 발전사업 경과조치를 가려내는 말
+_POWER_KEYS = ('발전사업허가', '전기사업법', '풍력', '태양에너지', '재생에너지')
+
+#: 부칙 제1조의 시행일 문언
+_EFF_IMMEDIATE = re.compile(r'공포한?\s*날부터\s*시행')
+_EFF_AFTER_DAYS = re.compile(r'공포\s*후\s*(\d+)\s*일이?\s*지난\s*날부터\s*시행')
+_EFF_EXPLICIT = re.compile(r'(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일부터\s*시행')
+
+
+def power_transition(addenda: list[dict]) -> dict | None:
+    """
+    발전사업 경과조치를 담은 부칙 회차를 찾아 그 **시행일**과 원문을 돌려준다.
+
+    소급 여부를 가르는 날짜는 조례 전체의 최신 시행일이 아니라, 그 경과조치를
+    담은 **개정 조례의 시행일**이다. 부칙의 "이 조례 시행 전에"에서 '이 조례'는
+    조례 전문이 아니라 그 개정 조례를 가리키기 때문이다.
+
+    삼척시가 그 예다. 조례 최신 시행일은 2025-08-08이지만 풍력 경과조치는
+    **2025-02-28 개정 부칙**에 있다. 최신 시행일로 비교하면 그 사이에 허가를
+    받은 사업이 잘못 판정된다.
+
+    반환 {'date','promulgated','text','date_basis'}
+    date_basis는 시행일을 어떻게 정했는지다. 'PROMULGATED'는 시행일 문언을
+    읽지 못해 공포일로 대신한 경우이므로 화면에서 단정하면 안 된다.
+    """
+    from datetime import date as _date, timedelta
+
     for a in reversed(addenda or []):
-        t = a.get('text') or ''
-        if any(k in t for k in _ADDENDA_KEYS[:2]):        # 경과조치·적용례
-            date = a.get('promulgated') or ''
-            picked.append((f'[{date} 개정] ' if date else '') + t[:900])
-        if len(picked) >= limit:
-            break
-    return '\n\n'.join(picked)
+        text = a.get('text') or ''
+        if '경과조치' not in text or not any(k in text for k in _POWER_KEYS):
+            continue
+        pub = (a.get('promulgated') or '').strip()
+
+        m = _EFF_EXPLICIT.search(text)
+        if m:
+            return {'date': '%s%02d%02d' % (m.group(1), int(m.group(2)), int(m.group(3))),
+                    'promulgated': pub, 'text': text, 'date_basis': 'EXPLICIT'}
+        if len(pub) == 8 and pub.isdigit():
+            base = _date(int(pub[:4]), int(pub[4:6]), int(pub[6:]))
+            m = _EFF_AFTER_DAYS.search(text)
+            if m:
+                return {'date': (base + timedelta(days=int(m.group(1)))).strftime('%Y%m%d'),
+                        'promulgated': pub, 'text': text, 'date_basis': 'AFTER_DAYS'}
+            basis = 'IMMEDIATE' if _EFF_IMMEDIATE.search(text) else 'PROMULGATED'
+            return {'date': pub, 'promulgated': pub, 'text': text, 'date_basis': basis}
+        return {'date': '', 'promulgated': pub, 'text': text,
+                'date_basis': 'PROMULGATED'}
+    return None
 
 
 # ======================================================================

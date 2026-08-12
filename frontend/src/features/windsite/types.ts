@@ -237,8 +237,15 @@ export interface GrandfatherOrdinance {
   sigungu: string;
   ordinance: string;
   article: string;
+  /** 조례 전체의 최신 시행일 */
   effective_date: string;
-  /** 발전사업허가일이 조례 시행일보다 앞선다는 사실. 면제 확정이 아니다 */
+  /** 소급 여부를 가르는 날짜. 경과조치를 담은 개정의 시행일이다 */
+  cutoff_date: string;
+  /** true면 경과조치 부칙에서 얻은 날짜, false면 최신 시행일로 대신한 것 */
+  cutoff_is_transition: boolean;
+  /** IMMEDIATE | AFTER_DAYS | EXPLICIT | PROMULGATED */
+  cutoff_basis: string;
+  /** 발전사업허가일이 기준일보다 앞선다는 사실. 면제 확정이 아니다 */
   permit_earlier: boolean;
   addenda: string;
 }

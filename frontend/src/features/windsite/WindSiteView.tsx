@@ -757,8 +757,17 @@ function AreaSummary({ r }: { r: AreaResult }) {
           <ul>
             {r.grandfathering.ordinances.map((o, i) => (
               <li key={i}>
-                {o.sigungu} · {o.ordinance} {o.article} —{' '}
-                <b>시행 {o.effective_date}</b>
+                {o.sigungu} · {o.ordinance} {o.article}
+                <br />
+                기준일 <b>{o.cutoff_date}</b>{' '}
+                <em className="basis">
+                  {o.cutoff_is_transition
+                    ? '(경과조치를 담은 개정의 시행일)'
+                    : '(경과조치 부칙을 찾지 못해 조례 최신 시행일로 대신함)'}
+                </em>
+                {o.effective_date && o.effective_date !== o.cutoff_date && (
+                  <em className="basis"> · 조례 최신 시행일 {o.effective_date}</em>
+                )}
                 {o.permit_earlier && <em className="flag"> 허가일이 앞섬</em>}
               </li>
             ))}

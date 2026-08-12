@@ -223,6 +223,14 @@ class LocalOrdinance(models.Model):
     #: 경과조치로 종전 기준이 적용될 수 있어, 결론이 통째로 뒤집힌다.
     #: 시행일을 모르면 그 검토 자체가 촉발되지 않으므로 반드시 보관한다.
     effective_date = models.DateField('조례 시행일', null=True, blank=True)
+    #: 발전사업 경과조치를 담은 **개정 조례의 시행일**. 소급 여부는 조례 전체의
+    #: 최신 시행일이 아니라 이 날짜로 가른다 — 부칙의 "이 조례 시행 전에"에서
+    #: '이 조례'는 조례 전문이 아니라 그 개정 조례를 가리키기 때문이다.
+    #: (삼척시: 조례 최신 시행일 2025-08-08, 풍력 경과조치는 2025-02-28 개정)
+    grandfather_date = models.DateField('경과조치 기준일', null=True, blank=True)
+    #: 시행일을 어떻게 정했는지. PROMULGATED는 문언을 못 읽어 공포일로 대신한
+    #: 경우라 화면에서 단정하면 안 된다.
+    grandfather_basis = models.CharField('기준일 근거', max_length=20, blank=True)
     #: 부칙 원문 중 경과조치·적용례 부분. 적용 여부는 관할 지자체가 판단하므로
     #: 시스템은 판정하지 않고 근거를 그대로 보여주기만 한다.
     addenda = models.TextField('부칙(경과조치·적용례)', blank=True)
