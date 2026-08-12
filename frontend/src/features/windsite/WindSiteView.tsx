@@ -70,6 +70,26 @@ export default function WindSiteView() {
   const [permitDate, setPermitDate] = useState('');
   const [areaResult, setAreaResult] = useState<AreaResult | null>(null);
   const [areaLoading, setAreaLoading] = useState(false);
+  const [areaReporting, setAreaReporting] = useState(false);
+
+  /** 검토와 보고서가 같은 입력을 쓰도록 한 곳에서 만든다 */
+  function areaBody() {
+    return pickMode === 'layout'
+      ? { turbines: ring, turbine_radius_m: turbineR,
+          corridor_radius_m: corridorR, permit_date: permitDate }
+      : { ring, permit_date: permitDate };
+  }
+
+  async function downloadAreaReport() {
+    setAreaReporting(true); setError('');
+    try {
+      await windsiteApi.downloadAreaReport(areaBody());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '보고서 생성에 실패했습니다.');
+    } finally {
+      setAreaReporting(false);
+    }
+  }
 
   async function runArea() {
     const layout = pickMode === 'layout';
@@ -283,6 +303,12 @@ export default function WindSiteView() {
                     {areaLoading ? '검토 중…'
                       : pickMode === 'layout' ? '배치선 검토 실행' : '구역 검토 실행'}
                   </button>
+                  {areaResult && (
+                    <button type="button" disabled={areaReporting}
+                      onClick={downloadAreaReport}>
+                      {areaReporting ? '생성 중…' : '보고서 (docx)'}
+                    </button>
+                  )}
                 </span>
               )}
             </div>

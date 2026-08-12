@@ -89,11 +89,22 @@ export const windsiteApi = {
    * 검토 보고서(docx) 내려받기.
    * 응답이 JSON이 아니라 파일이라 req()를 쓰지 않고 직접 처리한다.
    */
+  /** 사업구역·배치선 제약도 보고서 — evaluate-area와 같은 body를 보낸다 */
+  downloadAreaReport(body: Record<string, unknown>): Promise<void> {
+    return download('/windsite/area-report/', body, '풍력구역검토');
+  },
+
   async downloadReport(p: EvaluateParams & { with_maps?: boolean }): Promise<void> {
-    const res = await fetch(`${API_BASE}/windsite/report/`, {
+    return download('/windsite/report/', p, '풍력입지검토');
+  },
+};
+
+/** docx 내려받기 공통 — 파일명은 Content-Disposition(RFC 5987)에서 읽는다 */
+async function download(path: string, body: unknown, fallbackName: string): Promise<void> {
+    const res = await fetch(`${API_BASE}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(p),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({} as { detail?: string }));
@@ -105,7 +116,7 @@ export const windsiteApi = {
     const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disp)?.[1];
     const filename = encoded
       ? decodeURIComponent(encoded)
-      : `풍력입지검토_${new Date().toISOString().slice(0, 10)}.docx`;
+      : `${fallbackName}_${new Date().toISOString().slice(0, 10)}.docx`;
 
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -116,5 +127,4 @@ export const windsiteApi = {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-  },
-};
+}

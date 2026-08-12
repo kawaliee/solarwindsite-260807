@@ -264,7 +264,8 @@ def _facility_buffers(area_geom, slices, separation_zone=None) -> tuple[dict, li
             % c[buildings.CAT_UNKNOWN])
     notes.append(
         '조례는 주민등록 실거주 주택만을 대상으로 하고 빈집을 제외하나, 그 정보는 '
-        '공개되지 않습니다. 아래 값은 대장상 주택 기준의 상한선입니다.')
+        '공개되지 않습니다. 이 검토의 조례 이격 면적은 대장상 주택 기준의 '
+        '상한선이며 확정치가 아닙니다.')
 
     # 주택은 조례가 정한 거리로 군집을 만들어 호수를 센다
     house_groups = buildings.clusters(cls[buildings.CAT_HOUSING])

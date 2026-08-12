@@ -375,3 +375,39 @@ def setback_map(lat: float, lng: float, rings: list[dict],
     _draw_site(ax, center)
     _draw_scalebar(ax, extent)
     return _finish(fig)
+
+
+def constraint_map(area, blocked, conditional, free,
+                   turbines: list | None = None) -> bytes:
+    """
+    사업구역 제약도 — 배제·조건부·제약없음을 색으로 나눠 위성영상 위에 얹는다.
+
+    도형은 모두 EPSG:5179 shapely 객체다. 제약이 강한 쪽을 위에 쌓아,
+    겹치는 지점에서 더 엄한 판정이 보이게 한다.
+    """
+    center = area.centroid
+    minx, miny, maxx, maxy = area.bounds
+    # 구역이 화면에 꽉 차지 않도록 15% 여백을 둔다
+    extent = max(maxx - minx, maxy - miny) / 2 * 1.15
+    fig, ax = _new_axes('사업구역 제약도', extent, center)
+
+    for g, color, label in ((free, '#2e9e2e', '제약 없음'),
+                            (conditional, '#e8a33d', '조건부'),
+                            (blocked, '#d9363e', '배제')):
+        if g is None or g.is_empty:
+            continue
+        _plot_geom(ax, g, color=color, alpha=0.45 if _has_bg(ax) else 0.65,
+                   zorder=3, label=label)
+        _outline(ax, g, color=color, linewidth=0.8, zorder=4)
+
+    _outline(ax, area, color='#111111', linewidth=2.0, zorder=6)
+
+    for i, p in enumerate(turbines or [], start=1):
+        ax.plot(p.x, p.y, marker='o', markersize=7, color='#ffffff',
+                markeredgecolor='#111111', markeredgewidth=1.2, zorder=7)
+        ax.annotate(str(i), (p.x, p.y), fontsize=8, fontweight='bold',
+                    ha='center', va='center', zorder=8,
+                    path_effects=_halo(2) if _has_bg(ax) else None)
+
+    _draw_scalebar(ax, extent)
+    return _finish(fig)

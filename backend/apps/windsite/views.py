@@ -5,11 +5,12 @@ import logging
 from datetime import datetime
 from urllib.parse import quote
 
+from django.http import HttpResponse
 from rest_framework import status as http
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from . import available, geo, jurisdiction
+from . import area_report, available, geo, jurisdiction
 from .engine import DEFAULT_RADIUS_M, MAX_RADIUS_M, MIN_RADIUS_M, compare, evaluate
 from .geocode import geocode, reverse_geocode
 from .models import LawReference, LocalOrdinance, SiteEvaluation
@@ -39,7 +40,41 @@ def evaluate_area(request):
     점 검토(evaluate_site)와 달리 항목별 가부가 아니라 **면적 분포**를 낸다.
     수천 ha 구역은 어딘가 반드시 규제에 걸리므로 가부 판정이 성립하지 않는다.
     """
-    d = request.data or {}
+    parsed = _parse_area_request(request.data or {})
+    if isinstance(parsed, Response):
+        return parsed
+    ring, is_layout, permit_date, radii = parsed
+
+    try:
+        if is_layout:
+            result = available.compute_layout(ring, permit_date=permit_date, **radii)
+        else:
+            result = available.compute(ring, permit_date=permit_date)
+    except ValueError as e:
+        return Response({'detail': str(e)}, status=http.HTTP_400_BAD_REQUEST)
+    except jurisdiction.BoundaryUnavailable as e:
+        # 행정경계를 못 받으면 어느 조례를 적용할지 정할 수 없다.
+        # 빈손으로 계산해 넘기면 조례 제약이 통째로 빠진 결과가 나온다.
+        return Response({'detail': f'행정경계를 조회하지 못했습니다: {e}'},
+                        status=http.HTTP_502_BAD_GATEWAY)
+
+    if result['total_area_m2'] > MAX_AREA_KM2 * 1e6:
+        return Response(
+            {'detail': f'사업구역이 너무 넓습니다 '
+                       f'({result["total_area_m2"] / 1e6:,.0f}km², 상한 {MAX_AREA_KM2}km²).'},
+            status=http.HTTP_400_BAD_REQUEST)
+
+    return Response(_area_payload(result, ring))
+
+
+def _parse_area_request(d: dict):
+    """
+    구역/배치선 요청 본문을 검증한다.
+    → (ring, is_layout, permit_date, radii) 또는 오류 Response.
+
+    검토 실행과 보고서 생성이 같은 입력을 받으므로 파싱을 한 곳에 둔다.
+    두 벌로 두면 한쪽만 고쳐져 화면 값과 문서 값이 어긋난다.
+    """
     turbines_raw = d.get('turbines')
     is_layout = isinstance(turbines_raw, list) and len(turbines_raw) > 0
     raw = turbines_raw if is_layout else (d.get('ring') or [])
@@ -74,43 +109,62 @@ def evaluate_area(request):
         try:
             permit_date = datetime.strptime(raw_pd, '%Y-%m-%d').date()
         except ValueError:
-            return Response(
-                {'detail': 'permit_date 는 YYYY-MM-DD 형식이어야 합니다.'},
-                status=http.HTTP_400_BAD_REQUEST)
+            return Response({'detail': 'permit_date 는 YYYY-MM-DD 형식이어야 합니다.'},
+                            status=http.HTTP_400_BAD_REQUEST)
 
-    def _radius(key: str, fallback: int) -> int:
+    def radius(key: str, fallback: int) -> int:
         try:
             v = int(d.get(key) or fallback)
         except (TypeError, ValueError):
             return fallback
         return max(MIN_RADIUS_M, min(MAX_RADIUS_M, v))
 
+    radii = {
+        'turbine_radius_m': radius('turbine_radius_m',
+                                   available.DEFAULT_TURBINE_RADIUS_M),
+        'corridor_radius_m': radius('corridor_radius_m',
+                                    available.DEFAULT_CORRIDOR_RADIUS_M),
+    }
+    return ring, is_layout, permit_date, radii
+
+
+@api_view(['POST'])
+def area_report_download(request):
+    """
+    사업구역 제약도 보고서(docx) 내려받기.
+
+    evaluate-area와 같은 body를 받아 다시 계산한다. 결과를 세션에 들고 있다가
+    쓰면 화면에 보이는 값과 문서가 어긋날 수 있고(입력을 바꾼 뒤 눌렀을 때),
+    캐시가 걸려 있어 재계산 비용도 크지 않다.
+    """
+    parsed = _parse_area_request(request.data or {})
+    if isinstance(parsed, Response):
+        return parsed
+    ring, is_layout, permit_date, radii = parsed
     try:
         if is_layout:
-            result = available.compute_layout(
-                ring,
-                turbine_radius_m=_radius('turbine_radius_m',
-                                         available.DEFAULT_TURBINE_RADIUS_M),
-                corridor_radius_m=_radius('corridor_radius_m',
-                                          available.DEFAULT_CORRIDOR_RADIUS_M),
-                permit_date=permit_date)
+            result = available.compute_layout(ring, permit_date=permit_date, **radii)
         else:
             result = available.compute(ring, permit_date=permit_date)
     except ValueError as e:
         return Response({'detail': str(e)}, status=http.HTTP_400_BAD_REQUEST)
     except jurisdiction.BoundaryUnavailable as e:
-        # 행정경계를 못 받으면 어느 조례를 적용할지 정할 수 없다.
-        # 빈손으로 계산해 넘기면 조례 제약이 통째로 빠진 결과가 나온다.
         return Response({'detail': f'행정경계를 조회하지 못했습니다: {e}'},
                         status=http.HTTP_502_BAD_GATEWAY)
 
-    if result['total_area_m2'] > MAX_AREA_KM2 * 1e6:
-        return Response(
-            {'detail': f'사업구역이 너무 넓습니다 '
-                       f'({result["total_area_m2"] / 1e6:,.0f}km², 상한 {MAX_AREA_KM2}km²).'},
-            status=http.HTTP_400_BAD_REQUEST)
+    try:
+        blob = area_report.build_area_report(result)
+    except Exception as e:                                      # noqa: BLE001
+        logger.exception('구역 보고서 생성 실패')
+        return Response({'detail': f'보고서 생성에 실패했습니다: {type(e).__name__}'},
+                        status=http.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    return Response(_area_payload(result, ring))
+    name = f'풍력구역검토_{datetime.now():%Y-%m-%d}.docx'
+    res = HttpResponse(
+        blob,
+        content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    res['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(name)}"
+    return res
 
 
 def _area_payload(r: dict, ring: list) -> dict:
