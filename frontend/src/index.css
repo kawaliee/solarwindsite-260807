@@ -1713,3 +1713,19 @@ select.fs-input { cursor: pointer; }
 }
 .ws-radrow em { font-style: normal; font-size: 11px; color: #6b7f94; padding-bottom: 5px; }
 .ws-area-note { margin: 4px 0 8px; font-size: 11px; color: #7f93a8; }
+
+/* 배치선 모드 — 호기별 주소 목록 */
+.ws-addrlist { list-style: none; margin: 0; padding: 0; max-height: 190px; overflow-y: auto; }
+.ws-addrlist li {
+  display: grid; grid-template-columns: 20px 1fr; gap: 6px 8px;
+  align-items: start; padding: 5px 0; border-bottom: 1px solid #1c2836; font-size: 12px;
+}
+.ws-addrlist li:last-child { border-bottom: none; }
+.ws-addrlist .no {
+  display: flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%; margin-top: 1px;
+  background: #39d3e6; color: #06202a; font: 700 10px/1 sans-serif;
+}
+.ws-addrlist .addr { color: #dbe7f2; line-height: 1.4; word-break: keep-all; }
+.ws-addrlist .ll { grid-column: 2; color: #6b7f94; font-size: 11px; }
+.ws-addr-empty { margin: 0; font-size: 12px; color: #6b7f94; }

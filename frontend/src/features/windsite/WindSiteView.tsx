@@ -59,6 +59,12 @@ export default function WindSiteView() {
   const [pickMode, setPickMode] = useState<PickMode>('point');
   const [ring, setRing] = useState<LatLng[]>([]);
   const [turbineR, setTurbineR] = useState(500);
+  /**
+   * 발전기별 주소. ring과 인덱스를 맞춰 둔다.
+   * 클릭할 때가 아니라 ring 변화를 보고 채운다 — 되돌리기·지우기로 목록이
+   * 줄어드는 경우까지 한 곳에서 맞추기 위해서다.
+   */
+  const [turbineAddrs, setTurbineAddrs] = useState<(string | null)[]>([]);
   const [corridorR, setCorridorR] = useState(100);
   const [areaResult, setAreaResult] = useState<AreaResult | null>(null);
   const [areaLoading, setAreaLoading] = useState(false);
@@ -106,6 +112,52 @@ export default function WindSiteView() {
       setLocating(false);
     }
   };
+
+  // ── 발전기 위치 → 주소 역지오코딩 ──────────────────────────────────
+  useEffect(() => {
+    if (pickMode !== 'layout') return;
+    // 길이를 먼저 맞춘다. 되돌리기로 줄면 뒤쪽 주소를 버리고,
+    // 늘면 빈 칸(null)을 만들어 아래에서 채운다.
+    setTurbineAddrs(prev => {
+      if (prev.length === ring.length) return prev;
+      const next = prev.slice(0, ring.length);
+      while (next.length < ring.length) next.push(null);
+      return next;
+    });
+
+    let alive = true;
+    (async () => {
+      for (let i = 0; i < ring.length; i++) {
+        // 이미 채워진 칸은 건너뛴다 — 점을 하나 추가할 때마다 전체를
+        // 다시 조회하면 호출이 제곱으로 는다.
+        if (turbineAddrs[i]) continue;
+        const [a, o] = ring[i];
+        try {
+          const g = await windsiteApi.geocode({ lat: a, lng: o });
+          if (!alive) return;
+          const addr = g.address || g.road_address || '';
+          setTurbineAddrs(prev => {
+            const next = [...prev];
+            next[i] = addr || '(주소 없음)';
+            return next;
+          });
+          // 시·도/시·군·구는 1호기 기준으로 채운다. 조례 조회는 구역
+          // 전체를 시군구로 다시 나누므로 여기 값은 표기용이다.
+          if (i === 0) { setSido(g.sido || ''); setSigungu(g.sigungu || ''); }
+        } catch {
+          if (!alive) return;
+          setTurbineAddrs(prev => {
+            const next = [...prev];
+            next[i] = '(주소 조회 실패)';
+            return next;
+          });
+        }
+      }
+    })();
+    return () => { alive = false; };
+    // turbineAddrs를 의존성에 넣으면 갱신할 때마다 다시 돌아 무한루프가 된다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickMode, ring]);
 
   useEffect(() => {
     windsiteApi.laws().then(d => setLaws(d.results)).catch(() => setLaws([]));
@@ -209,7 +261,9 @@ export default function WindSiteView() {
               {(['point', 'layout', 'area'] as const).map(m => (
                 <button key={m} type="button"
                   className={pickMode === m ? 'on' : ''}
-                  onClick={() => { setPickMode(m); setRing([]); setAreaResult(null); }}>
+                  onClick={() => {
+                    setPickMode(m); setRing([]); setAreaResult(null); setTurbineAddrs([]);
+                  }}>
                   {m === 'point' ? '지점 검토' : m === 'layout' ? '배치선 검토' : '구역 검토'}
                 </button>
               ))}
@@ -218,7 +272,9 @@ export default function WindSiteView() {
                   <button type="button" disabled={!ring.length}
                     onClick={() => setRing(ring.slice(0, -1))}>되돌리기</button>
                   <button type="button" disabled={!ring.length}
-                    onClick={() => { setRing([]); setAreaResult(null); }}>지우기</button>
+                    onClick={() => {
+                      setRing([]); setAreaResult(null); setTurbineAddrs([]);
+                    }}>지우기</button>
                   <button type="button" className="run"
                     disabled={ring.length < (pickMode === 'layout' ? 1 : 3) || areaLoading}
                     onClick={runArea}>
@@ -268,10 +324,33 @@ export default function WindSiteView() {
           <div className="ops-card-bd">
             <label className="ws-fld">
               <span>
-                사업지 주소 <em>{locating ? '(주소 조회 중…)' : '(지도 클릭 시 자동 입력)'}</em>
+                사업지 주소{' '}
+                <em>
+                  {pickMode === 'layout'
+                    ? `(발전기 ${ring.length}기 · 클릭 시 자동 입력)`
+                    : locating ? '(주소 조회 중…)' : '(지도 클릭 시 자동 입력)'}
+                </em>
               </span>
-              <input type="text" value={address} placeholder="경상북도 ○○군 ○○면 산 ○○번지"
-                onChange={e => setAddress(e.target.value)} />
+              {pickMode === 'layout' ? (
+                ring.length === 0 ? (
+                  <p className="ws-addr-empty">지도에서 발전기 위치를 찍으면 호기별 주소가 표시됩니다.</p>
+                ) : (
+                  <ol className="ws-addrlist">
+                    {ring.map(([a, o], i) => (
+                      <li key={i}>
+                        <span className="no">{i + 1}</span>
+                        <span className="addr">
+                          {turbineAddrs[i] ?? '조회 중…'}
+                        </span>
+                        <span className="ll">{a.toFixed(5)}, {o.toFixed(5)}</span>
+                      </li>
+                    ))}
+                  </ol>
+                )
+              ) : (
+                <input type="text" value={address} placeholder="경상북도 ○○군 ○○면 산 ○○번지"
+                  onChange={e => setAddress(e.target.value)} />
+              )}
             </label>
             <div className="ws-two">
               <label className="ws-fld">
