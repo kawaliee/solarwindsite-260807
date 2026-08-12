@@ -1696,3 +1696,20 @@ select.fs-input { cursor: pointer; }
 .ws-area-side ul { margin: 0; padding-left: 15px; font-size: 12px; color: #c3d3e2; }
 .ws-area-side li { margin-bottom: 3px; }
 .ws-area-side b { color: #39d3e6; }
+
+/* 배치선 검토 — 발전기 번호 마커 */
+.ws-turbine { background: none; border: none; }
+.ws-turbine span {
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #39d3e6; color: #06202a; font: 700 11px/1 sans-serif;
+  border: 2px solid #06202a; box-shadow: 0 0 0 1px #39d3e6;
+}
+.ws-radrow { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 8px; flex-wrap: wrap; }
+.ws-radrow label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #7f93a8; }
+.ws-radrow input {
+  width: 110px; padding: 5px 8px; border-radius: 6px; font-size: 12px;
+  background: #101a24; border: 1px solid #22303f; color: #dbe7f2;
+}
+.ws-radrow em { font-style: normal; font-size: 11px; color: #6b7f94; padding-bottom: 5px; }
+.ws-area-note { margin: 4px 0 8px; font-size: 11px; color: #7f93a8; }

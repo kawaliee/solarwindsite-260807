@@ -30,19 +30,27 @@ def evaluate_area(request):
     """
     사업구역(폴리곤) 제약도 검토
 
-    POST body:
-      { "ring": [[lat, lng], [lat, lng], …] }   꼭짓점 3개 이상
+    POST body — 둘 중 하나
+      { "ring": [[lat, lng], …] }                 사업구역 폴리곤 (꼭짓점 3개 이상)
+      { "turbines": [[lat, lng], …],              발전기 배치선 (1기 이상, 순서대로)
+        "turbine_radius_m": 500,
+        "corridor_radius_m": 100 }
 
     점 검토(evaluate_site)와 달리 항목별 가부가 아니라 **면적 분포**를 낸다.
     수천 ha 구역은 어딘가 반드시 규제에 걸리므로 가부 판정이 성립하지 않는다.
     """
     d = request.data or {}
-    raw = d.get('ring') or []
-    if not isinstance(raw, list) or len(raw) < 3:
-        return Response({'detail': 'ring 에 꼭짓점 3개 이상이 필요합니다.'},
+    turbines_raw = d.get('turbines')
+    is_layout = isinstance(turbines_raw, list) and len(turbines_raw) > 0
+    raw = turbines_raw if is_layout else (d.get('ring') or [])
+    label = '발전기 위치' if is_layout else '꼭짓점'
+    min_n = 1 if is_layout else 3
+
+    if not isinstance(raw, list) or len(raw) < min_n:
+        return Response({'detail': f'{label} {min_n}개 이상이 필요합니다.'},
                         status=http.HTTP_400_BAD_REQUEST)
     if len(raw) > MAX_AREA_POINTS:
-        return Response({'detail': f'꼭짓점은 {MAX_AREA_POINTS}개 이하여야 합니다.'},
+        return Response({'detail': f'{label}는 {MAX_AREA_POINTS}개 이하여야 합니다.'},
                         status=http.HTTP_400_BAD_REQUEST)
 
     ring = []
@@ -50,15 +58,30 @@ def evaluate_area(request):
         try:
             lat, lng = float(p[0]), float(p[1])
         except (TypeError, ValueError, IndexError):
-            return Response({'detail': 'ring 은 [[위도, 경도], …] 형식이어야 합니다.'},
+            return Response({'detail': '좌표는 [[위도, 경도], …] 형식이어야 합니다.'},
                             status=http.HTTP_400_BAD_REQUEST)
         if not (33.0 <= lat <= 38.7 and 124.5 <= lng <= 132.0):
             return Response({'detail': '대한민국 영역 밖의 좌표가 포함되어 있습니다.'},
                             status=http.HTTP_400_BAD_REQUEST)
         ring.append((lat, lng))
 
+    def _radius(key: str, fallback: int) -> int:
+        try:
+            v = int(d.get(key) or fallback)
+        except (TypeError, ValueError):
+            return fallback
+        return max(MIN_RADIUS_M, min(MAX_RADIUS_M, v))
+
     try:
-        result = available.compute(ring)
+        if is_layout:
+            result = available.compute_layout(
+                ring,
+                turbine_radius_m=_radius('turbine_radius_m',
+                                         available.DEFAULT_TURBINE_RADIUS_M),
+                corridor_radius_m=_radius('corridor_radius_m',
+                                          available.DEFAULT_CORRIDOR_RADIUS_M))
+        else:
+            result = available.compute(ring)
     except ValueError as e:
         return Response({'detail': str(e)}, status=http.HTTP_400_BAD_REQUEST)
     except jurisdiction.BoundaryUnavailable as e:
@@ -103,6 +126,8 @@ def _area_payload(r: dict, ring: list) -> dict:
              'area_m2': round(z['area_m2'], 1), 'ratio': round(z['ratio'], 4)}
             for z in r['zoning']],
         'blanket': r['blanket'],
+        # 배치선 검토일 때만 채워진다 (발전기 좌표·반경·구간별 면적).
+        'layout': r.get('layout'),
         'jurisdictions': r['jurisdictions'],
         'jurisdiction_meta': r['jurisdiction_meta'],
         'fetch_failures': r['fetch_failures'],

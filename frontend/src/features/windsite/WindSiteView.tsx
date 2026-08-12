@@ -58,14 +58,23 @@ export default function WindSiteView() {
   // 합치면 모드를 오갈 때 서로의 입력을 지우게 된다.
   const [pickMode, setPickMode] = useState<PickMode>('point');
   const [ring, setRing] = useState<LatLng[]>([]);
+  const [turbineR, setTurbineR] = useState(500);
+  const [corridorR, setCorridorR] = useState(100);
   const [areaResult, setAreaResult] = useState<AreaResult | null>(null);
   const [areaLoading, setAreaLoading] = useState(false);
 
   async function runArea() {
-    if (ring.length < 3) { setError('사업구역 꼭짓점을 3개 이상 찍어주세요.'); return; }
+    const layout = pickMode === 'layout';
+    if (layout ? ring.length < 1 : ring.length < 3) {
+      setError(layout ? '발전기 위치를 1기 이상 찍어주세요.'
+                      : '사업구역 꼭짓점을 3개 이상 찍어주세요.');
+      return;
+    }
     setAreaLoading(true); setError('');
     try {
-      setAreaResult(await windsiteApi.evaluateArea(ring));
+      setAreaResult(layout
+        ? await windsiteApi.evaluateLayout(ring, turbineR, corridorR)
+        : await windsiteApi.evaluateArea(ring));
     } catch (e) {
       setError(e instanceof Error ? e.message : '구역 검토에 실패했습니다.');
     } finally {
@@ -197,36 +206,50 @@ export default function WindSiteView() {
           <div className="ops-card-hd"><span className="tag">SITE</span> 사업지 지정</div>
           <div className="ops-card-bd">
             <div className="ws-modebar">
-              {(['point', 'area'] as const).map(m => (
+              {(['point', 'layout', 'area'] as const).map(m => (
                 <button key={m} type="button"
                   className={pickMode === m ? 'on' : ''}
-                  onClick={() => setPickMode(m)}>
-                  {m === 'point' ? '지점 검토' : '구역 검토'}
+                  onClick={() => { setPickMode(m); setRing([]); setAreaResult(null); }}>
+                  {m === 'point' ? '지점 검토' : m === 'layout' ? '배치선 검토' : '구역 검토'}
                 </button>
               ))}
-              {pickMode === 'area' && (
+              {pickMode !== 'point' && (
                 <span className="ws-modeacts">
                   <button type="button" disabled={!ring.length}
                     onClick={() => setRing(ring.slice(0, -1))}>되돌리기</button>
                   <button type="button" disabled={!ring.length}
                     onClick={() => { setRing([]); setAreaResult(null); }}>지우기</button>
                   <button type="button" className="run"
-                    disabled={ring.length < 3 || areaLoading}
+                    disabled={ring.length < (pickMode === 'layout' ? 1 : 3) || areaLoading}
                     onClick={runArea}>
-                    {areaLoading ? '검토 중…' : '구역 검토 실행'}
+                    {areaLoading ? '검토 중…'
+                      : pickMode === 'layout' ? '배치선 검토 실행' : '구역 검토 실행'}
                   </button>
                 </span>
               )}
             </div>
+            {pickMode === 'layout' && (
+              <div className="ws-radrow">
+                <label>발전기 검토반경 (m)
+                  <input type="number" min={50} max={20000} step={50} value={turbineR}
+                    onChange={e => setTurbineR(Number(e.target.value) || 500)} /></label>
+                <label>연결선 검토반경 (m)
+                  <input type="number" min={50} max={20000} step={10} value={corridorR}
+                    onChange={e => setCorridorR(Number(e.target.value) || 100)} /></label>
+                <em>이격거리 조례는 발전기 위치에만 적용됩니다 (연결선은 소음원이 아님)</em>
+              </div>
+            )}
             <SitePicker
               lat={lat} lng={lng} radiusM={radiusM}
               onPick={pickSite}
               mode={pickMode}
               ring={ring}
               onRingChange={setRing}
+              turbineRadiusM={turbineR}
+              corridorRadiusM={corridorR}
               overlays={areaResult?.overlays ?? null}
             />
-            {pickMode === 'area' && areaResult && (
+            {pickMode !== 'point' && areaResult && (
               <AreaSummary r={areaResult} />
             )}
             <div className="ws-coordrow">
@@ -600,9 +623,21 @@ function AreaSummary({ r }: { r: AreaResult }) {
   return (
     <div className="ws-area">
       <div className="ws-area-hd">
-        사업구역 {r.total.ha.toLocaleString()} ha
+        {r.layout
+          ? `발전기 ${r.layout.turbines.length}기 배치선 · 검토 ${r.total.ha.toLocaleString()} ha`
+          : `사업구역 ${r.total.ha.toLocaleString()} ha`}
         <em>{r.jurisdictions.map(j => j.sigungu).join(' · ')}</em>
       </div>
+      {r.layout && (
+        <p className="ws-area-note">
+          발전기 반경 {r.layout.turbine_radius_m.toLocaleString()}m
+          ({(r.layout.turbine_area_m2 / 1e4).toFixed(1)} ha) ·
+          연결선 반경 {r.layout.corridor_radius_m.toLocaleString()}m
+          ({(r.layout.corridor_area_m2 / 1e4).toFixed(1)} ha)
+          {r.layout.corridor_area_m2 < 1 &&
+            ' — 발전기 반경이 연결선을 모두 덮었습니다'}
+        </p>
+      )}
 
       <div className="ws-area-bars">
         {([['blocked', '배제'], ['conditional', '조건부'], ['free', '제약 없음'],

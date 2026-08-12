@@ -223,6 +223,16 @@ export interface AreaJurisdiction {
   max_distance_m: number;
 }
 
+export interface AreaLayout {
+  /** 1호기부터 순서대로 */
+  turbines: LatLng[];
+  turbine_radius_m: number;
+  corridor_radius_m: number;
+  turbine_area_m2: number;
+  /** 발전기 원에 삼켜지지 않고 남은 연결선 구간 면적 */
+  corridor_area_m2: number;
+}
+
 export interface AreaResult {
   ring: LatLng[];
   total: AreaBlock;
@@ -237,6 +247,8 @@ export interface AreaResult {
   by_reason: AreaReason[];
   zoning: AreaReason[];
   blanket: AreaReason[];
+  /** 배치선 검토일 때만 채워진다 */
+  layout: AreaLayout | null;
   jurisdictions: AreaJurisdiction[];
   jurisdiction_meta: Record<string, unknown>;
   /** 조회하지 못한 레이어 — 있으면 못 본 제약이 있다는 뜻이다 */

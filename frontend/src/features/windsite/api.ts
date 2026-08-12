@@ -45,6 +45,19 @@ export const windsiteApi = {
       body: JSON.stringify({ ring }),
     }),
 
+  /** 발전기 배치선 검토 — turbines는 1호기부터 순서대로 */
+  evaluateLayout: (
+    turbines: LatLng[], turbineRadiusM: number, corridorRadiusM: number,
+  ) =>
+    req<AreaResult>('/evaluate-area/', {
+      method: 'POST',
+      body: JSON.stringify({
+        turbines,
+        turbine_radius_m: turbineRadiusM,
+        corridor_radius_m: corridorRadiusM,
+      }),
+    }),
+
   laws: () => req<{ count: number; results: LawRef[] }>('/laws/'),
 
   permits: (capacityMw?: number | null) =>

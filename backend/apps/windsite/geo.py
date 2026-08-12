@@ -20,14 +20,15 @@ from typing import Any
 
 try:                                                            # pragma: no cover
     from pyproj import Transformer
-    from shapely.geometry import Point, Polygon, box, shape
+    from shapely.geometry import LineString, Point, Polygon, box, shape
     from shapely.geometry.base import BaseGeometry
     from shapely.ops import transform as shapely_transform, unary_union
     GEO_AVAILABLE = True
     GEO_IMPORT_ERROR = ''
 except Exception as _e:                                         # noqa: BLE001
     Transformer = None                                          # type: ignore[assignment]
-    Point = Polygon = box = shape = BaseGeometry = None         # type: ignore[assignment]
+    LineString = Point = Polygon = box = shape = None            # type: ignore[assignment]
+    BaseGeometry = None                                          # type: ignore[assignment]
     shapely_transform = unary_union = None                      # type: ignore[assignment]
     GEO_AVAILABLE = False
     GEO_IMPORT_ERROR = f'{type(_e).__name__}: {_e}'
@@ -142,6 +143,44 @@ def polygon_metric(ring: list) -> Any:
     if not g.is_valid:
         g = g.buffer(0)
     return g if not g.is_empty else None
+
+
+def _to_xy(points: list) -> list:
+    """[(lat, lng), …] → UTM-K [(x, y), …]"""
+    _require()
+    t = _transformer(GEOGRAPHIC_CRS, METRIC_CRS)
+    return [t.transform(float(lng), float(lat)) for lat, lng in points]
+
+
+def circles(points: list, radius_m: float) -> Any:
+    """
+    각 지점을 반경 radius_m 원으로 만들어 합친다.
+
+    풍력 배치선 검토에서 **발전기 지점**을 나타낸다. 이격거리 조례가 규율하는
+    대상은 발전시설이므로, 조례 버퍼는 이 도형에만 씌운다.
+    """
+    _require()
+    xy = _to_xy(points)
+    if not xy:
+        return None
+    return union([Point(x, y).buffer(radius_m) for x, y in xy])
+
+
+def corridor(points: list, radius_m: float) -> Any:
+    """
+    지점들을 **찍은 순서대로** 이은 선을 radius_m만큼 부풀린 띠.
+
+    발전기 사이를 지나는 집전선로·진입도로 구간이다. 발전기 지점보다 폭이
+    좁은 선형 시설이라 검토 폭도 좁게 잡는다. 지점이 하나뿐이면 선이 없으므로
+    원 하나를 돌려준다.
+    """
+    _require()
+    xy = _to_xy(points)
+    if not xy:
+        return None
+    if len(xy) == 1:
+        return Point(*xy[0]).buffer(radius_m)
+    return LineString(xy).buffer(radius_m)
 
 
 def to_geographic(geom_metric: Any) -> Any:

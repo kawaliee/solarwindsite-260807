@@ -89,8 +89,20 @@ NON_CONSTRAINT_ROLES = ('CONTEXT', 'PARCEL', 'DISTANCE')
 
 
 def _layer_geoms(area_geom, layer) -> tuple[list, str]:
-    """레이어 하나를 구역 범위로 조회해 (도형 목록, 오류) 를 돌려준다."""
-    feats, meta = VworldClient.fetch_area(layer.layer_id, area_geom)
+    """
+    레이어 하나를 구역 범위로 조회해 (도형 목록, 오류) 를 돌려준다.
+
+    **예외를 밖으로 내보내지 않는다.** 53개 레이어를 도는 중 하나가 500을
+    돌려주면(V-World는 간헐적으로 그런다) 그 예외가 스레드풀을 타고 올라와
+    구역 검토 전체가 실패한다. 레이어 하나의 일시적 장애로 나머지 52개
+    판정까지 버릴 이유가 없다. 실패는 fetch_failures로 올라가 '보지 못한
+    제약이 있다'는 경고로 화면에 표시된다.
+    """
+    try:
+        feats, meta = VworldClient.fetch_area(layer.layer_id, area_geom)
+    except Exception as e:                                      # noqa: BLE001
+        logger.warning('%s(%s) 조회 실패: %s', layer.title, layer.layer_id, e)
+        return [], f'{type(e).__name__}'
     if meta.get('strategy') == 'failed':
         return [], meta.get('error') or '조회 실패'
     out = []
@@ -106,20 +118,31 @@ def _layer_geoms(area_geom, layer) -> tuple[list, str]:
     return out, ('구역 일부만 조회됨' if meta.get('truncated') else '')
 
 
-def _facility_buffers(area_geom, slices) -> tuple[dict, list[str]]:
+def _facility_buffers(area_geom, slices, separation_zone=None) -> tuple[dict, list[str]]:
     """
     지자체 조각별로 그 지자체의 이격거리만큼 버퍼를 씌운다.
 
     시설은 행정구역을 가리지 않고 모은다. 조문이 "주거밀집지역으로부터
     직선거리 N미터"라고만 하고 관할구역으로 한정하지 않는 것이 일반적이라,
     경계 너머 마을도 이격 대상이다. 반경만 조각별 조례를 따른다.
+
+    separation_zone을 주면 그 안에서만 이격 위반을 센다. 배치선 검토에서
+    **발전기 지점**만 넘기는 용도다. 조례의 이격거리는 '풍력발전시설'에
+    대한 것이고 소음원도 발전기지, 지중 집전선로나 진입도로가 아니다.
+    연결선 구간까지 주거 2,000m를 적용하면 실제 규제보다 훨씬 넓게 배제된다.
     """
     max_dist = max((r.distance_m for s in slices for r in s['rules']), default=0)
     if not max_dist:
         return {}, []
 
     search = area_geom.buffer(max_dist + FACILITY_MARGIN_M)
-    feats, meta = VworldClient.fetch_area(FACILITY_LAYER, search)
+    try:
+        feats, meta = VworldClient.fetch_area(FACILITY_LAYER, search)
+    except Exception as e:                                      # noqa: BLE001
+        # 여기서 터지면 이격 판정이 통째로 빠진다. 빠졌다는 사실을 올린다.
+        logger.warning('이격 대상 시설 조회 실패: %s', e)
+        return {}, [f'이격 대상 시설을 조회하지 못했습니다 ({type(e).__name__}). '
+                    f'조례 이격거리 제약이 결과에 반영되지 않았습니다.']
     notes: list[str] = []
     if meta.get('strategy') == 'failed':
         return {}, [f'이격 대상 시설 조회 실패: {meta.get("error")}']
@@ -163,20 +186,64 @@ def _facility_buffers(area_geom, slices) -> tuple[dict, list[str]]:
         d = max(r.distance_m for r in s['rules'])
         buf = merged.buffer(d + GRID_SAFETY_M)
         piece = geo.clip(buf, s['geom'])
+        if piece is not None and separation_zone is not None:
+            piece = geo.clip(piece, separation_zone)
         if piece is not None:
             by_slice[s['code']] = piece
     return by_slice, notes
 
 
+#: 배치선 검토 기본 반경(m). 발전기는 이격 검토가 필요해 넓게, 연결선은
+#: 폭이 좁은 선형 시설이라 좁게 잡는다. 화면에서 조정할 수 있다.
+DEFAULT_TURBINE_RADIUS_M = 500
+DEFAULT_CORRIDOR_RADIUS_M = 100
+
+
 def compute(area_ring: list) -> dict:
     """
-    사업구역의 제약도를 만든다.
+    사업구역(폴리곤)의 제약도를 만든다.
 
     area_ring: [(lat, lng), …] 사업구역 꼭짓점
     """
     area = geo.polygon_metric(area_ring)
     if area is None:
         raise ValueError('사업구역 폴리곤이 유효하지 않습니다 (꼭짓점 3개 이상 필요).')
+    return _compute(area)
+
+
+def compute_layout(turbines: list,
+                   turbine_radius_m: int = DEFAULT_TURBINE_RADIUS_M,
+                   corridor_radius_m: int = DEFAULT_CORRIDOR_RADIUS_M) -> dict:
+    """
+    발전기 배치선의 제약도를 만든다.
+
+    turbines: [(lat, lng), …] 1호기부터 순서대로. 찍은 순서가 곧 연결 순서다.
+
+    검토 대상 = 발전기 원들 ∪ 그 사이를 잇는 회랑
+
+    이격거리 조례는 **발전기 원에만** 적용한다. 조문이 규율하는 것은
+    '풍력발전시설'이고 소음원도 발전기지, 지중 집전선로나 진입도로가 아니다.
+    연결선 구간까지 주거 2,000m를 적용하면 마을 옆을 지나는 도로 한 구간
+    때문에 멀쩡한 발전기 위치까지 배제로 잡힌다.
+    """
+    if len(turbines) < 1:
+        raise ValueError('발전기 위치를 1기 이상 지정해야 합니다.')
+    spots = geo.circles(turbines, turbine_radius_m)
+    route = geo.corridor(turbines, corridor_radius_m)
+    area = geo.union([spots, route])
+    if area is None:
+        raise ValueError('배치선으로 검토 구역을 만들지 못했습니다.')
+    return _compute(area, separation_zone=spots, layout={
+        'turbines': [[round(a, 6), round(o, 6)] for a, o in turbines],
+        'turbine_radius_m': turbine_radius_m,
+        'corridor_radius_m': corridor_radius_m,
+        'turbine_area_m2': float(spots.area) if spots is not None else 0.0,
+        'corridor_area_m2': float(geo.subtract(route, spots).area)
+                            if route is not None and geo.subtract(route, spots) is not None else 0.0,
+    })
+
+
+def _compute(area, separation_zone=None, layout: dict | None = None) -> dict:
     total = float(area.area)
 
     slices, jmeta = jurisdiction.with_ordinances(area)
@@ -238,7 +305,7 @@ def compute(area_ring: list) -> dict:
              else conditional_parts).append(merged)
             by_reason.append(row)
 
-    buffers, buf_notes = _facility_buffers(area, slices)
+    buffers, buf_notes = _facility_buffers(area, slices, separation_zone)
     # 조례 이격거리는 조문이 직접 금지하는 범위라 원래 배제로 세야 한다.
     # 그런데 지금 쓰는 건물 레이어에는 **용도 구분이 없다.** 창고에까지
     # 주거밀집 2,000m를 씌우면 과대 배제가 된다(삼척 12km² 구역에서 73%).
@@ -299,6 +366,8 @@ def compute(area_ring: list) -> dict:
         # 가용면적이 실제보다 크게 나올 수 있으므로 반드시 함께 읽어야 한다.
         'fetch_failures': failures,
         'notes': buf_notes,
+        # 배치선 검토일 때만 채워진다. 폴리곤 검토면 None.
+        'layout': layout,
         'geoms': {'area': area, 'blocked': blocked,
                   'conditional': conditional, 'free': free},
     }

@@ -2,18 +2,24 @@ import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
-export type PickMode = 'point' | 'area';
+export type PickMode = 'point' | 'area' | 'layout';
 
 interface SitePickerProps {
   lat: number | null;
   lng: number | null;
   radiusM: number;
   onPick: (lat: number, lng: number) => void;
-  /** 'area'면 클릭이 사업구역 꼭짓점을 찍는다 */
+  /**
+   * 'area'  클릭이 사업구역 꼭짓점을 찍는다
+   * 'layout' 클릭이 발전기 위치를 순서대로 찍는다 (1호기부터)
+   */
   mode?: PickMode;
-  /** 구역 꼭짓점 [[lat, lng], …] */
+  /** 구역 꼭짓점 또는 발전기 위치 [[lat, lng], …] */
   ring?: [number, number][];
   onRingChange?: (ring: [number, number][]) => void;
+  /** 배치선 모드 — 발전기 검토반경 / 연결선 검토반경 (m) */
+  turbineRadiusM?: number;
+  corridorRadiusM?: number;
   /** 검토 결과를 지도에 겹쳐 그릴 영역 */
   overlays?: { blocked: [number, number][][]; conditional: [number, number][][];
                free: [number, number][][] } | null;
@@ -60,6 +66,7 @@ const SITE_ZOOM = 14;
 export default function SitePicker({
   lat, lng, radiusM, onPick,
   mode = 'point', ring, onRingChange, overlays,
+  turbineRadiusM = 500, corridorRadiusM = 100,
 }: SitePickerProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -137,7 +144,7 @@ export default function SitePicker({
     map.on('click', (e: L.LeafletMouseEvent) => {
       const a = Number(e.latlng.lat.toFixed(5));
       const o = Number(e.latlng.lng.toFixed(5));
-      if (modeRef.current === 'area') {
+      if (modeRef.current !== 'point') {
         onRingChangeRef.current?.([...ringRef.current, [a, o]]);
         return;
       }
@@ -177,9 +184,39 @@ export default function SitePicker({
     if (!map) return;
     drawRef.current?.remove();
     drawRef.current = null;
-    if (mode !== 'area' || !ring?.length) return;
+    if (mode === 'point' || !ring?.length) return;
 
     const g = L.layerGroup().addTo(map);
+
+    if (mode === 'layout') {
+      // 발전기를 찍은 순서대로 잇는다. 그 선이 집전선로·진입도로 경로가 된다.
+      if (ring.length >= 2) {
+        g.addLayer(L.polyline(ring, { color: '#39d3e6', weight: 3 }));
+        // 연결선 검토폭을 눈으로 가늠할 수 있게 반투명 굵은 선을 겹친다.
+        // 실제 버퍼는 서버가 미터로 계산하므로 이건 어디까지나 눈금이다.
+        g.addLayer(L.polyline(ring, {
+          color: '#39d3e6', weight: 1, opacity: 0.35, dashArray: '3 5',
+        }));
+      }
+      ring.forEach(([a, o], i) => {
+        // 발전기 검토반경은 화면 배율과 무관하게 '실제 미터'로 그린다
+        g.addLayer(L.circle([a, o], {
+          radius: turbineRadiusM, color: '#39d3e6', weight: 1,
+          fillColor: '#39d3e6', fillOpacity: 0.1,
+        }));
+        g.addLayer(L.marker([a, o], {
+          icon: L.divIcon({
+            className: 'ws-turbine',
+            html: `<span>${i + 1}</span>`,
+            iconSize: [22, 22], iconAnchor: [11, 11],
+          }),
+          keyboard: false,
+        }));
+      });
+      drawRef.current = g;
+      return;
+    }
+
     // 3점 미만이면 아직 면이 아니므로 선으로 보여준다.
     if (ring.length >= 3) {
       g.addLayer(L.polygon(ring, {
@@ -197,7 +234,7 @@ export default function SitePicker({
       }));
     });
     drawRef.current = g;
-  }, [mode, ring]);
+  }, [mode, ring, turbineRadiusM, corridorRadiusM]);
 
   // ── 검토 결과 겹쳐 그리기 ───────────────────────────────────────────
   useEffect(() => {
@@ -225,7 +262,7 @@ export default function SitePicker({
 
     // 구역 모드에서는 지점 마커·반경원을 숨긴다. 둘이 같이 떠 있으면
     // 무엇이 검토 대상인지 헷갈린다.
-    if (lat == null || lng == null || mode === 'area') {
+    if (lat == null || lng == null || mode !== 'point') {
       markerRef.current?.remove();
       circleRef.current?.remove();
       markerRef.current = null;
@@ -272,7 +309,12 @@ export default function SitePicker({
       <div ref={hostRef} className="ws-leaflet" />
       <div className="ws-pickfoot">
         <span>
-          {mode === 'area' ? (
+          {mode === 'layout' ? (
+            <>
+              지도를 클릭해 <b>발전기 위치</b>를 1호기부터 순서대로 찍으세요
+              (현재 {n}기 · 반경 {turbineRadiusM.toLocaleString()}m)
+            </>
+          ) : mode === 'area' ? (
             <>
               지도를 클릭해 <b>사업구역 꼭짓점</b>을 찍으세요 (현재 {n}개
               {n > 0 && n < 3 ? ' · 3개 이상 필요' : ''})
