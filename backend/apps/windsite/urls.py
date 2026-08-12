@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     path('evaluate/', views.evaluate_site, name='windsite-evaluate'),
+    path('evaluate-area/', views.evaluate_area, name='windsite-evaluate-area'),
     path('compare/', views.compare_sites, name='windsite-compare'),
     path('report/', views.evaluation_report, name='windsite-report'),
     path('geocode/', views.geocode_view, name='windsite-geocode'),

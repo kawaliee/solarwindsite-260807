@@ -1,9 +1,11 @@
 /** 풍력 입지·인허가 검토 API 클라이언트 */
 import type {
+  AreaResult,
   CompareCandidate,
   CompareResult,
   EvaluationResult,
   GeocodeResult,
+  LatLng,
   LawRef,
   PermitStep,
   ProviderConfigRow,
@@ -36,6 +38,12 @@ export interface EvaluateParams {
 export const windsiteApi = {
   evaluate: (p: EvaluateParams) =>
     req<EvaluationResult>('/evaluate/', { method: 'POST', body: JSON.stringify(p) }),
+
+  evaluateArea: (ring: LatLng[]) =>
+    req<AreaResult>('/evaluate-area/', {
+      method: 'POST',
+      body: JSON.stringify({ ring }),
+    }),
 
   laws: () => req<{ count: number; results: LawRef[] }>('/laws/'),
 

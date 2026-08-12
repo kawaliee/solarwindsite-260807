@@ -255,6 +255,31 @@ def _outer_coords(geom_metric: Any):
         yield from geom_metric.coords
 
 
+def rings_4326(geom_metric: Any, precision: int = 6) -> list:
+    """
+    UTM-K 도형 → 화면에 겹쳐 그릴 [[ [lat,lng], … ], …] 링 목록.
+
+    구멍(내부 링)은 버린다. 제약 영역을 지도에 반투명으로 덮는 용도라
+    구멍까지 정확히 그릴 필요가 없고, 링 구조를 단순하게 유지하는 편이
+    프런트에서 다루기 쉽다. 면적 수치는 도형 원본으로 계산하므로 영향이 없다.
+    """
+    if geom_metric is None or geom_metric.is_empty:
+        return []
+    _require()
+    out: list = []
+    for part in getattr(geom_metric, 'geoms', [geom_metric]):
+        ext = getattr(part, 'exterior', None)
+        if ext is None:
+            continue
+        ring = [
+            [round(lat, precision), round(lng, precision)]
+            for lng, lat in (to_geographic_xy(x, y) for x, y in ext.coords)
+        ]
+        if len(ring) >= 4:
+            out.append(ring)
+    return out
+
+
 def union(geoms: list) -> Any:
     """도형 합집합. 빈 목록이면 None."""
     _require()

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import SitePicker from './SitePicker'
+import SitePicker, { type PickMode } from './SitePicker'
 import { windsiteApi } from './api'
 import {
   CONFIDENCE_HINT,
@@ -12,8 +12,11 @@ import {
   type AnalysisItem,
   type CompareCandidate,
   type CompareResult,
+  type AreaResult,
   type EvaluationResult,
+  type LatLng,
   type LawRef,
+  ORDINANCE_STATE_LABEL,
   type ProviderConfigRow,
 } from './types'
 
@@ -50,6 +53,25 @@ export default function WindSiteView() {
 
   // 지도 클릭 → 역지오코딩 진행 상태
   const [locating, setLocating] = useState(false);
+
+  // 사업구역(폴리곤) 검토 — 점 검토와 별도 상태로 둔다. 둘을 한 변수에
+  // 합치면 모드를 오갈 때 서로의 입력을 지우게 된다.
+  const [pickMode, setPickMode] = useState<PickMode>('point');
+  const [ring, setRing] = useState<LatLng[]>([]);
+  const [areaResult, setAreaResult] = useState<AreaResult | null>(null);
+  const [areaLoading, setAreaLoading] = useState(false);
+
+  async function runArea() {
+    if (ring.length < 3) { setError('사업구역 꼭짓점을 3개 이상 찍어주세요.'); return; }
+    setAreaLoading(true); setError('');
+    try {
+      setAreaResult(await windsiteApi.evaluateArea(ring));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '구역 검토에 실패했습니다.');
+    } finally {
+      setAreaLoading(false);
+    }
+  }
 
   /**
    * 지도에서 지점을 찍으면 주소·행정구역을 자동으로 채운다.
@@ -174,10 +196,39 @@ export default function WindSiteView() {
         <div className="ops-card ws-inputcard">
           <div className="ops-card-hd"><span className="tag">SITE</span> 사업지 지정</div>
           <div className="ops-card-bd">
+            <div className="ws-modebar">
+              {(['point', 'area'] as const).map(m => (
+                <button key={m} type="button"
+                  className={pickMode === m ? 'on' : ''}
+                  onClick={() => setPickMode(m)}>
+                  {m === 'point' ? '지점 검토' : '구역 검토'}
+                </button>
+              ))}
+              {pickMode === 'area' && (
+                <span className="ws-modeacts">
+                  <button type="button" disabled={!ring.length}
+                    onClick={() => setRing(ring.slice(0, -1))}>되돌리기</button>
+                  <button type="button" disabled={!ring.length}
+                    onClick={() => { setRing([]); setAreaResult(null); }}>지우기</button>
+                  <button type="button" className="run"
+                    disabled={ring.length < 3 || areaLoading}
+                    onClick={runArea}>
+                    {areaLoading ? '검토 중…' : '구역 검토 실행'}
+                  </button>
+                </span>
+              )}
+            </div>
             <SitePicker
               lat={lat} lng={lng} radiusM={radiusM}
               onPick={pickSite}
+              mode={pickMode}
+              ring={ring}
+              onRingChange={setRing}
+              overlays={areaResult?.overlays ?? null}
             />
+            {pickMode === 'area' && areaResult && (
+              <AreaSummary r={areaResult} />
+            )}
             <div className="ws-coordrow">
               <label>위도<input type="number" step="0.00001" value={lat ?? ''}
                 placeholder="36.12345"
@@ -531,4 +582,109 @@ function UnknownReasonBadge({ item }: { item: AnalysisItem }) {
 /** 종합등급 배지 — 비교표에서 후보지별 등급을 한눈에 보이게 한다 */
 function StatusBadge({ s }: { s: keyof typeof STATUS_LABEL }) {
   return <span className={`ws-status s-${s}`}>{STATUS_LABEL[s]}</span>;
+}
+
+/**
+ * 사업구역 검토 결과 요약.
+ *
+ * 가용면적을 두 가지로 병기한다. 이 시스템은 생태자연도 1등급도 백두대간
+ * 핵심구역도 '조건부'로 판정하므로(법률상 예외 행위가 있다), 배제/가용을
+ * 하나로 자르면 코드가 법령에 없는 금지를 만들어내게 된다. 어느 쪽을
+ * 쓸지는 사업 판단이다.
+ */
+function AreaSummary({ r }: { r: AreaResult }) {
+  const ha = (b: { ha: number; ratio: number }) =>
+    `${b.ha.toLocaleString()} ha (${(b.ratio * 100).toFixed(1)}%)`;
+  const provisional = r.by_reason.some(x => x.provisional);
+
+  return (
+    <div className="ws-area">
+      <div className="ws-area-hd">
+        사업구역 {r.total.ha.toLocaleString()} ha
+        <em>{r.jurisdictions.map(j => j.sigungu).join(' · ')}</em>
+      </div>
+
+      <div className="ws-area-bars">
+        {([['blocked', '배제'], ['conditional', '조건부'], ['free', '제약 없음'],
+           ['pending', '판정 보류']] as const).map(([k, label]) => (
+          <div key={k} className={`ws-area-bar b-${k}`}>
+            <span className="l">{label}</span>
+            <span className="v">{ha(r[k])}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="ws-area-avail">
+        <div><span>엄격 가용</span><b>{ha(r.available_strict)}</b>
+          <em>어떤 규제 레이어에도 걸리지 않는 면적</em></div>
+        <div><span>협의 포함</span><b>{ha(r.available_with_consultation)}</b>
+          <em>위 + 조건부 (협의·저감으로 진행 가능한 범위)</em></div>
+      </div>
+
+      {provisional && (
+        <p className="ws-area-warn">
+          <b>잠정치</b> — 이격 버퍼는 용도가 확인되지 않은 건물 전체에 조례 최대
+          반경을 씌운 값이라 실제보다 넓습니다. 건물 용도 분류가 반영되면 줄어듭니다.
+        </p>
+      )}
+      {r.fetch_failures.length > 0 && (
+        <p className="ws-area-warn err">
+          <b>조회 실패 {r.fetch_failures.length}건</b> — 보지 못한 제약이 있어
+          가용면적이 실제보다 크게 나올 수 있습니다: {r.fetch_failures.join(' / ')}
+        </p>
+      )}
+
+      <table className="ws-area-tbl">
+        <thead><tr><th>제약 사유</th><th>판정</th><th>면적</th><th>비율</th></tr></thead>
+        <tbody>
+          {r.by_reason.length === 0 && (
+            <tr><td colSpan={4} className="muted">해당 없음</td></tr>
+          )}
+          {r.by_reason.map((b, i) => (
+            <tr key={i}>
+              <td>{b.layer}{b.provisional && <em className="prov"> 잠정</em>}</td>
+              <td>{STATUS_LABEL[b.status]}</td>
+              <td>{b.ha.toLocaleString()} ha</td>
+              <td>{(b.ratio * 100).toFixed(1)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div className="ws-area-side">
+        <div>
+          <h5>용도지역</h5>
+          <p className="muted">
+            국토계획법이 전 국토를 4종으로 나눈 분류라 제약 면적과 축이 다릅니다.
+          </p>
+          <ul>
+            {r.zoning.map((z, i) => (
+              <li key={i}>{z.layer} <b>{(z.ratio * 100).toFixed(1)}%</b></li>
+            ))}
+            {r.zoning.length === 0 && <li className="muted">조회되지 않음</li>}
+          </ul>
+        </div>
+        <div>
+          <h5>구역 전체 조건</h5>
+          <p className="muted">구역을 통째로 덮어 위치를 가르지 못하는 항목입니다.</p>
+          <ul>
+            {r.blanket.map((b, i) => <li key={i}>{b.layer}</li>)}
+            {r.blanket.length === 0 && <li className="muted">해당 없음</li>}
+          </ul>
+        </div>
+        <div>
+          <h5>관할 지자체 · 조례</h5>
+          <ul>
+            {r.jurisdictions.map(j => (
+              <li key={j.code}>
+                {j.sigungu} <b>{(j.ratio * 100).toFixed(1)}%</b>
+                {' · '}{ORDINANCE_STATE_LABEL[j.ordinance_state]}
+                {j.rule_count > 0 && ` (최대 ${j.max_distance_m.toLocaleString()}m)`}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
 }

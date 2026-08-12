@@ -9,12 +9,109 @@ from rest_framework import status as http
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from . import available, geo, jurisdiction
 from .engine import DEFAULT_RADIUS_M, MAX_RADIUS_M, MIN_RADIUS_M, compare, evaluate
 from .geocode import geocode, reverse_geocode
 from .models import LawReference, LocalOrdinance, SiteEvaluation
 from .permits import build_roadmap, collect_laws
 
 logger = logging.getLogger(__name__)
+
+
+#: 사업구역 폴리곤 상한. 국내 최대급 육상풍력 단지도 이 아래다.
+#: 잘못 그린 구역이 수십 번의 타일 조회로 번지는 것을 입구에서 막는다.
+MAX_AREA_KM2 = 500
+#: 꼭짓점 상한 — 지나치게 잘게 그린 도형은 공간연산을 느리게만 만든다.
+MAX_AREA_POINTS = 500
+
+
+@api_view(['POST'])
+def evaluate_area(request):
+    """
+    사업구역(폴리곤) 제약도 검토
+
+    POST body:
+      { "ring": [[lat, lng], [lat, lng], …] }   꼭짓점 3개 이상
+
+    점 검토(evaluate_site)와 달리 항목별 가부가 아니라 **면적 분포**를 낸다.
+    수천 ha 구역은 어딘가 반드시 규제에 걸리므로 가부 판정이 성립하지 않는다.
+    """
+    d = request.data or {}
+    raw = d.get('ring') or []
+    if not isinstance(raw, list) or len(raw) < 3:
+        return Response({'detail': 'ring 에 꼭짓점 3개 이상이 필요합니다.'},
+                        status=http.HTTP_400_BAD_REQUEST)
+    if len(raw) > MAX_AREA_POINTS:
+        return Response({'detail': f'꼭짓점은 {MAX_AREA_POINTS}개 이하여야 합니다.'},
+                        status=http.HTTP_400_BAD_REQUEST)
+
+    ring = []
+    for p in raw:
+        try:
+            lat, lng = float(p[0]), float(p[1])
+        except (TypeError, ValueError, IndexError):
+            return Response({'detail': 'ring 은 [[위도, 경도], …] 형식이어야 합니다.'},
+                            status=http.HTTP_400_BAD_REQUEST)
+        if not (33.0 <= lat <= 38.7 and 124.5 <= lng <= 132.0):
+            return Response({'detail': '대한민국 영역 밖의 좌표가 포함되어 있습니다.'},
+                            status=http.HTTP_400_BAD_REQUEST)
+        ring.append((lat, lng))
+
+    try:
+        result = available.compute(ring)
+    except ValueError as e:
+        return Response({'detail': str(e)}, status=http.HTTP_400_BAD_REQUEST)
+    except jurisdiction.BoundaryUnavailable as e:
+        # 행정경계를 못 받으면 어느 조례를 적용할지 정할 수 없다.
+        # 빈손으로 계산해 넘기면 조례 제약이 통째로 빠진 결과가 나온다.
+        return Response({'detail': f'행정경계를 조회하지 못했습니다: {e}'},
+                        status=http.HTTP_502_BAD_GATEWAY)
+
+    if result['total_area_m2'] > MAX_AREA_KM2 * 1e6:
+        return Response(
+            {'detail': f'사업구역이 너무 넓습니다 '
+                       f'({result["total_area_m2"] / 1e6:,.0f}km², 상한 {MAX_AREA_KM2}km²).'},
+            status=http.HTTP_400_BAD_REQUEST)
+
+    return Response(_area_payload(result, ring))
+
+
+def _area_payload(r: dict, ring: list) -> dict:
+    """계산 결과에서 도형을 걷어내고 화면이 쓸 형태로 만든다."""
+    total = r['total_area_m2'] or 1.0
+
+    def block(m2: float) -> dict:
+        return {'area_m2': round(m2, 1), 'ha': round(m2 / 10_000, 2),
+                'ratio': round(m2 / total, 4)}
+
+    geoms = r.get('geoms') or {}
+    return {
+        'ring': [[round(a, 6), round(o, 6)] for a, o in ring],
+        'total': block(r['total_area_m2']),
+        'blocked': block(r['blocked_m2']),
+        'conditional': block(r['conditional_m2']),
+        'free': block(r['free_m2']),
+        'pending': block(r['pending_m2']),
+        'available_strict': block(r['available_strict_m2']),
+        'available_with_consultation': block(r['available_with_consultation_m2']),
+        'by_reason': [
+            {**b, 'ha': round(b['area_m2'] / 10_000, 2),
+             'area_m2': round(b['area_m2'], 1), 'ratio': round(b['ratio'], 4)}
+            for b in r['by_reason']],
+        'zoning': [
+            {**z, 'ha': round(z['area_m2'] / 10_000, 2),
+             'area_m2': round(z['area_m2'], 1), 'ratio': round(z['ratio'], 4)}
+            for z in r['zoning']],
+        'blanket': r['blanket'],
+        'jurisdictions': r['jurisdictions'],
+        'jurisdiction_meta': r['jurisdiction_meta'],
+        'fetch_failures': r['fetch_failures'],
+        'notes': r['notes'],
+        # 화면에 겹쳐 그릴 수 있도록 위경도 링으로 돌려준다.
+        'overlays': {k: geo.rings_4326(geoms.get(k))
+                     for k in ('blocked', 'conditional', 'free')},
+        'evaluated_at': datetime.now().isoformat(timespec='seconds'),
+    }
 
 
 @api_view(['POST'])

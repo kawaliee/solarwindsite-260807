@@ -1642,3 +1642,57 @@ select.fs-input { cursor: pointer; }
 .ws-status.s-CONDITIONAL { background: rgba(255,193,64,.16); color: var(--warn); }
 .ws-status.s-IMPOSSIBLE { background: rgba(255,91,106,.16); color: var(--red); }
 .ws-status.s-UNKNOWN { background: rgba(255,255,255,.08); color: var(--ink-faint); }
+
+/* ── 사업구역(폴리곤) 검토 ────────────────────────────────────────── */
+.ws-modebar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.ws-modebar > button {
+  padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  border: 1px solid #2a3a4d; background: #16202c; color: #8fa3b8; cursor: pointer;
+}
+.ws-modebar > button.on { background: #39d3e6; border-color: #39d3e6; color: #06202a; }
+.ws-modeacts { display: flex; gap: 6px; margin-left: auto; }
+.ws-modeacts button {
+  padding: 5px 12px; border-radius: 6px; font-size: 12px;
+  border: 1px solid #2a3a4d; background: #16202c; color: #8fa3b8; cursor: pointer;
+}
+.ws-modeacts button:disabled { opacity: .4; cursor: not-allowed; }
+.ws-modeacts button.run { background: #39d3e6; border-color: #39d3e6; color: #06202a; font-weight: 700; }
+
+.ws-area { margin-top: 14px; border-top: 1px solid #22303f; padding-top: 12px; }
+.ws-area-hd { font-size: 14px; font-weight: 700; color: #dbe7f2; margin-bottom: 10px; }
+.ws-area-hd em { font-style: normal; font-weight: 400; color: #7f93a8; margin-left: 8px; font-size: 12px; }
+
+.ws-area-bars { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.ws-area-bar { border-radius: 8px; padding: 9px 11px; background: #131d28; border-left: 3px solid #2a3a4d; }
+.ws-area-bar .l { display: block; font-size: 11px; color: #7f93a8; }
+.ws-area-bar .v { display: block; font-size: 14px; font-weight: 700; color: #dbe7f2; margin-top: 2px; }
+.ws-area-bar.b-blocked { border-left-color: #ff4d4f; }
+.ws-area-bar.b-conditional { border-left-color: #faad14; }
+.ws-area-bar.b-free { border-left-color: #52c41a; }
+.ws-area-bar.b-pending { border-left-color: #6b7f94; }
+
+.ws-area-avail { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.ws-area-avail > div { background: #101a24; border: 1px solid #22303f; border-radius: 8px; padding: 9px 11px; }
+.ws-area-avail span { font-size: 11px; color: #7f93a8; display: block; }
+.ws-area-avail b { font-size: 15px; color: #39d3e6; display: block; margin: 2px 0; }
+.ws-area-avail em { font-style: normal; font-size: 11px; color: #6b7f94; }
+
+.ws-area-warn {
+  margin: 10px 0 0; padding: 8px 11px; border-radius: 6px; font-size: 12px;
+  background: rgba(250, 173, 20, .1); border: 1px solid rgba(250, 173, 20, .35); color: #e8c37a;
+}
+.ws-area-warn.err { background: rgba(255, 77, 79, .1); border-color: rgba(255, 77, 79, .35); color: #f0a1a2; }
+
+.ws-area-tbl { width: 100%; margin-top: 12px; border-collapse: collapse; font-size: 12px; }
+.ws-area-tbl th, .ws-area-tbl td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #1c2836; }
+.ws-area-tbl th { color: #7f93a8; font-weight: 600; }
+.ws-area-tbl td { color: #c3d3e2; }
+.ws-area-tbl .prov { font-style: normal; color: #e8c37a; font-size: 11px; }
+.ws-area-tbl .muted, .ws-area-side .muted { color: #6b7f94; }
+
+.ws-area-side { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-top: 14px; }
+.ws-area-side h5 { margin: 0 0 4px; font-size: 12px; color: #dbe7f2; }
+.ws-area-side p { margin: 0 0 6px; font-size: 11px; line-height: 1.45; }
+.ws-area-side ul { margin: 0; padding-left: 15px; font-size: 12px; color: #c3d3e2; }
+.ws-area-side li { margin-bottom: 3px; }
+.ws-area-side b { color: #39d3e6; }

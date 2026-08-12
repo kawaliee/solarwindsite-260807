@@ -186,3 +186,69 @@ export interface CompareCandidate {
   sido?: string;
   sigungu?: string;
 }
+
+// ── 사업구역(폴리곤) 제약도 ────────────────────────────────────────
+// 점 검토는 항목별 가부를 내지만, 수천 ha 구역은 어딘가 반드시 규제에
+// 걸리므로 가부가 성립하지 않는다. 대신 면적이 어떻게 나뉘는지를 낸다.
+
+export type LatLng = [number, number];
+
+export interface AreaBlock {
+  area_m2: number;
+  ha: number;
+  ratio: number;
+}
+
+export interface AreaReason {
+  layer: string;
+  status: FeasibilityStatus;
+  area_m2: number;
+  ha: number;
+  ratio: number;
+  /** 산출 근거가 잠정적임 (예: 건물 용도 미확인 상태의 이격 버퍼) */
+  provisional?: boolean;
+  /** 구역 전체를 덮어 위치를 가르지 못하는 레이어 */
+  blanket?: boolean;
+}
+
+export interface AreaJurisdiction {
+  code: string;
+  sido: string;
+  sigungu: string;
+  full_name: string;
+  area_m2: number;
+  ratio: number;
+  ordinance_state: 'HAS_RULES' | 'NO_RULE' | 'NOT_FOUND' | 'UNVERIFIED';
+  rule_count: number;
+  max_distance_m: number;
+}
+
+export interface AreaResult {
+  ring: LatLng[];
+  total: AreaBlock;
+  blocked: AreaBlock;
+  conditional: AreaBlock;
+  free: AreaBlock;
+  pending: AreaBlock;
+  /** 아무 레이어에도 걸리지 않는 면적 */
+  available_strict: AreaBlock;
+  /** 위 + 조건부 (협의·저감으로 진행 가능한 범위) */
+  available_with_consultation: AreaBlock;
+  by_reason: AreaReason[];
+  zoning: AreaReason[];
+  blanket: AreaReason[];
+  jurisdictions: AreaJurisdiction[];
+  jurisdiction_meta: Record<string, unknown>;
+  /** 조회하지 못한 레이어 — 있으면 못 본 제약이 있다는 뜻이다 */
+  fetch_failures: string[];
+  notes: string[];
+  overlays: { blocked: LatLng[][]; conditional: LatLng[][]; free: LatLng[][] };
+  evaluated_at: string;
+}
+
+export const ORDINANCE_STATE_LABEL: Record<AreaJurisdiction['ordinance_state'], string> = {
+  HAS_RULES: '조례 적용',
+  NO_RULE: '이격 조례 없음(확인됨)',
+  NOT_FOUND: '조례 미확인',
+  UNVERIFIED: '조회 실패',
+};
