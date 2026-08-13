@@ -3,7 +3,6 @@ import type {
   AreaResult,
   CompareCandidate,
   CompareResult,
-  EvaluationResult,
   GeocodeResult,
   LatLng,
   LawRef,
@@ -25,39 +24,18 @@ async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json();
 }
 
-export interface EvaluateParams {
-  lat: number;
-  lng: number;
-  radius_m: number;
-  address?: string;
-  capacity_mw?: number | null;
-  sido?: string;
-  sigungu?: string;
-}
-
 export const windsiteApi = {
-  evaluate: (p: EvaluateParams) =>
-    req<EvaluationResult>('/evaluate/', { method: 'POST', body: JSON.stringify(p) }),
-
-  evaluateArea: (ring: LatLng[], permitDate = '') =>
+  /**
+   * 사업지 검토 — 지점 1개 이상(배치선) 또는 구역 폴리곤.
+   *
+   * 지점 1개면 예전 '지점 검토'와 같은 결과가 나온다. 같은 엔진을 같은
+   * 인자로 부르므로 판정이 완전히 일치한다(실측 확인).
+   * withItems를 주면 규제 62개 항목까지 함께 낸다 — 지점이 많으면 느리다.
+   */
+  evaluateArea: (body: Record<string, unknown>) =>
     req<AreaResult>('/evaluate-area/', {
       method: 'POST',
-      body: JSON.stringify({ ring, permit_date: permitDate }),
-    }),
-
-  /** 발전기 배치선 검토 — turbines는 1호기부터 순서대로 */
-  evaluateLayout: (
-    turbines: LatLng[], turbineRadiusM: number, corridorRadiusM: number,
-    permitDate = '',
-  ) =>
-    req<AreaResult>('/evaluate-area/', {
-      method: 'POST',
-      body: JSON.stringify({
-        turbines,
-        turbine_radius_m: turbineRadiusM,
-        corridor_radius_m: corridorRadiusM,
-        permit_date: permitDate,
-      }),
+      body: JSON.stringify(body),
     }),
 
   laws: () => req<{ count: number; results: LawRef[] }>('/laws/'),
@@ -117,9 +95,6 @@ export const windsiteApi = {
     });
   },
 
-  async downloadReport(p: EvaluateParams & { with_maps?: boolean }): Promise<void> {
-    return download('/windsite/report/', p, '풍력입지검토');
-  },
 };
 
 /** docx 내려받기 공통 — 파일명은 Content-Disposition(RFC 5987)에서 읽는다 */

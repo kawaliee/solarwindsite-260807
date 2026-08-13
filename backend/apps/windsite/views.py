@@ -40,16 +40,25 @@ def evaluate_area(request):
     점 검토(evaluate_site)와 달리 항목별 가부가 아니라 **면적 분포**를 낸다.
     수천 ha 구역은 어딘가 반드시 규제에 걸리므로 가부 판정이 성립하지 않는다.
     """
-    parsed = _parse_area_request(request.data or {})
+    d = request.data or {}
+    parsed = _parse_area_request(d)
     if isinstance(parsed, Response):
         return parsed
     ring, is_layout, permit_date, radii = parsed
+    job_id = str(d.get('job_id') or '')[:64]
+    jobs.clear(job_id)
+    # 규제 62개 항목은 지점에서만 성립한다. 화면에도 보여줘야 하지만 지점이
+    # 많으면 수 분이 걸리므로, 요청한 경우에만 함께 낸다.
+    want_items = bool(d.get('with_items'))
 
     try:
         if is_layout:
-            result = available.compute_layout(ring, permit_date=permit_date, **radii)
+            result = available.compute_layout(ring, permit_date=permit_date,
+                                              job_id=job_id, **radii)
         else:
-            result = available.compute(ring, permit_date=permit_date)
+            result = available.compute(ring, permit_date=permit_date, job_id=job_id)
+    except jobs.Cancelled:
+        return _cancelled()
     except ValueError as e:
         return Response({'detail': str(e)}, status=http.HTTP_400_BAD_REQUEST)
     except jurisdiction.BoundaryUnavailable as e:
@@ -64,7 +73,16 @@ def evaluate_area(request):
                        f'({result["total_area_m2"] / 1e6:,.0f}km², 상한 {MAX_AREA_KM2}km²).'},
             status=http.HTTP_400_BAD_REQUEST)
 
-    return Response(_area_payload(result, ring))
+    evals = []
+    if want_items:
+        try:
+            evals = _point_evals(result, ring, is_layout, _capacity(d), job_id)
+        except jobs.Cancelled:
+            return _cancelled()
+        except Exception:                                       # noqa: BLE001
+            logger.exception('항목 평가 실패')
+    jobs.clear(job_id)
+    return Response(_area_payload(result, ring, evals))
 
 
 #: 클라이언트가 요청을 접었을 때 쓰는 상태. 표준 코드가 없어 널리 쓰이는
@@ -216,20 +234,7 @@ def area_report_download(request):
     # 면적 분포만으로는 '어느 호기가 무엇에 걸리는지'를 알 수 없어 배치를 고칠 수 없다.
     evals = []
     try:
-        layout = result.get('layout')
-        pts = [(a, o) for a, o in layout['turbines']] if layout else [
-            (result['geoms']['area'].centroid.y, result['geoms']['area'].centroid.x)]
-        if layout:
-            evals = available.evaluate_points(
-                pts, radius_m=layout['turbine_radius_m'],
-                capacity_mw=_capacity(d), job_id=job_id)
-        else:
-            # 폴리곤 검토에는 호기가 없다. 구역 대표점 한 곳에서 항목 평가를 낸다.
-            c = result['geoms']['area'].centroid
-            lat, lng = geo.to_geographic_xy(c.x, c.y)[1], geo.to_geographic_xy(c.x, c.y)[0]
-            evals = available.evaluate_points(
-                [(lat, lng)], radius_m=100,
-                capacity_mw=_capacity(d), label='지점', job_id=job_id)
+        evals = _point_evals(result, ring, is_layout, _capacity(request.data or {}), job_id)
     except jobs.Cancelled:
         return _cancelled()
     except Exception:                                           # noqa: BLE001
@@ -248,6 +253,7 @@ def area_report_download(request):
         return Response({'detail': f'보고서 생성에 실패했습니다: {type(e).__name__}'},
                         status=http.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    _save_history(result, evals, request)
     jobs.clear(job_id)
     name = f'풍력구역검토_{datetime.now():%Y-%m-%d}.docx'
     res = HttpResponse(
@@ -257,7 +263,61 @@ def area_report_download(request):
     return res
 
 
-def _area_payload(r: dict, ring: list) -> dict:
+def _save_history(result: dict, evals: list, request) -> None:
+    """
+    검토 이력 저장. 실패해도 보고서 반환을 막지 않는다.
+
+    종전에는 지점 검토를 실행할 때마다 남겼는데, 화면을 오가며 수십 건이
+    쌓여도 쓰이지 않았다. 보고서를 뽑은 시점만 남기면 '실제로 문서로 나간
+    검토'가 이력이 되어 감사 추적으로 쓸모가 있다.
+    """
+    ok = [e for e in evals if e.get('result')]
+    if not ok:
+        return
+    first, best = ok[0], min(ok, key=lambda e: e['result'].overall_feasibility.score)
+    layout = result.get('layout') or {}
+    try:
+        SiteEvaluation.objects.create(
+            address=first.get('address') or '',
+            lat=first['lat'], lng=first['lng'],
+            radius_m=layout.get('turbine_radius_m') or 0,
+            sido=first.get('sido', ''), sigungu=first.get('sigungu', ''),
+            score=best['result'].overall_feasibility.score,
+            grade=best['result'].overall_feasibility.grade,
+            summary=f"지점 {len(ok)}곳 · 검토면적 {result['total_area_m2'] / 1e4:,.1f}ha",
+            result_json={'total_area_m2': result['total_area_m2'],
+                         'free_m2': result['free_m2'],
+                         'points': [{'no': e['no'], 'address': e['address'],
+                                     'score': e['result'].overall_feasibility.score}
+                                    for e in ok]},
+            created_by=(request.user
+                        if getattr(request.user, 'is_authenticated', False) else None),
+        )
+    except Exception:                                           # noqa: BLE001
+        logger.exception('검토 이력 저장 실패')
+
+
+def _point_evals(result: dict, ring: list, is_layout: bool, capacity, job_id: str):
+    """
+    지점별 62개 항목 평가. 배치선이면 호기마다, 폴리곤이면 구역 대표점 한 곳.
+
+    검토 실행과 보고서가 같은 값을 써야 화면과 문서가 어긋나지 않는다.
+    """
+    layout = result.get('layout')
+    if layout:
+        pts = [(a, o) for a, o in layout['turbines']]
+        return available.evaluate_points(
+            pts, radius_m=layout['turbine_radius_m'],
+            capacity_mw=capacity, job_id=job_id)
+    # 폴리곤 검토에는 호기가 없다. 구역 대표점 한 곳에서 항목 평가를 낸다.
+    c = result['geoms']['area'].centroid
+    lng, lat = geo.to_geographic_xy(c.x, c.y)
+    return available.evaluate_points(
+        [(lat, lng)], radius_m=100, capacity_mw=capacity,
+        label='지점', job_id=job_id)
+
+
+def _area_payload(r: dict, ring: list, evals: list | None = None) -> dict:
     """계산 결과에서 도형을 걷어내고 화면이 쓸 형태로 만든다."""
     total = r['total_area_m2'] or 1.0
 
@@ -295,96 +355,28 @@ def _area_payload(r: dict, ring: list) -> dict:
         # 화면에 겹쳐 그릴 수 있도록 위경도 링으로 돌려준다.
         'overlays': {k: geo.rings_4326(geoms.get(k))
                      for k in ('blocked', 'conditional', 'free')},
+        # 규제 62개 항목 — with_items로 요청했을 때만 채워진다.
+        'items': _items_payload(evals or []),
         'evaluated_at': datetime.now().isoformat(timespec='seconds'),
     }
 
 
-@api_view(['POST'])
-def evaluate_site(request):
-    """
-    입지타당성 검토 실행
-
-    POST body:
-      { "lat": 36.1234, "lng": 128.5678, "radius_m": 100,
-        "address": "...", "capacity_mw": 60,
-        "sido": "경상북도", "sigungu": "청도군" }
-    """
-    d = request.data or {}
-    # 1) 좌표 파싱 — 없으면 address 를 V-World 지오코딩해서 좌표 확보
-    lat = lng = None
-    try:
-        lat = float(d['lat'])
-        lng = float(d['lng'])
-    except (KeyError, TypeError, ValueError):
-        addr = (d.get('address') or '').strip()
-        if addr:
-            g = geocode(addr)
-            if g:
-                lat, lng = g['lat'], g['lng']
-
-    if lat is None or lng is None:
-        return Response(
-            {'detail': 'lat/lng 또는 지오코딩 가능한 address 가 필요합니다. '
-                       '(address 지오코딩은 V-World 인증키가 필요합니다.)'},
-            status=http.HTTP_400_BAD_REQUEST)
-
-    if not (33.0 <= lat <= 38.7 and 124.5 <= lng <= 132.0):
-        return Response({'detail': '대한민국 영역 밖의 좌표입니다.'},
-                        status=http.HTTP_400_BAD_REQUEST)
-
-    try:
-        radius_m = int(d.get('radius_m') or DEFAULT_RADIUS_M)
-    except (TypeError, ValueError):
-        radius_m = DEFAULT_RADIUS_M
-    radius_m = max(MIN_RADIUS_M, min(MAX_RADIUS_M, radius_m))
-
-    capacity = d.get('capacity_mw')
-    try:
-        capacity = float(capacity) if capacity not in (None, '') else None
-    except (TypeError, ValueError):
-        capacity = None
-
-    sido = (d.get('sido') or '').strip()
-    sigungu = (d.get('sigungu') or '').strip()
-    address = (d.get('address') or '').strip()
-
-    # 2) 행정구역 미입력 시 좌표를 역지오코딩해 자동 채움 → 지자체 이격거리 조례 조회가 자동으로 걸린다
-    if not sido or not sigungu:
-        rg = reverse_geocode(lat, lng)
-        if rg:
-            sido = sido or rg.get('sido', '')
-            sigungu = sigungu or rg.get('sigungu', '')
-            if not address:
-                address = rg.get('address', '')
-
-    result = evaluate(
-        lat=lat, lng=lng, radius_m=radius_m,
-        address=address,
-        capacity_mw=capacity,
-        sido=sido,
-        sigungu=sigungu,
-    )
-    payload = result.to_dict()
-    # 자동 판별된 행정구역/좌표를 응답에 함께 실어 프론트가 표시할 수 있게 한다
-    if isinstance(payload.get('site_info'), dict):
-        payload['site_info'].setdefault('sido', sido)
-        payload['site_info'].setdefault('sigungu', sigungu)
-
-    # 이력 저장 (실패해도 응답은 정상 반환)
-    try:
-        SiteEvaluation.objects.create(
-            address=result.site_info.address, lat=lat, lng=lng, radius_m=radius_m,
-            capacity_mw=capacity, sido=sido, sigungu=sigungu,
-            score=result.overall_feasibility.score,
-            grade=result.overall_feasibility.grade,
-            summary=result.overall_feasibility.summary,
-            result_json=payload,
-            created_by=request.user if getattr(request.user, 'is_authenticated', False) else None,
-        )
-    except Exception:                                   # noqa: BLE001
-        logger.exception('입지 검토 이력 저장 실패')
-
-    return Response(payload)
+def _items_payload(evals: list) -> dict:
+    """호기별 결과를 화면이 쓸 형태로 — 항목별 최악값 + 지점별 요약."""
+    ok = [e for e in evals if e.get('result')]
+    if not ok:
+        return {}
+    merged = available.merge_items(ok)
+    return {
+        'merged': merged,
+        'points': [{
+            'no': e['no'], 'address': e['address'],
+            'lat': e['lat'], 'lng': e['lng'],
+            'grade': e['result'].overall_feasibility.grade,
+            'score': e['result'].overall_feasibility.score,
+            'summary': e['result'].overall_feasibility.summary,
+        } for e in ok],
+    }
 
 
 @api_view(['POST'])
@@ -426,159 +418,6 @@ def compare_sites(request):
     return Response(compare(prepared))
 
 
-@api_view(['POST'])
-def evaluation_report(request):
-    """
-    검토 보고서(docx) 생성 — 이미 저장된 이력 또는 즉석 검토 결과로 만든다.
-
-    POST body: { "evaluation_id": "<uuid>" }  또는  evaluate 와 동일한 좌표 파라미터
-    """
-    from django.http import HttpResponse
-
-    from .report import build_report
-    from .schemas import (
-        AnalysisItem, Confidence, Coordinates, Difficulty, EvaluationResult,
-        OverallFeasibility, SiteInfo, Status,
-    )
-
-    d = request.data or {}
-    eval_id = d.get('evaluation_id')
-
-    if eval_id:
-        try:
-            row = SiteEvaluation.objects.get(pk=eval_id)
-        except (SiteEvaluation.DoesNotExist, ValueError, TypeError):
-            return Response({'detail': '검토 이력을 찾을 수 없습니다.'},
-                            status=http.HTTP_404_NOT_FOUND)
-        payload = row.result_json or {}
-        result = _result_from_payload(
-            payload, AnalysisItem, Confidence, Coordinates, Difficulty,
-            EvaluationResult, OverallFeasibility, SiteInfo, Status)
-        sido, sigungu = row.sido, row.sigungu
-        stem = row.address or f'{row.lat:.5f}_{row.lng:.5f}'
-    else:
-        try:
-            lat, lng = _resolve_point(d)
-        except ValueError as e:
-            return Response({'detail': str(e)}, status=http.HTTP_400_BAD_REQUEST)
-        sido, sigungu, address = _resolve_admin(d, lat, lng)
-        result = evaluate(
-            lat=lat, lng=lng,
-            radius_m=max(MIN_RADIUS_M,
-                         min(MAX_RADIUS_M, int(d.get('radius_m') or DEFAULT_RADIUS_M))),
-            address=address, capacity_mw=_as_float(d.get('capacity_mw')),
-            sido=sido, sigungu=sigungu,
-        )
-        stem = address or f'{lat:.5f}_{lng:.5f}'
-
-    try:
-        blob = build_report(result, sido=sido, sigungu=sigungu,
-                            with_maps=bool(d.get('with_maps', True)))
-    except ImportError as e:
-        return Response(
-            {'detail': f'보고서 생성 의존성이 없습니다 ({e}). '
-                       'requirements.txt 반영 후 backend 이미지를 재빌드하십시오.'},
-            status=http.HTTP_501_NOT_IMPLEMENTED)
-
-    filename = f'풍력입지검토_{stem}_{datetime.now():%Y%m%d}.docx'.replace('/', '_')
-    res = HttpResponse(
-        blob,
-        content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-    res['Content-Disposition'] = \
-        f"attachment; filename*=UTF-8''{quote(filename)}"
-    return res
-
-
-# ----------------------------------------------------------------------
-def _as_float(v):
-    try:
-        return float(v) if v not in (None, '') else None
-    except (TypeError, ValueError):
-        return None
-
-
-def _resolve_point(d: dict) -> tuple[float, float]:
-    """lat/lng 또는 address(지오코딩)에서 좌표를 확정한다."""
-    try:
-        lat, lng = float(d['lat']), float(d['lng'])
-    except (KeyError, TypeError, ValueError):
-        addr = (d.get('address') or '').strip()
-        g = geocode(addr) if addr else None
-        if not g:
-            raise ValueError('lat/lng 또는 지오코딩 가능한 address 가 필요합니다.')
-        lat, lng = g['lat'], g['lng']
-    if not (33.0 <= lat <= 38.7 and 124.5 <= lng <= 132.0):
-        raise ValueError('대한민국 영역 밖의 좌표입니다.')
-    return lat, lng
-
-
-def _resolve_admin(d: dict, lat: float, lng: float) -> tuple[str, str, str]:
-    """행정구역 미입력 시 역지오코딩으로 자동 채움."""
-    sido = (d.get('sido') or '').strip()
-    sigungu = (d.get('sigungu') or '').strip()
-    address = (d.get('address') or '').strip()
-    if not sido or not sigungu or not address:
-        rg = reverse_geocode(lat, lng) or {}
-        sido = sido or rg.get('sido', '')
-        sigungu = sigungu or rg.get('sigungu', '')
-        address = address or rg.get('address', '')
-    return sido, sigungu, address
-
-
-def _result_from_payload(payload, AnalysisItem, Confidence, Coordinates, Difficulty,
-                         EvaluationResult, OverallFeasibility, SiteInfo, Status):
-    """저장된 result_json → EvaluationResult 복원 (보고서 재생성용)."""
-    si = payload.get('site_info') or {}
-    coord = si.get('coordinates') or {}
-    of = payload.get('overall_feasibility') or {}
-
-    items = []
-    for raw in payload.get('analysis_items') or []:
-        items.append(AnalysisItem(
-            category=raw.get('category', ''), item_name=raw.get('item_name', ''),
-            status=Status(raw.get('status', 'UNKNOWN')), reason=raw.get('reason', ''),
-            difficulty=Difficulty(raw.get('difficulty', 'MEDIUM')), law=raw.get('law', ''),
-            article=raw.get('article', ''),
-            confidence=Confidence(raw.get('confidence', 'LOW')),
-            source_url=raw.get('source_url', ''), data_source=raw.get('data_source', ''),
-            raw=raw.get('raw', {}), action_required=raw.get('action_required', ''),
-        ))
-
-    from .schemas import PermitStepResult
-
-    roadmap = []
-    for s in payload.get('permit_roadmap') or []:
-        try:
-            roadmap.append(PermitStepResult(
-                order=s.get('order', 0), phase=s.get('phase', ''), name=s.get('name', ''),
-                authority=s.get('authority', ''), law=s.get('law', ''),
-                article=s.get('article', ''), statutory_days=s.get('statutory_days'),
-                depends_on=s.get('depends_on') or [], applicable=s.get('applicable', True),
-                applicability_reason=s.get('applicability_reason', ''),
-                confidence=Confidence(s.get('confidence', 'LOW')),
-                source_url=s.get('source_url', ''), note=s.get('note', ''),
-            ))
-        except (TypeError, ValueError):
-            continue
-
-    return EvaluationResult(
-        site_info=SiteInfo(
-            address=si.get('address', ''),
-            coordinates=Coordinates(lat=coord.get('lat', 0.0), lng=coord.get('lng', 0.0)),
-            # 저장된 이력을 되살리는 자리다. 기본 반경이 500m이던 시절의
-            # 기록이 남아 있으므로 DEFAULT_RADIUS_M로 바꾸지 않는다.
-            radius_m=si.get('radius_m', 500), total_area_m2=si.get('total_area_m2', 0.0),
-        ),
-        overall_feasibility=OverallFeasibility(
-            score=of.get('score', 0), grade=of.get('grade', 'UNKNOWN'),
-            summary=of.get('summary', '')),
-        analysis_items=items,
-        permit_roadmap=roadmap,
-        applicable_laws=payload.get('applicable_laws') or [],
-        data_gaps=payload.get('data_gaps') or [],
-        evaluated_at=payload.get('evaluated_at', ''),
-    )
-
 
 @api_view(['POST'])
 def geocode_view(request):
@@ -618,7 +457,6 @@ def geocode_view(request):
             detail = ('해당 좌표에서 주소를 찾지 못했습니다. '
                       '해상이거나 주소가 부여되지 않은 지역일 수 있습니다.')
         return Response({'detail': detail}, status=http.HTTP_404_NOT_FOUND)
-    return Response({'lat': lat, 'lng': lng, **rg})
 
 
 @api_view(['GET'])

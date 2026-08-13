@@ -277,6 +277,8 @@ export interface AreaResult {
   /** 배치선 검토일 때만 채워진다 */
   layout: AreaLayout | null;
   grandfathering: Grandfathering | null;
+  /** with_items 요청 시에만 채워진다 */
+  items?: AreaItems;
   jurisdictions: AreaJurisdiction[];
   jurisdiction_meta: Record<string, unknown>;
   /** 조회하지 못한 레이어 — 있으면 못 본 제약이 있다는 뜻이다 */
@@ -292,3 +294,35 @@ export const ORDINANCE_STATE_LABEL: Record<AreaJurisdiction['ordinance_state'], 
   NOT_FOUND: '조례 미확인',
   UNVERIFIED: '조회 실패',
 };
+
+/** 지점별 62개 항목 — with_items로 요청했을 때만 채워진다 */
+export interface AreaItem {
+  category: string;
+  item_name: string;
+  status: FeasibilityStatus;
+  reason: string;
+  law: string;
+  article: string;
+  unknown_reason: string;
+  /** 가장 나쁜 판정이 나온 지점 번호 */
+  worst_no: number | null;
+  /** 그 판정에 해당하는 지점 수 / 전체 지점 수 */
+  hits: number;
+  total: number;
+  per_point: Record<string, FeasibilityStatus>;
+}
+
+export interface AreaItemPoint {
+  no: number;
+  address: string;
+  lat: number;
+  lng: number;
+  grade: FeasibilityStatus;
+  score: number;
+  summary: string;
+}
+
+export interface AreaItems {
+  merged: AreaItem[];
+  points: AreaItemPoint[];
+}

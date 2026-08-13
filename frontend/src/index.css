@@ -1765,3 +1765,22 @@ select.fs-input { cursor: pointer; }
   transition: width .4s ease;
 }
 .ws-progress .txt { font-size: 11px; color: #8fa3b8; white-space: nowrap; }
+
+/* 지점별 판정 카드 (통합 검토 결과) */
+.ws-pointgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 8px; margin-bottom: 14px; }
+.ws-pointcard { display: flex; gap: 10px; align-items: center; padding: 9px 11px;
+  background: #131d28; border: 1px solid #22303f; border-radius: 8px; border-left-width: 3px; }
+.ws-pointcard.g-IMPOSSIBLE { border-left-color: #ff4d4f; }
+.ws-pointcard.g-CONDITIONAL { border-left-color: #faad14; }
+.ws-pointcard.g-UNKNOWN { border-left-color: #6b7f94; }
+.ws-pointcard.g-POSSIBLE { border-left-color: #52c41a; }
+.ws-pointcard .no { display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%; flex: none;
+  background: #39d3e6; color: #06202a; font: 700 11px/1 sans-serif; }
+.ws-pointcard .body { min-width: 0; }
+.ws-pointcard b { display: block; font-size: 13px; color: #dbe7f2; }
+.ws-pointcard span { display: block; font-size: 11px; color: #7f93a8;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-catcount { font-style: normal; color: #6b7f94; font-weight: 400; }
+.ws-item-ft .hit { color: #e8c37a; }

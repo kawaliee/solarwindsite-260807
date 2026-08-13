@@ -8,12 +8,11 @@ import {
   STATUS_LABEL,
   UNKNOWN_REASON_HINT,
   UNKNOWN_REASON_LABEL,
-  type UnknownReason,
-  type AnalysisItem,
   type CompareCandidate,
   type CompareResult,
+  type AreaItem,
+  type PermitStep,
   type AreaResult,
-  type EvaluationResult,
   type LatLng,
   type LawRef,
   ORDINANCE_STATE_LABEL,
@@ -28,23 +27,17 @@ const MIN_RADIUS_M = 50;
 const MAX_RADIUS_M = 20000;
 
 export default function WindSiteView() {
-  const [lat, setLat] = useState<number | null>(null);
-  const [lng, setLng] = useState<number | null>(null);
-  const [radiusM, setRadiusM] = useState(DEFAULT_RADIUS_M);
   const [address, setAddress] = useState('');
   const [sido, setSido] = useState('');
   const [sigungu, setSigungu] = useState('');
   const [capacity, setCapacity] = useState('');
 
-  const [result, setResult] = useState<EvaluationResult | null>(null);
   const [laws, setLaws] = useState<LawRef[]>([]);
   const [config, setConfig] = useState<ProviderConfigRow[]>([]);
   const [tab, setTab] = useState<Tab>('result');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   // 보고서 내려받기
-  const [reporting, setReporting] = useState(false);
 
   // 후보지 비교 — 현재 지점을 후보로 담아 최대 5곳까지 비교한다
   const [candidates, setCandidates] = useState<CompareCandidate[]>([]);
@@ -52,11 +45,10 @@ export default function WindSiteView() {
   const [comparing, setComparing] = useState(false);
 
   // 지도 클릭 → 역지오코딩 진행 상태
-  const [locating, setLocating] = useState(false);
 
   // 사업구역(폴리곤) 검토 — 점 검토와 별도 상태로 둔다. 둘을 한 변수에
   // 합치면 모드를 오갈 때 서로의 입력을 지우게 된다.
-  const [pickMode, setPickMode] = useState<PickMode>('point');
+  const [pickMode, setPickMode] = useState<PickMode>('layout');
   const [ring, setRing] = useState<LatLng[]>([]);
   const [turbineR, setTurbineR] = useState(500);
   /**
@@ -76,12 +68,19 @@ export default function WindSiteView() {
   const [reportProgress, setReportProgress] = useState<{ percent: number; stage: string } | null>(null);
 
   /** 검토와 보고서가 같은 입력을 쓰도록 한 곳에서 만든다 */
-  function areaBody() {
-    return pickMode === 'layout'
-      ? { turbines: ring, turbine_radius_m: turbineR,
-          corridor_radius_m: corridorR, permit_date: permitDate }
-      : { ring, permit_date: permitDate };
+  function areaBody(extra: Record<string, unknown> = {}) {
+    const base = pickMode === 'layout'
+      ? { turbines: ring, turbine_radius_m: turbineR, corridor_radius_m: corridorR }
+      : { ring };
+    return { ...base, permit_date: permitDate, capacity_mw: capacity || null, ...extra };
   }
+
+  /**
+   * 규제 62개 항목까지 함께 받을지.
+   * 지점이 적으면 몇 초라 바로 보여주고, 많으면 버튼으로 따로 부른다 —
+   * 검토 실행이 매번 수 분 걸리면 배치를 다듬을 수가 없다.
+   */
+  const ITEMS_AUTO_MAX = 3;
 
   async function downloadAreaReport() {
     const id = (crypto.randomUUID?.() ?? String(Date.now()));
@@ -113,6 +112,17 @@ export default function WindSiteView() {
     }
   }
 
+  async function loadItems() {
+    setAreaLoading(true); setError('');
+    try {
+      setAreaResult(await windsiteApi.evaluateArea(areaBody({ with_items: true })));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '규제 항목 조회에 실패했습니다.');
+    } finally {
+      setAreaLoading(false);
+    }
+  }
+
   function cancelAreaReport() {
     const job = reportJob.current;
     if (!job) return;
@@ -131,9 +141,8 @@ export default function WindSiteView() {
     }
     setAreaLoading(true); setError('');
     try {
-      setAreaResult(layout
-        ? await windsiteApi.evaluateLayout(ring, turbineR, corridorR, permitDate)
-        : await windsiteApi.evaluateArea(ring, permitDate));
+      setAreaResult(await windsiteApi.evaluateArea(
+        areaBody({ with_items: ring.length <= ITEMS_AUTO_MAX })));
     } catch (e) {
       setError(e instanceof Error ? e.message : '구역 검토에 실패했습니다.');
     } finally {
@@ -148,25 +157,6 @@ export default function WindSiteView() {
    * 이격거리 판정이 통째로 UNKNOWN이 된다. 좌표에서 바로 끌어오는 편이 안전하다.
    * 조회에 실패해도 좌표 지정 자체는 유효하므로 검토를 막지 않는다.
    */
-  const pickSite = async (a: number, o: number) => {
-    setLat(a);
-    setLng(o);
-    setLocating(true);
-    try {
-      const g = await windsiteApi.geocode({ lat: a, lng: o });
-      setAddress(g.address || g.road_address || '');
-      setSido(g.sido || '');
-      setSigungu(g.sigungu || '');
-      setError('');
-    } catch {
-      // 바다·비주소 지역이거나 V-World 조회 실패. 좌표는 그대로 살린다.
-      setError('클릭 지점의 주소를 찾지 못했습니다. 주소·행정구역을 직접 입력하십시오.');
-    } finally {
-      setLocating(false);
-    }
-  };
-
-  // ── 발전기 위치 → 주소 역지오코딩 ──────────────────────────────────
   useEffect(() => {
     if (pickMode !== 'layout') return;
     // 길이를 먼저 맞춘다. 되돌리기로 줄면 뒤쪽 주소를 버리고,
@@ -217,59 +207,28 @@ export default function WindSiteView() {
     windsiteApi.config().then(d => setConfig(d.results)).catch(() => setConfig([]));
   }, []);
 
-  const run = async () => {
-    if (lat == null || lng == null) {
-      setError('지도를 클릭하거나 위·경도를 입력해 사업지를 지정하십시오.');
-      return;
-    }
-    setLoading(true);
-    setError('');
-    try {
-      const r = await windsiteApi.evaluate({
-        lat, lng, radius_m: radiusM, address, sido, sigungu,
-        capacity_mw: capacity ? Number(capacity) : null,
-      });
-      setResult(r);
-      setTab('result');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '검토 실행에 실패했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const downloadReport = async () => {
-    if (lat == null || lng == null) {
-      setError('사업지를 먼저 지정하십시오.');
-      return;
-    }
-    setReporting(true);
-    setError('');
-    try {
-      await windsiteApi.downloadReport({
-        lat, lng, radius_m: radiusM, address, sido, sigungu,
-        capacity_mw: capacity ? Number(capacity) : null,
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '보고서 생성에 실패했습니다.');
-    } finally {
-      setReporting(false);
-    }
-  };
-
+  /**
+   * 후보지로 담기 — 지점 1곳을 찍었을 때만 담는다.
+   *
+   * 후보지 비교는 '여러 후보를 같은 기준으로 줄 세우는' 기능이라 후보 하나가
+   * 한 지점이어야 뜻이 통한다. 배치선 전체를 후보로 담으면 무엇을 비교한
+   * 것인지 알 수 없다.
+   */
   const addCandidate = () => {
-    if (lat == null || lng == null) {
-      setError('지도를 클릭해 후보지를 지정한 뒤 담으십시오.');
+    if (pickMode !== 'layout' || ring.length !== 1) {
+      setError('지점을 한 곳만 찍은 상태에서 담을 수 있습니다.');
       return;
     }
+    const [lat, lng] = ring[0];
     if (candidates.length >= 5) {
       setError('한 번에 비교 가능한 후보는 최대 5곳입니다.');
       return;
     }
     setError('');
     setCandidates(prev => [...prev, {
-      label: address || `후보 ${prev.length + 1}`,
-      lat, lng, radius_m: radiusM, address, sido, sigungu,
+      label: (turbineAddrs[0] || `후보 ${prev.length + 1}`),
+      lat, lng, radius_m: turbineR,
+      address: turbineAddrs[0] || '', sido, sigungu,
       capacity_mw: capacity ? Number(capacity) : null,
     }]);
     setTab('compare');
@@ -291,15 +250,29 @@ export default function WindSiteView() {
     }
   };
 
-  const grouped = useMemo(() => {
-    const m = new Map<string, AnalysisItem[]>();
-    (result?.analysis_items ?? []).forEach(i => {
+
+  /** 항목을 영역별로 묶는다 — 심각한 것이 위로 오도록 이미 정렬돼 온다 */
+  const mergedByCategory = useMemo(() => {
+    const m = new Map<string, AreaItem[]>();
+    (areaResult?.items?.merged ?? []).forEach(i => {
       const arr = m.get(i.category) ?? [];
       arr.push(i);
       m.set(i.category, arr);
     });
     return Array.from(m.entries());
-  }, [result]);
+  }, [areaResult]);
+
+  /**
+   * 인허가 로드맵 — 설비용량만으로 정해지므로 지점 검토와 별개로 조회한다.
+   * 종전에는 지점 검토 결과에 얹혀 있어, 검토를 돌려야만 볼 수 있었다.
+   */
+  const [permits, setPermits] = useState<PermitStep[]>([]);
+  useEffect(() => {
+    if (tab !== 'permits') return;
+    windsiteApi.permits(capacity ? Number(capacity) : null)
+      .then(d => setPermits(d.results))
+      .catch(() => setPermits([]));
+  }, [tab, capacity]);
 
   const notConfigured = config.filter(c => c.configured === false);
 
@@ -311,16 +284,16 @@ export default function WindSiteView() {
           <div className="ops-card-hd"><span className="tag">SITE</span> 사업지 지정</div>
           <div className="ops-card-bd">
             <div className="ws-modebar">
-              {(['point', 'layout', 'area'] as const).map(m => (
+              {(['layout', 'area'] as const).map(m => (
                 <button key={m} type="button"
                   className={pickMode === m ? 'on' : ''}
                   onClick={() => {
                     setPickMode(m); setRing([]); setAreaResult(null); setTurbineAddrs([]);
                   }}>
-                  {m === 'point' ? '지점 검토' : m === 'layout' ? '배치선 검토' : '구역 검토'}
+                  {m === 'layout' ? '지점·배치선 검토' : '구역 검토'}
                 </button>
               ))}
-              {pickMode !== 'point' && (
+              {(
                 <span className="ws-modeacts">
                   <button type="button" disabled={!ring.length}
                     onClick={() => setRing(ring.slice(0, -1))}>되돌리기</button>
@@ -343,7 +316,7 @@ export default function WindSiteView() {
                 <em>이격거리 조례는 발전기 위치에만 적용됩니다 (연결선은 소음원이 아님)</em>
               </div>
             )}
-            {pickMode !== 'point' && (
+            {(
               <div className="ws-radrow">
                 <label>발전사업허가일 <span className="opt">(선택)</span>
                   <input type="date" value={permitDate}
@@ -352,8 +325,8 @@ export default function WindSiteView() {
               </div>
             )}
             <SitePicker
-              lat={lat} lng={lng} radiusM={radiusM}
-              onPick={pickSite}
+              lat={null} lng={null} radiusM={0}
+              onPick={() => {}}
               mode={pickMode}
               ring={ring}
               onRingChange={setRing}
@@ -361,17 +334,9 @@ export default function WindSiteView() {
               corridorRadiusM={corridorR}
               overlays={areaResult?.overlays ?? null}
             />
-            {pickMode !== 'point' && areaResult && (
+            {areaResult && (
               <AreaSummary r={areaResult} />
             )}
-            <div className="ws-coordrow">
-              <label>위도<input type="number" step="0.00001" value={lat ?? ''}
-                placeholder="36.12345"
-                onChange={e => setLat(e.target.value === '' ? null : Number(e.target.value))} /></label>
-              <label>경도<input type="number" step="0.00001" value={lng ?? ''}
-                placeholder="128.56789"
-                onChange={e => setLng(e.target.value === '' ? null : Number(e.target.value))} /></label>
-            </div>
           </div>
         </div>
 
@@ -383,13 +348,13 @@ export default function WindSiteView() {
                 사업지 주소{' '}
                 <em>
                   {pickMode === 'layout'
-                    ? `(발전기 ${ring.length}기 · 클릭 시 자동 입력)`
-                    : locating ? '(주소 조회 중…)' : '(지도 클릭 시 자동 입력)'}
+                    ? `(지점 ${ring.length}곳 · 클릭 시 자동 입력)`
+                    : '(구역 검토 — 지도에서 꼭짓점을 찍으십시오)'}
                 </em>
               </span>
               {pickMode === 'layout' ? (
                 ring.length === 0 ? (
-                  <p className="ws-addr-empty">지도에서 발전기 위치를 찍으면 호기별 주소가 표시됩니다.</p>
+                  <p className="ws-addr-empty">지도에서 지점을 찍으면 주소가 표시됩니다. 한 곳이면 지점 검토, 여러 곳이면 배치선 검토입니다.</p>
                 ) : (
                   <ol className="ws-addrlist">
                     {ring.map(([a, o], i) => (
@@ -421,17 +386,6 @@ export default function WindSiteView() {
               </label>
             </div>
             <div className="ws-two">
-              {/* 검토 반경은 지점 검토 전용이다. 배치선·구역 모드에서는 지도 위
-                  발전기/연결선 반경이 쓰이므로, 남겨두면 어느 값이 적용되는지
-                  헷갈린다. */}
-              {pickMode === 'point' && (
-                <label className="ws-fld">
-                  <span>검토 반경 (m)</span>
-                  <input type="number" min={MIN_RADIUS_M} max={MAX_RADIUS_M} step={50}
-                    value={radiusM}
-                    onChange={e => setRadiusM(Number(e.target.value) || DEFAULT_RADIUS_M)} />
-                </label>
-              )}
               <label className="ws-fld">
                 <span>설비용량 (MW) <em>(선택)</em></span>
                 <input type="number" min={0} step={0.1} value={capacity} placeholder="60"
@@ -442,65 +396,51 @@ export default function WindSiteView() {
             {/* 실행 버튼은 모드에 따라 하는 일이 다르다. 지점 검토용 버튼을
                 배치선 모드에서도 그대로 두면, 위·경도가 비어 있어 '사업지를
                 지정하십시오'만 반복된다. */}
-            {pickMode === 'point' ? (
-              <>
-                <button className="btn-primary ws-run" onClick={run} disabled={loading}>
-                  {loading ? '검토 중…' : '입지타당성 검토 실행'}
-                </button>
-                <div className="ws-actions">
-                  <button className="ws-btn2" onClick={downloadReport}
-                    disabled={reporting || loading}>
-                    {reporting ? '보고서 생성 중…' : '보고서 내려받기 (docx)'}
+            <button className="btn-primary ws-run" onClick={runArea}
+              disabled={areaLoading || ring.length < (pickMode === 'layout' ? 1 : 3)}>
+              {areaLoading ? '검토 중…'
+                : pickMode === 'layout' ? '입지타당성 검토 실행' : '구역 검토 실행'}
+            </button>
+            <div className="ws-actions">
+              {areaReporting ? (
+                <span className="ws-progress">
+                  <span className="bar">
+                    <i style={{ width: `${reportProgress?.percent ?? 0}%` }} />
+                  </span>
+                  <span className="txt">
+                    {reportProgress?.percent ?? 0}%
+                    {reportProgress?.stage ? ` · ${reportProgress.stage}` : ''}
+                  </span>
+                  <button className="ws-btn2 ws-cancel" onClick={cancelAreaReport}>
+                    생성 중단
                   </button>
-                  <button className="ws-btn2" onClick={addCandidate} disabled={loading}>
-                    후보지로 담기 {candidates.length > 0 && `(${candidates.length})`}
+                </span>
+              ) : (
+                <>
+                  <button className="ws-btn2" onClick={downloadAreaReport}
+                    disabled={!areaResult || areaLoading}>
+                    보고서 내려받기 (docx)
                   </button>
-                </div>
-                <p className="ws-hint">
-                  보고서에는 지적·규제·주변현황·이격거리 지도 4종이 포함되며 생성에 2~3분 걸립니다.
-                </p>
-              </>
-            ) : (
-              <>
-                <button className="btn-primary ws-run" onClick={runArea}
-                  disabled={areaLoading || ring.length < (pickMode === 'layout' ? 1 : 3)}>
-                  {areaLoading ? '검토 중…'
-                    : pickMode === 'layout' ? '배치선 검토 실행' : '구역 검토 실행'}
-                </button>
-                <div className="ws-actions">
-                  {areaReporting ? (
-                    <span className="ws-progress">
-                      <span className="bar">
-                        <i style={{ width: `${reportProgress?.percent ?? 0}%` }} />
-                      </span>
-                      <span className="txt">
-                        {reportProgress?.percent ?? 0}%
-                        {reportProgress?.stage ? ` · ${reportProgress.stage}` : ''}
-                      </span>
-                      <button className="ws-btn2 ws-cancel" onClick={cancelAreaReport}>
-                        생성 중단
-                      </button>
-                    </span>
-                  ) : (
-                    <button className="ws-btn2" onClick={downloadAreaReport}
-                      disabled={!areaResult || areaLoading}>
-                      보고서 내려받기 (docx)
+                  {pickMode === 'layout' && ring.length === 1 && (
+                    <button className="ws-btn2" onClick={addCandidate}
+                      disabled={areaLoading}>
+                      후보지로 담기 {candidates.length > 0 && `(${candidates.length})`}
                     </button>
                   )}
-                </div>
-                <p className="ws-hint">
-                  {ring.length === 0
-                    ? (pickMode === 'layout'
-                        ? '지도를 클릭해 발전기 위치를 1호기부터 순서대로 찍으십시오.'
-                        : '지도를 클릭해 사업구역 꼭짓점을 3개 이상 찍으십시오.')
-                    : !areaResult
-                      ? '검토를 실행하면 면적 분포와 제약도가 표시되고 보고서를 받을 수 있습니다.'
-                      : '보고서에는 종합판정·규제 62개 항목·제약도·풍황·계통·조례 '
-                        + '경과규정이 포함됩니다. 호기마다 규제를 조회하므로 '
-                        + '같은 배치의 첫 생성은 5~10분 걸리고, 이후 재생성은 10초 내로 끝납니다.'}
-                </p>
-              </>
-            )}
+                </>
+              )}
+            </div>
+            <p className="ws-hint">
+              {ring.length === 0
+                ? (pickMode === 'layout'
+                    ? '지도를 클릭해 지점을 찍으십시오. 한 곳이면 지점 검토, 여러 곳이면 배치선 검토가 됩니다.'
+                    : '지도를 클릭해 사업구역 꼭짓점을 3개 이상 찍으십시오.')
+                : !areaResult
+                  ? '검토를 실행하면 규제 항목과 면적 분포, 제약도가 표시됩니다.'
+                  : '보고서에는 종합판정·규제 62개 항목·제약도·풍황·계통·조례 경과규정이 '
+                    + '포함됩니다. 지점마다 규제를 조회하므로 같은 배치의 첫 생성은 '
+                    + '5~10분 걸리고, 이후 재생성은 10초 내로 끝납니다.'}
+            </p>
 
             {error && <p className="ws-error">{error}</p>}
 
@@ -531,36 +471,60 @@ export default function WindSiteView() {
 
       {/* ── 결과 ── */}
       {tab === 'result' && (
-        !result ? (
-          <p className="ops-empty">사업지를 지정하고 검토를 실행하십시오.</p>
+        !areaResult ? (
+          <p className="ops-empty">지도에서 지점을 찍고 검토를 실행하십시오.</p>
+        ) : !areaResult.items ? (
+          <div className="ws-gaps">
+            <b>규제 항목 상세가 아직 조회되지 않았습니다</b>
+            <p>
+              지점마다 62개 항목을 조회하므로 지점이 많으면 몇 분 걸립니다.
+              필요할 때만 불러오도록 분리했습니다.
+            </p>
+            <button className="ws-btn2" onClick={loadItems} disabled={areaLoading}>
+              {areaLoading ? '조회 중…' : '규제 항목 상세 불러오기'}
+            </button>
+          </div>
         ) : (
           <>
-            <div className={`ws-overall g-${result.overall_feasibility.grade}`}>
-              <div className="ws-score">
-                <b>{result.overall_feasibility.score}</b><span>/100</span>
-              </div>
-              <div className="ws-verdict">
-                <div className="ws-grade">{STATUS_LABEL[result.overall_feasibility.grade]}</div>
-                <p>{result.overall_feasibility.summary}</p>
-                <div className="ws-sitemeta">
-                  {result.site_info.address} · 반경 {result.site_info.radius_m.toLocaleString()}m ·
-                  검토면적 {(result.site_info.total_area_m2 / 10000).toFixed(1)}ha
+            <div className="ws-pointgrid">
+              {areaResult.items.points.map(p => (
+                <div key={p.no} className={`ws-pointcard g-${p.grade}`}>
+                  <div className="no">{p.no}</div>
+                  <div className="body">
+                    <b>{p.score}점 · {STATUS_LABEL[p.grade]}</b>
+                    <span>{p.address || `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`}</span>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
 
-            {result.data_gaps.length > 0 && (
-              <div className="ws-gaps">
-                <b>확인이 필요한 항목 {result.data_gaps.length}건</b>
-                <ul>{result.data_gaps.map((g, i) => <li key={i}>{g}</li>)}</ul>
-              </div>
-            )}
-
-            {grouped.map(([cat, items]) => (
+            {mergedByCategory.map(([cat, items]) => (
               <div key={cat} className="ws-group">
-                <p className="ops-section-t">{cat}</p>
+                <p className="ops-section-t">
+                  {cat}
+                  <em className="ws-catcount"> {items.length}개</em>
+                </p>
                 <div className="ws-items">
-                  {items.map(i => <ItemCard key={i.item_name} item={i} />)}
+                  {items.map(m => (
+                    <div key={m.item_name} className={`ws-item s-${m.status}`}>
+                      <div className="ws-item-hd">
+                        <b>{m.item_name}</b>
+                        <span className={`ws-status s-${m.status}`}>
+                          {STATUS_LABEL[m.status]}
+                        </span>
+                      </div>
+                      <p>{m.reason}</p>
+                      <div className="ws-item-ft">
+                        {m.law && <span>{m.law} {m.article}</span>}
+                        {m.status !== 'POSSIBLE' && m.total > 1 && (
+                          <span className="hit">
+                            {m.hits}/{m.total}지점
+                            {m.worst_no ? ` · 최악 ${m.worst_no}번` : ''}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
@@ -647,11 +611,11 @@ export default function WindSiteView() {
 
       {/* ── 인허가 로드맵 ── */}
       {tab === 'permits' && (
-        !result ? (
-          <p className="ops-empty">검토를 실행하면 사업 조건에 맞는 인허가 로드맵이 표시됩니다.</p>
+        permits.length === 0 ? (
+          <p className="ops-empty">인허가 로드맵을 불러오는 중입니다.</p>
         ) : (
           <div className="ws-roadmap">
-            {result.permit_roadmap.map(s => (
+            {permits.map(s => (
               <div key={s.order} className={`ws-step${s.applicable ? '' : ' off'}`}>
                 <div className="ws-step-mark"><span className="ph">{s.phase}</span></div>
                 <div className="ws-step-body">
@@ -742,54 +706,6 @@ export default function WindSiteView() {
 }
 
 // ----------------------------------------------------------------------
-function ItemCard({ item }: { item: AnalysisItem }) {
-  return (
-    <div className={`ws-item s-${item.status}`}>
-      <div className="ws-item-hd">
-        <span className={`ws-status s-${item.status}`}>{STATUS_LABEL[item.status]}</span>
-        <b>{item.item_name}</b>
-        <span className={`ws-diff d-${item.difficulty}`}>난이도 {DIFFICULTY_LABEL[item.difficulty]}</span>
-        {/* 판정 결과(status)와 근거의 단단함(confidence)은 다른 축이다.
-            사유 배지를 함께 붙여 '조회 실패'와 '원래 자동 판정이 안 되는 항목'을 구분한다. */}
-        <UnknownReasonBadge item={item} />
-        <ConfidenceBadge c={item.confidence} />
-      </div>
-      <p className="ws-item-reason">{item.reason}</p>
-      {(item.law || item.article) && (
-        <div className="ws-item-law">근거 · {item.law} {item.article}</div>
-      )}
-      {item.action_required && (
-        <div className="ws-item-action">다음 조치 · {item.action_required}</div>
-      )}
-      {item.source_url && (
-        <a className="ws-item-src" href={item.source_url} target="_blank" rel="noreferrer">
-          출처 확인
-        </a>
-      )}
-    </div>
-  );
-}
-
-function ConfidenceBadge({ c }: { c: 'HIGH' | 'MEDIUM' | 'LOW' }) {
-  return (
-    <span className={`ws-conf c-${c}`} title={`근거 수준 — ${CONFIDENCE_HINT[c]}`}>
-      근거 {CONFIDENCE_LABEL[c]}
-    </span>
-  );
-}
-
-/** UNKNOWN 항목에만 붙는 사유 배지 — 재시도로 풀리는지 아닌지가 한눈에 보이게 한다 */
-function UnknownReasonBadge({ item }: { item: AnalysisItem }) {
-  if (item.status !== 'UNKNOWN') return null;
-  const why = (item.unknown_reason || '') as UnknownReason;
-  const label = UNKNOWN_REASON_LABEL[why];
-  if (!label) return null;
-  return (
-    <span className={`ws-why w-${why}`} title={UNKNOWN_REASON_HINT[why]}>{label}</span>
-  );
-}
-
-/** 종합등급 배지 — 비교표에서 후보지별 등급을 한눈에 보이게 한다 */
 function StatusBadge({ s }: { s: keyof typeof STATUS_LABEL }) {
   return <span className={`ws-status s-${s}`}>{STATUS_LABEL[s]}</span>;
 }
@@ -947,5 +863,14 @@ function AreaSummary({ r }: { r: AreaResult }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** 판정 기준의 검증 수준 — 원문 대조 여부를 한눈에 보이게 한다 */
+function ConfidenceBadge({ c }: { c: 'HIGH' | 'MEDIUM' | 'LOW' }) {
+  return (
+    <span className={`ws-conf c-${c}`} title={CONFIDENCE_HINT[c]}>
+      근거 {CONFIDENCE_LABEL[c]}
+    </span>
   );
 }
