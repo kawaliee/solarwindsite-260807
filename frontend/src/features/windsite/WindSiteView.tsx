@@ -439,7 +439,7 @@ export default function WindSiteView() {
                 <div className="ws-actions">
                   <button className="ws-btn2" onClick={downloadAreaReport}
                     disabled={!areaResult || areaReporting || areaLoading}>
-                    {areaReporting ? '보고서 생성 중…' : '보고서 내려받기 (docx)'}
+                    {areaReporting ? '보고서 생성 중… (최대 10분)' : '보고서 내려받기 (docx)'}
                   </button>
                 </div>
                 <p className="ws-hint">
@@ -449,7 +449,9 @@ export default function WindSiteView() {
                         : '지도를 클릭해 사업구역 꼭짓점을 3개 이상 찍으십시오.')
                     : !areaResult
                       ? '검토를 실행하면 면적 분포와 제약도가 표시되고 보고서를 받을 수 있습니다.'
-                      : '보고서에는 제약도와 면적 분포, 조례 경과규정 검토가 포함됩니다.'}
+                      : '보고서에는 종합판정·규제 62개 항목·제약도·풍황·계통·조례 '
+                        + '경과규정이 포함됩니다. 호기마다 규제를 조회하므로 '
+                        + '같은 배치의 첫 생성은 5~10분 걸리고, 이후 재생성은 10초 내로 끝납니다.'}
                 </p>
               </>
             )}

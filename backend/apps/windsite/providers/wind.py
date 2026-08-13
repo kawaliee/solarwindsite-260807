@@ -46,6 +46,14 @@ HUB_HEIGHTS = (100, 140)
 #: 육상풍력 입지 참고치 — 법정 기준이 아니다
 REFERENCE_MS = 6.0
 
+#: 사업성 판정 기준(m/s). 이 값 미만이면 '자원 부족 가능성'으로 본다.
+#: 업계에서 통용되는 육상풍력 최소 기준선이며 법정 기준이 아니다.
+#: settings.WIND_MIN_MS로 덮어쓸 수 있다.
+JUDGE_MS = 5.5
+
+#: 판정에 쓸 허브고도(m). HUB_HEIGHTS 중 실제 기종에 가까운 값을 쓴다.
+JUDGE_HUB_M = 100
+
 
 @lru_cache(maxsize=1)
 def load_stations() -> list[dict]:
@@ -208,17 +216,37 @@ class WindResourceProvider(LayerProvider):
             f'{alt_list}'
         )
 
+        # ── 판정 ──────────────────────────────────────────────
+        # 허브고도 환산은 지표 거칠기 가정에 따라 범위로 나온다. 그 범위와
+        # 기준선(JUDGE_MS)의 위치로 세 갈래로 가른다. 범위의 한쪽만 보고
+        # 판정하면 가정 하나로 결론이 뒤집힌다.
+        thr = float(getattr(settings, 'WIND_MIN_MS', 0) or JUDGE_MS)
+        lo = mean * (JUDGE_HUB_M / h_obs) ** ALPHA_OPEN
+        hi = mean * (JUDGE_HUB_M / h_obs) ** ALPHA_FOREST
+        if hi < thr:
+            status, diff = Status.CONDITIONAL, Difficulty.CRITICAL
+            verdict = (f'허브고도 {JUDGE_HUB_M}m 환산 {lo:.1f}~{hi:.1f}m/s로 '
+                       f'**기준 {thr}m/s에 미달**합니다 — 자원 부족 가능성이 큽니다.')
+        elif lo >= thr:
+            status, diff = Status.POSSIBLE, Difficulty.LOW
+            verdict = (f'허브고도 {JUDGE_HUB_M}m 환산 {lo:.1f}~{hi:.1f}m/s로 '
+                       f'**기준 {thr}m/s를 상회**합니다.')
+        else:
+            status, diff = Status.CONDITIONAL, Difficulty.HIGH
+            verdict = (f'허브고도 {JUDGE_HUB_M}m 환산 {lo:.1f}~{hi:.1f}m/s로 '
+                       f'**기준 {thr}m/s를 걸칩니다** — 지표 거칠기 가정에 따라 '
+                       f'판정이 갈립니다.')
+
         return self.item(
-            status=Status.UNKNOWN,
-            reason=reason + (
-                ' ※ 관측소와 부지는 지형·표고가 달라 이 값은 **참고치이며 판정 근거가 아닙니다.** '
+            status=status,
+            reason=reason + ' ' + verdict + (
+                ' ※ 관측소와 부지는 지형·표고가 달라 이 판정은 **추정에 근거한 '
+                '선별 결과이며 실측을 대체하지 않습니다.** '
                 f'국내 육상풍력은 통상 연평균 {REFERENCE_MS}m/s 이상 지역에 입지하는 것으로 '
                 '보고되나 이는 업계 참고치입니다.'
             ),
-            difficulty=Difficulty.MEDIUM,
+            difficulty=diff,
             confidence=Confidence.LOW,
-            # 구조적 미확인 — 현장 계측 외에 대체 수단이 없다. 재시도해도 달라지지 않는다.
-            unknown_reason='BY_DESIGN',
             source_url='https://data.kma.go.kr',
             action_required=(
                 '① 사업 확정 전 현장 풍황계측(허브고도, 통상 1년 이상) 수행 '
@@ -234,6 +262,9 @@ class WindResourceProvider(LayerProvider):
                     'method': 'power law',
                     'alpha_range': [ALPHA_OPEN, ALPHA_FOREST],
                     'heights_m': list(HUB_HEIGHTS),
+                    'judge_hub_m': JUDGE_HUB_M,
+                    'judge_range_ms': [round(lo, 2), round(hi, 2)],
+                    'threshold_ms': thr,
                     'note': '가정에 따른 참고 범위이며 실측을 대체하지 않음',
                 },
                 'candidates': candidates,

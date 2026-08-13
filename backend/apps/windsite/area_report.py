@@ -78,53 +78,62 @@ def build_area_report(result: dict, evals: list | None = None, *,
     style = doc.styles['Normal']
     style.font.name = '맑은 고딕'
     style.font.size = Pt(10)
+    _init_label_index()
+    for sec in doc.sections:
+        sec.left_margin = sec.right_margin = Cm(1.8)
+        sec.top_margin = sec.bottom_margin = Cm(1.9)
 
     total = result['total_area_m2']
     layout = result.get('layout')
     grand = result.get('grandfathering') or {}
     juris = result.get('jurisdictions') or []
 
-    doc.add_heading('사업구역 제약도 검토 보고서', level=0)
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    p.add_run(datetime.now().strftime('작성 %Y-%m-%d %H:%M')).font.size = Pt(9)
-
-    # ── 1. 개요 ────────────────────────────────────────────────
-    doc.add_heading('1. 검토 개요', level=1)
-    rows = [('검토 대상',
+    meta = [('검토 대상',
              (f'발전기 {len(layout["turbines"])}기 배치선'
-              if layout else '사업구역(폴리곤)') + (f' · {title_suffix}' if title_suffix else '')),
+              if layout else '사업구역(폴리곤)')),
             ('검토 면적', _fmt_ha(total)),
             ('관할 지자체', ' · '.join(f'{j["sigungu"]} {j["ratio"] * 100:.1f}%'
-                                   for j in juris) or '-')]
+                                   for j in juris) or '-'),
+            ('작성', datetime.now().strftime('%Y-%m-%d %H:%M'))]
     if layout:
-        rows += [('발전기 검토반경', f'{layout["turbine_radius_m"]:,} m'),
+        meta += [('발전기 검토반경', f'{layout["turbine_radius_m"]:,} m'),
                  ('연결선 검토반경', f'{layout["corridor_radius_m"]:,} m')]
-    _kv(doc, rows)
+    _cover(doc,
+           '풍력 입지타당성 검토 보고서',
+           (title_suffix or '사업구역·배치선 제약도 및 규제 종합평가'),
+           meta)
 
     evals = [e for e in (evals or []) if e.get('result')]
     merged = available.merge_items(evals) if evals else []
 
-    # ── 2. 종합 판정 ───────────────────────────────────────────
     if evals:
-        doc.add_heading('2. 종합 판정', level=1)
+        _part(doc, 1, '종합 판정', '한 장으로 보는 결과', BRAND)
         _overall(doc, evals, merged, result, Pt, RGBColor)
 
-        doc.add_heading('3. 입지조건 종합평가', level=1)
+        _part(doc, 2, '입지조건 종합평가', f'검토 항목 {len(merged)}개 · 영역별', '2E6FB7')
         _assessment(doc, merged, Pt)
 
-        doc.add_heading('4. 호기별 종합비교표', level=1)
+        _part(doc, 3, '호기별 종합비교표', '어느 호기가 문제인가', '7C5BB5')
         _per_point(doc, evals)
 
-        doc.add_heading('5. 공통 리스크 요약', level=1)
+        _part(doc, 4, '리스크 요약', '배치를 바꿔도 남는 것 / 옮기면 해소되는 것', 'B5426E')
         _common_risk(doc, merged, len(evals))
-        base = 5
+        base = 4
     else:
-        base = 1
+        base = 0
 
-    # ── 면적 분포 ──────────────────────────────────────────────
-    doc.add_heading(f'{base + 1}. 면적 분포', level=1)
-    _table(doc, ['구분', '면적', '비율', '설명'], [
+    _part(doc, base + 1, '면적 분포와 가용면적', '구역이 어떻게 나뉘는가', '18907E')
+    _kpi(doc, [
+        ('배제', _fmt_ha(result['blocked_m2']), _pct(result['blocked_m2'], total),
+         STATUS_COLORS['IMPOSSIBLE']),
+        ('조건부', _fmt_ha(result['conditional_m2']),
+         _pct(result['conditional_m2'], total), STATUS_COLORS['CONDITIONAL']),
+        ('제약 없음', _fmt_ha(result['free_m2']), _pct(result['free_m2'], total),
+         STATUS_COLORS['POSSIBLE']),
+        ('판정 보류', _fmt_ha(result['pending_m2']), _pct(result['pending_m2'], total),
+         STATUS_COLORS['UNKNOWN']),
+    ])
+    _styled_table(doc, ['구분', '면적', '비율', '설명'], [
         ['배제', _fmt_ha(result['blocked_m2']), _pct(result['blocked_m2'], total),
          '불가 판정 레이어 · 조례 이격거리 위반 범위'],
         ['조건부', _fmt_ha(result['conditional_m2']), _pct(result['conditional_m2'], total),
@@ -133,7 +142,7 @@ def build_area_report(result: dict, evals: list | None = None, *,
          '조회된 어떤 규제 레이어에도 걸리지 않음'],
         ['판정 보류', _fmt_ha(result['pending_m2']), _pct(result['pending_m2'], total),
          '조례를 확인하지 못한 지자체 구간'],
-    ])
+    ], accent='18907E', widths=[2.6, 3.0, 2.0, 8.4])
 
     doc.add_heading('가용면적', level=2)
     doc.add_paragraph(
@@ -148,7 +157,7 @@ def build_area_report(result: dict, evals: list | None = None, *,
     ])
 
     # ── 3. 제약도 ──────────────────────────────────────────────
-    doc.add_heading(f'{base + 2}. 제약도', level=1)
+    _part(doc, base + 2, '제약도', '위성영상 위 배제·조건부·제약없음', '18907E')
     g = result.get('geoms') or {}
     try:
         png = maps.constraint_map(
@@ -161,7 +170,7 @@ def build_area_report(result: dict, evals: list | None = None, *,
         doc.add_paragraph('※ 제약도를 생성하지 못했습니다. 배경지도 조회 실패일 수 있습니다.')
 
     # ── 4. 제약 사유 ───────────────────────────────────────────
-    doc.add_heading(f'{base + 3}. 제약 사유별 면적', level=1)
+    _part(doc, base + 3, '제약 사유별 면적', '무엇이 얼마나 차지하는가', '3C8C3C')
     reasons = result.get('by_reason') or []
     if reasons:
         _table(doc, ['제약 사유', '판정', '면적', '비율'],
@@ -192,7 +201,7 @@ def build_area_report(result: dict, evals: list | None = None, *,
                 for z in zoning])
 
     # ── 5. 조례 ────────────────────────────────────────────────
-    doc.add_heading(f'{base + 4}. 지자체 조례', level=1)
+    _part(doc, base + 4, '지자체 조례', '이격거리와 경과규정', 'C07A1E')
     _table(doc, ['지자체', '구역 내 비율', '조례 상태', '최대 이격거리'],
            [[j['sigungu'], f'{j["ratio"] * 100:.1f}%',
              _ord_state(j.get('ordinance_state', '')),
@@ -231,11 +240,11 @@ def build_area_report(result: dict, evals: list | None = None, *,
 
     # ── 풍황·계통·정온시설 ─────────────────────────────────────
     if evals:
-        doc.add_heading(f'{base + 5}. 풍황·전력계통·정온시설', level=1)
+        _part(doc, base + 5, '풍황 · 전력계통 · 정온시설', '사업성과 인프라', 'C05E2E')
         _detail_sections(doc, evals, Pt)
 
     # ── 한계 ───────────────────────────────────────────────────
-    doc.add_heading(f'{base + 6}. 이 보고서의 한계', level=1)
+    _part(doc, base + 6, '이 보고서의 한계', '수치만 발췌해 인용하지 마십시오', '55606C')
     doc.add_paragraph(
         '아래 사항은 결과 수치에 직접 영향을 줍니다. 수치만 발췌해 인용하지 마십시오.')
     limits = list(result.get('notes') or [])
@@ -376,12 +385,14 @@ def _assessment(doc, merged, Pt) -> None:
             continue
         worst = max(items, key=lambda m: available._SEVERITY[m['status']])['status']
         doc.add_heading('%s (%d개) — %s' % (cat, len(items), _sig(worst)), level=2)
-        _table(doc, ['항목', '판정', '해당 호기', '주요 결과'],
+        _styled_table(doc, ['항목', '판정', '해당 호기', '주요 결과'],
                [[m['item_name'], _sig(m['status']),
                  ('%d/%d기' % (m['hits'], m['total'])
                   if m['status'] != 'POSSIBLE' else '-'),
                  (m['reason'] or '')[:110]]
-                for m in items])
+                for m in items],
+                      accent=SECTION_COLORS.get(cat, DEFAULT_SECTION_COLOR),
+                      status_col=1, widths=[4.6, 2.4, 1.8, 8.2])
 
 
 def _per_point(doc, evals) -> None:
@@ -399,7 +410,8 @@ def _per_point(doc, evals) -> None:
             '%d건' % bad, '%d건' % cond,
             _short(_item_of(r, WIND_ITEM)), _short(_item_of(r, GRID_ITEM)),
         ])
-    _table(doc, ['호기', '위치', '판정·점수', '불가', '조건부', '풍황', '계통'], rows)
+    _styled_table(doc, ['호기', '위치', '판정·점수', '불가', '조건부', '풍황', '계통'],
+                  rows, accent='7C5BB5', widths=[1.5, 5.4, 2.8, 1.3, 1.5, 2.4, 1.9])
 
 
 def _short(item) -> str:
@@ -513,3 +525,215 @@ def _detail_sections(doc, evals, Pt) -> None:
         _table(doc, ['호기', '판정', '내용'], rows)
     else:
         doc.add_paragraph('정온시설 판정 결과가 없습니다.')
+
+
+# ======================================================================
+# 보고서 디자인
+# ----------------------------------------------------------------------
+# docx는 CSS가 없어 색을 셀 음영(w:shd)과 글자색으로만 낼 수 있다. 그래서
+# '표를 레이아웃 도구로 쓴다' — 표지 색 밴드, PART 구분면, KPI 카드가 모두
+# 테두리 없는 표다. 아래 헬퍼가 그 반복을 감춘다.
+#
+# 색은 의미와 1:1로 묶는다. 예쁘라고 칠하지 않는다 — 같은 색이 어디서나
+# 같은 뜻이어야 표를 훑어 읽을 수 있다.
+# ======================================================================
+INK = '1B2733'          # 본문
+MUTED = '6B7A8C'        # 보조 설명
+LINE = 'DDE3EA'         # 옅은 구분선
+BRAND = '1B4F8C'        # 표지·머리글
+BRAND_LIGHT = 'EAF1F9'
+
+#: 영역별 색 — 참조 자료의 PART 구분처럼 단원마다 색을 달리해 위치를 알린다
+SECTION_COLORS = {
+    '규제/법령': '2E6FB7',
+    '안전/문화재': '7C5BB5',
+    '환경': '18907E',
+    '산림': '3C8C3C',
+    '지자체 조례': 'C07A1E',
+    '인프라': 'C05E2E',
+    '사업성': 'B5426E',
+}
+DEFAULT_SECTION_COLOR = BRAND
+
+#: 판정별 (글자색, 배경색). 표 어디서나 같은 뜻으로 쓴다.
+STATUS_COLORS = {
+    'IMPOSSIBLE': ('B0202A', 'FBE4E5'),
+    'CONDITIONAL': ('9A5B00', 'FDF0DC'),
+    'UNKNOWN': ('55606C', 'EFF2F5'),
+    'POSSIBLE': ('1B6B31', 'E6F4EA'),
+}
+
+
+def _shade(cell, hex_color: str) -> None:
+    """셀 배경색. python-docx가 노출하지 않아 XML을 직접 넣는다."""
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+    el = OxmlElement('w:shd')
+    el.set(qn('w:val'), 'clear')
+    el.set(qn('w:fill'), hex_color)
+    cell._tc.get_or_add_tcPr().append(el)
+
+
+def _no_borders(table) -> None:
+    """테두리 제거 — 표를 레이아웃 도구로 쓸 때."""
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+    borders = OxmlElement('w:tblBorders')
+    for edge in ('top', 'left', 'bottom', 'right', 'insideH', 'insideV'):
+        e = OxmlElement(f'w:{edge}')
+        e.set(qn('w:val'), 'none')
+        e.set(qn('w:sz'), '0')
+        borders.append(e)
+    table._tbl.tblPr.append(borders)
+
+
+def _run(par, text, *, size=10, bold=False, color=INK, name='맑은 고딕'):
+    from docx.shared import Pt, RGBColor
+    r = par.add_run(text)
+    r.font.size = Pt(size)
+    r.bold = bold
+    r.font.name = name
+    r.font.color.rgb = RGBColor.from_string(color)
+    return r
+
+
+def _cover(doc, title: str, subtitle: str, meta: list) -> None:
+    """표지 — 색 밴드 위에 제목, 아래에 메타 정보."""
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Pt
+
+    for _ in range(3):
+        doc.add_paragraph()
+
+    band = doc.add_table(rows=1, cols=1)
+    _no_borders(band)
+    c = band.rows[0].cells[0]
+    _shade(c, BRAND)
+    p = c.paragraphs[0]
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    _run(p, '\n' + title + '\n', size=26, bold=True, color='FFFFFF')
+    p2 = c.add_paragraph()
+    _run(p2, subtitle + '\n', size=12, color='CFE0F2')
+
+    doc.add_paragraph()
+    t = doc.add_table(rows=0, cols=2)
+    _no_borders(t)
+    for k, v in meta:
+        row = t.add_row().cells
+        _run(row[0].paragraphs[0], k, size=9.5, color=MUTED)
+        _run(row[1].paragraphs[0], str(v), size=10.5, bold=True)
+    doc.add_page_break()
+
+
+def _part(doc, no, title: str, subtitle: str = '', color: str = BRAND) -> None:
+    """PART 구분면 — 단원 앞에 색 밴드를 두어 어디를 읽고 있는지 알린다."""
+    t = doc.add_table(rows=1, cols=1)
+    _no_borders(t)
+    c = t.rows[0].cells[0]
+    _shade(c, color)
+    p = c.paragraphs[0]
+    _run(p, f'  PART {no}   ', size=10, bold=True, color='FFFFFF')
+    _run(p, title, size=15, bold=True, color='FFFFFF')
+    if subtitle:
+        p2 = c.add_paragraph()
+        _run(p2, '  ' + subtitle, size=9, color='E3EDF7')
+    doc.add_paragraph()
+
+
+def _kpi(doc, cards: list) -> None:
+    """
+    KPI 카드 줄 — [(라벨, 값, 보조설명, 색)].
+
+    가장 중요한 숫자를 표 안에 묻지 않고 크게 띄운다. 보고서를 넘겨보는
+    사람은 표를 읽지 않고 큰 숫자만 본다.
+    """
+    if not cards:
+        return
+    t = doc.add_table(rows=1, cols=len(cards))
+    _no_borders(t)
+    for cell, (label, value, note, color) in zip(t.rows[0].cells, cards):
+        _shade(cell, color[1] if isinstance(color, tuple) else BRAND_LIGHT)
+        p = cell.paragraphs[0]
+        _run(p, label, size=8.5, color=MUTED)
+        p2 = cell.add_paragraph()
+        _run(p2, str(value), size=16, bold=True,
+             color=color[0] if isinstance(color, tuple) else BRAND)
+        if note:
+            p3 = cell.add_paragraph()
+            _run(p3, note, size=8, color=MUTED)
+    doc.add_paragraph()
+
+
+def _styled_table(doc, headers: list, rows: list, *, accent: str = BRAND,
+                  status_col: int | None = None, widths: list | None = None):
+    """
+    머리글에 색을 넣고 줄무늬를 준 표.
+
+    status_col을 주면 그 열을 판정 색으로 칠한다. 표를 훑을 때 색만 보고
+    문제 행을 찾을 수 있어야 한다 — 글자를 다 읽게 만들면 안 본다.
+    """
+    from docx.shared import Cm
+
+    t = doc.add_table(rows=1, cols=len(headers))
+    t.style = 'Table Grid'
+    for i, h in enumerate(headers):
+        cell = t.rows[0].cells[i]
+        _shade(cell, accent)
+        cell.text = ''
+        _run(cell.paragraphs[0], h, size=9, bold=True, color='FFFFFF')
+    for n, r in enumerate(rows):
+        cells = t.add_row().cells
+        for i, v in enumerate(r):
+            cells[i].text = ''
+            text = '' if v is None else str(v)
+            color = INK
+            if status_col is not None and i == status_col:
+                key = next((k for k in STATUS_COLORS if k in _STATUS_BY_LABEL.get(text, '')),
+                           None)
+                if key:
+                    fg, bg = STATUS_COLORS[key]
+                    _shade(cells[i], bg)
+                    color = fg
+            elif n % 2 == 1:
+                _shade(cells[i], 'F7F9FB')
+            _run(cells[i].paragraphs[0], text, size=9, color=color,
+                 bold=(status_col is not None and i == status_col))
+    if widths:
+        for row in t.rows:
+            for i, w in enumerate(widths):
+                if w:
+                    row.cells[i].width = Cm(w)
+    doc.add_paragraph()
+    return t
+
+
+#: 표에 찍힌 '● 불가' 같은 문자열을 다시 상태 키로 되돌리기 위한 역인덱스
+_STATUS_BY_LABEL = {}
+
+
+def _init_label_index():
+    for k, (mark, label, *_rest) in SIGNAL.items():
+        _STATUS_BY_LABEL[f'{mark} {label}'] = k
+
+
+def _note(doc, text: str, *, color: str = MUTED, size: float = 8.5):
+    p = doc.add_paragraph()
+    _run(p, text, size=size, color=color)
+    return p
+
+
+def _callout(doc, title: str, body: str, *, tone: str = 'CONDITIONAL') -> None:
+    """
+    강조 박스 — 놓치면 안 되는 단서를 본문 흐름에서 띄운다.
+
+    각주로 내리면 숫자만 발췌돼 인용될 때 떨어져 나간다.
+    """
+    fg, bg = STATUS_COLORS.get(tone, STATUS_COLORS['UNKNOWN'])
+    t = doc.add_table(rows=1, cols=1)
+    _no_borders(t)
+    c = t.rows[0].cells[0]
+    _shade(c, bg)
+    _run(c.paragraphs[0], title, size=9.5, bold=True, color=fg)
+    p = c.add_paragraph()
+    _run(p, body, size=8.5, color=INK)
+    doc.add_paragraph()
