@@ -266,6 +266,26 @@ export default function SitePicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── 키보드로 마지막 지점 취소 ───────────────────────────────────────
+  useEffect(() => {
+    if (mode === 'point') return;
+    const onKey = (e: KeyboardEvent) => {
+      // 주소·반경 입력란에서 Esc를 눌렀을 때까지 가로채면 안 된다
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || el?.isContentEditable) return;
+      const undo = e.key === 'Escape'
+        || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z');
+      if (!undo) return;
+      const cur = ringRef.current;
+      if (!cur.length) return;
+      e.preventDefault();
+      onRingChangeRef.current?.(cur.slice(0, -1));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mode]);
+
   // ── 사업구역 꼭짓점·미리보기 ─────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
@@ -298,14 +318,24 @@ export default function SitePicker({
           radius: turbineRadiusM, color: '#39d3e6', weight: 1,
           fillColor: '#39d3e6', fillOpacity: 0.1,
         }));
-        g.addLayer(L.marker([a, o], {
+        const mk = L.marker([a, o], {
           icon: L.divIcon({
             className: 'ws-turbine',
             html: `<span>${i + 1}</span>`,
             iconSize: [22, 22], iconAnchor: [11, 11],
           }),
           keyboard: false,
-        }));
+          title: `${i + 1}호기 — 클릭하면 삭제`,
+        });
+        // 잘못 찍은 지점을 지우려고 전부 되돌릴 필요가 없게 한다.
+        // stopPropagation을 하지 않으면 지도 클릭도 함께 발생해 방금 지운
+        // 자리에 새 지점이 다시 찍힌다.
+        mk.on('click', (ev) => {
+          L.DomEvent.stopPropagation(ev);
+          const cur = ringRef.current;
+          onRingChangeRef.current?.(cur.filter((_, k) => k !== i));
+        });
+        g.addLayer(mk);
       });
       drawRef.current = g;
       return;
@@ -322,10 +352,19 @@ export default function SitePicker({
     }
     // 꼭짓점을 보이게 해야 어디를 찍었는지 알고 되돌릴 수 있다.
     ring.forEach(([a, o], i) => {
-      g.addLayer(L.circleMarker([a, o], {
-        radius: 4, color: '#39d3e6', weight: 2,
+      const v = L.circleMarker([a, o], {
+        radius: 5, color: '#39d3e6', weight: 2,
         fillColor: i === ring.length - 1 ? '#fff' : '#39d3e6', fillOpacity: 1,
-      }));
+        // 반경 5px은 누르기 좁다. 클릭 판정만 넓혀 준다.
+        bubblingMouseEvents: false,
+      });
+      v.bindTooltip(`꼭짓점 ${i + 1} — 클릭하면 삭제`, { direction: 'top' });
+      v.on('click', (ev) => {
+        L.DomEvent.stopPropagation(ev);
+        const cur = ringRef.current;
+        onRingChangeRef.current?.(cur.filter((_, k) => k !== i));
+      });
+      g.addLayer(v);
     });
     drawRef.current = g;
   }, [mode, ring, turbineRadiusM, corridorRadiusM]);
@@ -407,11 +446,13 @@ export default function SitePicker({
             <>
               지도를 클릭해 <b>발전기 위치</b>를 1호기부터 순서대로 찍으세요
               (현재 {n}기 · 반경 {turbineRadiusM.toLocaleString()}m)
+              {n > 0 && <> · <b>Esc</b> 마지막 취소 · 번호 클릭 시 해당 기 삭제</>}
             </>
           ) : mode === 'area' ? (
             <>
               지도를 클릭해 <b>사업구역 꼭짓점</b>을 찍으세요 (현재 {n}개
               {n > 0 && n < 3 ? ' · 3개 이상 필요' : ''})
+              {n > 0 && <> · <b>Esc</b> 마지막 취소 · 꼭짓점 클릭 시 삭제</>}
             </>
           ) : (
             <>지도를 클릭해 사업지를 지정하세요 · 휠 또는 <b>＋ －</b> 로 확대·축소</>

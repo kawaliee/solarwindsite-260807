@@ -1748,3 +1748,6 @@ select.fs-input { cursor: pointer; }
   color: #a9bccd; white-space: pre-wrap; word-break: break-all; }
 .ws-radrow .opt { color: #6b7f94; }
 .ws-area-gf .basis { font-style: normal; color: #6b7f94; font-size: 11px; }
+/* 배치선 번호 마커 — 클릭으로 삭제 가능함을 커서로 알린다 */
+.ws-turbine span { cursor: pointer; }
+.ws-turbine span:hover { background: #ff6b6b; color: #fff; }
