@@ -370,8 +370,11 @@ def _compute(area, separation_zone=None, layout: dict | None = None,
         jobs.check(job_id)
         return layer, _layer_geoms(area, layer)
 
+    seen = 0
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
         for layer, (geoms, err) in pool.map(work, layers):
+            seen += 1
+            jobs.set_progress(job_id, seen, len(layers), '규제 레이어 조회')
             if err:
                 failures.append(f'{layer.title}: {err}')
             if not geoms:
@@ -521,6 +524,7 @@ def evaluate_points(points: list, radius_m: int, capacity_mw=None,
         # 호기 하나가 통째로 62개 조회다. 시작 전에 확인하면 남은 호기를
         # 통째로 아낄 수 있다.
         jobs.check(job_id)
+        jobs.set_progress(job_id, i - 1, len(points), f'{i}/{len(points)}{label} 규제 검토')
         addr = sido = sigungu = ''
         try:
             g = reverse_geocode(lat, lng) or {}
@@ -543,6 +547,7 @@ def evaluate_points(points: list, radius_m: int, capacity_mw=None,
             continue
         out.append({'no': i, 'lat': lat, 'lng': lng, 'address': addr,
                     'sido': sido, 'sigungu': sigungu, 'result': res})
+        jobs.set_progress(job_id, i, len(points), f'{i}/{len(points)}{label} 완료')
     return out
 
 

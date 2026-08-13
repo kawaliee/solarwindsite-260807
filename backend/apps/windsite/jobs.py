@@ -38,6 +38,32 @@ logger = logging.getLogger(__name__)
 TTL = 60 * 30
 
 _PREFIX = 'windsite:cancel:'
+_PROGRESS_PREFIX = 'windsite:progress:'
+
+
+def set_progress(job_id: str, done: int, total: int, stage: str = '') -> None:
+    """
+    진행 상황을 남긴다. 화면이 폴링으로 읽는다.
+
+    작업이 동기 뷰 안에서 도는 동안에는 응답을 흘려보낼 수 없다. 그래서
+    진행률을 별도 채널(Redis)에 써 두고 화면이 따로 물어본다.
+    """
+    if not job_id:
+        return
+    try:
+        cache.set(f'{_PROGRESS_PREFIX}{job_id}',
+                  {'done': done, 'total': max(total, 1), 'stage': stage}, TTL)
+    except Exception:                                           # noqa: BLE001
+        pass
+
+
+def get_progress(job_id: str) -> dict:
+    if not job_id:
+        return {}
+    try:
+        return cache.get(f'{_PROGRESS_PREFIX}{job_id}') or {}
+    except Exception:                                           # noqa: BLE001
+        return {}
 
 
 class Cancelled(Exception):
@@ -80,5 +106,6 @@ def clear(job_id: str) -> None:
         return
     try:
         cache.delete(_key(job_id))
+        cache.delete(f'{_PROGRESS_PREFIX}{job_id}')
     except Exception:                                           # noqa: BLE001
         pass

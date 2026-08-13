@@ -1753,3 +1753,15 @@ select.fs-input { cursor: pointer; }
 .ws-turbine span:hover { background: #ff6b6b; color: #fff; }
 .ws-btn2.ws-cancel { border-color: rgba(255,77,79,.5); color: #f0a1a2; }
 .ws-btn2.ws-cancel:hover { background: rgba(255,77,79,.12); }
+
+/* 보고서 생성 진행률 */
+.ws-progress { display: flex; align-items: center; gap: 8px; flex: 1; flex-wrap: wrap; }
+.ws-progress .bar {
+  flex: 1; min-width: 90px; height: 6px; border-radius: 3px;
+  background: #1c2836; overflow: hidden;
+}
+.ws-progress .bar i {
+  display: block; height: 100%; background: #39d3e6;
+  transition: width .4s ease;
+}
+.ws-progress .txt { font-size: 11px; color: #8fa3b8; white-space: nowrap; }

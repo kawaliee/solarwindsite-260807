@@ -103,6 +103,13 @@ export const windsiteApi = {
    * fetch만 끊으면 서버는 계속 돈다 — Django 동기 뷰는 클라이언트가 끊긴
    * 것을 모른다. 이 호출이 있어야 남은 외부 조회가 실제로 멈춘다.
    */
+  /** 진행 상황 — 서버가 Redis에 남긴 값을 읽는다 */
+  areaReportProgress(jobId: string) {
+    return req<{ percent: number; stage: string; done: number; total: number;
+                 running: boolean }>(
+      `/area-report/progress/?job_id=${encodeURIComponent(jobId)}`);
+  },
+
   cancelAreaReport(jobId: string) {
     return req<{ ok: boolean }>('/area-report/cancel/', {
       method: 'POST',

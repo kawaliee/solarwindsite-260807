@@ -34,6 +34,45 @@ _OVERPASS_LOCK = threading.Lock()
 #: 429/504 재시도 대기 (초)
 _RETRY_BACKOFF = (3, 8, 20)
 
+#: 연속 실패가 이만큼 쌓이면 차단기를 연다.
+#:
+#: 공개 인스턴스가 사용량 제한을 걸면 그 뒤 호출도 거의 다 막힌다. 그런데
+#: 호출 1건마다 재시도 4회 + 백오프 31초가 붙고 _OVERPASS_LOCK으로 직렬화까지
+#: 되므로, 배치선 11기(호기당 3회 = 33회) 검토가 20분 넘게 갇힌다.
+#: 실측에서 보고서 생성이 10분 넘게 끝나지 않은 원인이 이것이었다.
+#:
+#: 막힌 것이 확인되면 잠시 두드리기를 멈춘다. 해당 항목은 UNKNOWN(FETCH)이
+#: 되는데, 그것이 정확한 상태다 — 데이터가 없는 게 아니라 조회하지 못한 것이고
+#: 재시도하면 판정될 수 있다.
+_BREAKER_THRESHOLD = 2
+#: 차단 유지 시간(초). 공개 인스턴스의 제한 창이 대개 이 정도다.
+_BREAKER_TTL = 180
+_BREAKER_KEY = 'windsite:overpass:breaker'
+
+
+def _breaker_open() -> bool:
+    from django.core.cache import cache
+    try:
+        return int(cache.get(_BREAKER_KEY) or 0) >= _BREAKER_THRESHOLD
+    except Exception:                                           # noqa: BLE001
+        return False
+
+
+def _breaker_hit() -> None:
+    from django.core.cache import cache
+    try:
+        cache.set(_BREAKER_KEY, int(cache.get(_BREAKER_KEY) or 0) + 1, _BREAKER_TTL)
+    except Exception:                                           # noqa: BLE001
+        pass
+
+
+def _breaker_reset() -> None:
+    from django.core.cache import cache
+    try:
+        cache.delete(_BREAKER_KEY)
+    except Exception:                                           # noqa: BLE001
+        pass
+
 
 class OverpassError(RuntimeError):
     """Overpass 호출 실패 — 데이터 부재와 구분하기 위한 예외"""
@@ -55,6 +94,13 @@ class OverpassClient:
 
     @classmethod
     def _query_live(cls, ql: str, timeout: float) -> list[dict]:
+        # 최근에 연달아 막혔으면 재시도하지 않고 즉시 실패로 돌린다.
+        # 락 밖에서 먼저 보아, 줄 서서 기다리는 것 자체를 없앤다.
+        if _breaker_open():
+            raise OverpassError(
+                'Overpass 사용량 제한이 확인되어 일시적으로 조회를 건너뜁니다 '
+                f'({_BREAKER_TTL}초 후 자동 재개). 잠시 후 다시 시도하십시오.')
+
         endpoints = cls.endpoints()
         last = ''
         with _OVERPASS_LOCK:
@@ -79,10 +125,14 @@ class OverpassClient:
                 if res.status_code >= 400:
                     raise OverpassError(f'HTTP {res.status_code}')
                 try:
-                    return res.json().get('elements', [])
+                    out = res.json().get('elements', [])
                 except ValueError as e:
                     last = f'응답 파싱 실패: {type(e).__name__}'
                     continue
+                _breaker_reset()
+                return out
+        # 재시도를 다 쓰고도 실패했다 — 차단기 카운트를 올린다
+        _breaker_hit()
         raise OverpassError(last or '알 수 없는 오류')
 
     @staticmethod

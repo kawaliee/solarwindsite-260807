@@ -78,6 +78,23 @@ def _cancelled():
                     status=HTTP_CLIENT_CLOSED)
 
 
+@api_view(['GET'])
+def area_report_progress(request):
+    """진행 상황 조회. 화면이 몇 초 간격으로 폴링한다."""
+    job_id = str(request.GET.get('job_id') or '')[:64]
+    p = jobs.get_progress(job_id)
+    total = p.get('total') or 1
+    done = p.get('done') or 0
+    return Response({
+        'job_id': job_id,
+        'done': done,
+        'total': total,
+        'percent': round(min(100, done * 100 / total)),
+        'stage': p.get('stage') or '',
+        'running': bool(p),
+    })
+
+
 @api_view(['POST'])
 def area_report_cancel(request):
     """
@@ -222,6 +239,7 @@ def area_report_download(request):
 
     try:
         jobs.check(job_id)
+        jobs.set_progress(job_id, len(evals) or 1, (len(evals) or 1) + 1, '보고서 작성')
         blob = area_report.build_area_report(result, evals)
     except jobs.Cancelled:
         return _cancelled()

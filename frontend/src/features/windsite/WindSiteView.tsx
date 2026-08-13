@@ -73,6 +73,7 @@ export default function WindSiteView() {
   const [areaReporting, setAreaReporting] = useState(false);
   /** 진행 중인 보고서 작업 — 중단할 때 서버에 알릴 id와 fetch 취소 핸들 */
   const reportJob = useRef<{ id: string; abort: AbortController } | null>(null);
+  const [reportProgress, setReportProgress] = useState<{ percent: number; stage: string } | null>(null);
 
   /** 검토와 보고서가 같은 입력을 쓰도록 한 곳에서 만든다 */
   function areaBody() {
@@ -86,7 +87,17 @@ export default function WindSiteView() {
     const id = (crypto.randomUUID?.() ?? String(Date.now()));
     const abort = new AbortController();
     reportJob.current = { id, abort };
-    setAreaReporting(true); setError('');
+    setAreaReporting(true); setError(''); setReportProgress({ percent: 0, stage: '시작' });
+
+    // 동기 응답이라 진행률을 흘려보낼 수 없다. 서버가 Redis에 남긴 값을
+    // 따로 물어본다. 작업이 끝나면 finally에서 멈춘다.
+    const poll = window.setInterval(async () => {
+      try {
+        const p = await windsiteApi.areaReportProgress(id);
+        if (p.running) setReportProgress({ percent: p.percent, stage: p.stage });
+      } catch { /* 폴링 실패는 무시한다 — 본 작업과 무관하다 */ }
+    }, 3000);
+
     try {
       await windsiteApi.downloadAreaReport({ ...areaBody(), job_id: id }, abort.signal);
     } catch (e) {
@@ -95,8 +106,10 @@ export default function WindSiteView() {
         setError(e instanceof Error ? e.message : '보고서 생성에 실패했습니다.');
       }
     } finally {
+      window.clearInterval(poll);
       reportJob.current = null;
       setAreaReporting(false);
+      setReportProgress(null);
     }
   }
 
@@ -456,9 +469,18 @@ export default function WindSiteView() {
                 </button>
                 <div className="ws-actions">
                   {areaReporting ? (
-                    <button className="ws-btn2 ws-cancel" onClick={cancelAreaReport}>
-                      생성 중단
-                    </button>
+                    <span className="ws-progress">
+                      <span className="bar">
+                        <i style={{ width: `${reportProgress?.percent ?? 0}%` }} />
+                      </span>
+                      <span className="txt">
+                        {reportProgress?.percent ?? 0}%
+                        {reportProgress?.stage ? ` · ${reportProgress.stage}` : ''}
+                      </span>
+                      <button className="ws-btn2 ws-cancel" onClick={cancelAreaReport}>
+                        생성 중단
+                      </button>
+                    </span>
                   ) : (
                     <button className="ws-btn2" onClick={downloadAreaReport}
                       disabled={!areaResult || areaLoading}>
