@@ -457,6 +457,7 @@ def geocode_view(request):
             detail = ('해당 좌표에서 주소를 찾지 못했습니다. '
                       '해상이거나 주소가 부여되지 않은 지역일 수 있습니다.')
         return Response({'detail': detail}, status=http.HTTP_404_NOT_FOUND)
+    return Response({'lat': lat, 'lng': lng, **rg})
 
 
 @api_view(['GET'])
