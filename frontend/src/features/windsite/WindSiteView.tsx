@@ -297,18 +297,7 @@ export default function WindSiteView() {
                     onClick={() => {
                       setRing([]); setAreaResult(null); setTurbineAddrs([]);
                     }}>지우기</button>
-                  <button type="button" className="run"
-                    disabled={ring.length < (pickMode === 'layout' ? 1 : 3) || areaLoading}
-                    onClick={runArea}>
-                    {areaLoading ? '검토 중…'
-                      : pickMode === 'layout' ? '배치선 검토 실행' : '구역 검토 실행'}
-                  </button>
-                  {areaResult && (
-                    <button type="button" disabled={areaReporting}
-                      onClick={downloadAreaReport}>
-                      {areaReporting ? '생성 중…' : '보고서 (docx)'}
-                    </button>
-                  )}
+
                 </span>
               )}
             </div>
@@ -401,12 +390,17 @@ export default function WindSiteView() {
               </label>
             </div>
             <div className="ws-two">
-              <label className="ws-fld">
-                <span>검토 반경 (m)</span>
-                <input type="number" min={MIN_RADIUS_M} max={MAX_RADIUS_M} step={50}
-                  value={radiusM}
-                  onChange={e => setRadiusM(Number(e.target.value) || DEFAULT_RADIUS_M)} />
-              </label>
+              {/* 검토 반경은 지점 검토 전용이다. 배치선·구역 모드에서는 지도 위
+                  발전기/연결선 반경이 쓰이므로, 남겨두면 어느 값이 적용되는지
+                  헷갈린다. */}
+              {pickMode === 'point' && (
+                <label className="ws-fld">
+                  <span>검토 반경 (m)</span>
+                  <input type="number" min={MIN_RADIUS_M} max={MAX_RADIUS_M} step={50}
+                    value={radiusM}
+                    onChange={e => setRadiusM(Number(e.target.value) || DEFAULT_RADIUS_M)} />
+                </label>
+              )}
               <label className="ws-fld">
                 <span>설비용량 (MW) <em>(선택)</em></span>
                 <input type="number" min={0} step={0.1} value={capacity} placeholder="60"
@@ -414,21 +408,51 @@ export default function WindSiteView() {
               </label>
             </div>
 
-            <button className="btn-primary ws-run" onClick={run} disabled={loading}>
-              {loading ? '검토 중…' : '입지타당성 검토 실행'}
-            </button>
-
-            <div className="ws-actions">
-              <button className="ws-btn2" onClick={downloadReport} disabled={reporting || loading}>
-                {reporting ? '보고서 생성 중…' : '보고서 내려받기 (docx)'}
-              </button>
-              <button className="ws-btn2" onClick={addCandidate} disabled={loading}>
-                후보지로 담기 {candidates.length > 0 && `(${candidates.length})`}
-              </button>
-            </div>
-            <p className="ws-hint">
-              보고서에는 지적·규제·주변현황·이격거리 지도 4종이 포함되며 생성에 2~3분 걸립니다.
-            </p>
+            {/* 실행 버튼은 모드에 따라 하는 일이 다르다. 지점 검토용 버튼을
+                배치선 모드에서도 그대로 두면, 위·경도가 비어 있어 '사업지를
+                지정하십시오'만 반복된다. */}
+            {pickMode === 'point' ? (
+              <>
+                <button className="btn-primary ws-run" onClick={run} disabled={loading}>
+                  {loading ? '검토 중…' : '입지타당성 검토 실행'}
+                </button>
+                <div className="ws-actions">
+                  <button className="ws-btn2" onClick={downloadReport}
+                    disabled={reporting || loading}>
+                    {reporting ? '보고서 생성 중…' : '보고서 내려받기 (docx)'}
+                  </button>
+                  <button className="ws-btn2" onClick={addCandidate} disabled={loading}>
+                    후보지로 담기 {candidates.length > 0 && `(${candidates.length})`}
+                  </button>
+                </div>
+                <p className="ws-hint">
+                  보고서에는 지적·규제·주변현황·이격거리 지도 4종이 포함되며 생성에 2~3분 걸립니다.
+                </p>
+              </>
+            ) : (
+              <>
+                <button className="btn-primary ws-run" onClick={runArea}
+                  disabled={areaLoading || ring.length < (pickMode === 'layout' ? 1 : 3)}>
+                  {areaLoading ? '검토 중…'
+                    : pickMode === 'layout' ? '배치선 검토 실행' : '구역 검토 실행'}
+                </button>
+                <div className="ws-actions">
+                  <button className="ws-btn2" onClick={downloadAreaReport}
+                    disabled={!areaResult || areaReporting || areaLoading}>
+                    {areaReporting ? '보고서 생성 중…' : '보고서 내려받기 (docx)'}
+                  </button>
+                </div>
+                <p className="ws-hint">
+                  {ring.length === 0
+                    ? (pickMode === 'layout'
+                        ? '지도를 클릭해 발전기 위치를 1호기부터 순서대로 찍으십시오.'
+                        : '지도를 클릭해 사업구역 꼭짓점을 3개 이상 찍으십시오.')
+                    : !areaResult
+                      ? '검토를 실행하면 면적 분포와 제약도가 표시되고 보고서를 받을 수 있습니다.'
+                      : '보고서에는 제약도와 면적 분포, 조례 경과규정 검토가 포함됩니다.'}
+                </p>
+              </>
+            )}
 
             {error && <p className="ws-error">{error}</p>}
 
