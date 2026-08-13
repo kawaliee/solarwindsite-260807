@@ -182,6 +182,7 @@ def _rule_set(rules) -> dict:
     값이 없으면 키가 빠진다 — 조례에 없는 대상에 임의로 거리를 붙이지 않는다.
     """
     out: dict = {}
+    unhandled: list[str] = []
     for r in rules:
         d = (r.target_detail or '')
         if r.target == 'RESIDENTIAL':
@@ -193,11 +194,22 @@ def _rule_set(rules) -> dict:
             out[key] = max(out.get(key, 0), r.distance_m)
         elif r.target == 'QUIET_FACILITY':
             out['quiet'] = max(out.get('quiet', 0), r.distance_m)
-        elif '축사' in d or '가축' in d:
+        # 조례마다 부르는 이름이 다르다. 완도군은 '생산시설(축사, 축양장 등)',
+        # 삼척시는 '축사'로 적는다. 이름이 안 맞으면 축사 이격이 통째로 빠진다.
+        elif any(k in d for k in ('축사', '가축', '축양장', '생산시설', '畜')):
             out['livestock'] = max(out.get('livestock', 0), r.distance_m)
+        else:
+            # 건물이 아닌 대상(도로 등)은 건축물 레이어로 버퍼를 만들 수 없다.
+            # 조용히 버리면 제약을 놓친 채 가용면적이 넓게 나오므로 이름을 남긴다.
+            # (완도군 조례 제20조의2 — 국도·지방도·군도·농어촌도로에서 1,000m)
+            unhandled.append(f'{r.get_target_display()}'
+                             + (f'({d})' if d else '')
+                             + f' {r.distance_m:,}m')
     # 한쪽만 있으면 같은 값으로 본다 (구간 구분이 없는 조례)
     if 'house_ge' in out and 'house_lt' not in out:
         out['house_lt'] = out['house_ge']
+    if unhandled:
+        out['_unhandled'] = unhandled
     return out
 
 
@@ -225,22 +237,37 @@ def _facility_buffers(area_geom, slices, separation_zone=None) -> tuple[dict, li
     지중 집전선로나 진입도로가 아니다.
     """
     rule_sets = {s['code']: _rule_set(s['rules']) for s in slices if s['rules']}
+
+    # 공간으로 평가하지 못한 조항을 먼저 알린다. 면적에서 빠졌다는 사실을
+    # 말하지 않으면 가용면적이 실제보다 넓은 채로 그냥 읽힌다.
+    gaps: list[str] = []
+    for s in slices:
+        for txt in (rule_sets.get(s['code']) or {}).get('_unhandled') or []:
+            gaps.append(f'{s["sigungu"]} {txt}')
+    pre: list[str] = []
+    if gaps:
+        pre.append(
+            '조례에 있으나 면적 산출에 반영하지 못한 이격 조항 — ' + ' · '.join(gaps)
+            + '. 건축물이 아닌 대상(도로 등)이라 건물 레이어로 버퍼를 만들 수 '
+              '없습니다. 아래 가용면적에는 이 제약이 빠져 있으므로, 해당 조항은 '
+              '도로 현황도로 별도 확인하십시오.')
+
     max_dist = max((v for rs in rule_sets.values() for v in rs.values()
                     if isinstance(v, int)), default=0)
     if not max_dist:
-        return {}, []
+        return {}, pre
 
     search = area_geom.buffer(max_dist + FACILITY_MARGIN_M)
     try:
         feats, meta = VworldClient.fetch_area(FACILITY_LAYER, search)
     except Exception as e:                                      # noqa: BLE001
         logger.warning('이격 대상 시설 조회 실패: %s', e)
-        return {}, [f'이격 대상 시설을 조회하지 못했습니다 ({type(e).__name__}). '
-                    f'조례 이격거리 제약이 결과에 반영되지 않았습니다.']
+        return {}, pre + [f'이격 대상 시설을 조회하지 못했습니다 ({type(e).__name__}). '
+                          f'조례 이격거리 제약이 결과에 반영되지 않았습니다.']
 
-    notes: list[str] = []
+    notes: list[str] = list(pre)
     if meta.get('strategy') == 'failed':
-        return {}, [f'이격 대상 시설 조회 실패: {meta.get("error")}']
+        return {}, pre + [f'이격 대상 시설 조회 실패: {meta.get("error")}']
     if meta.get('truncated'):
         notes.append('이격 대상 시설이 일부만 조회되었습니다 (구역이 넓어 잘림).')
     if not feats:
@@ -421,11 +448,14 @@ def _compute(area, separation_zone=None, layout: dict | None = None,
     # 확인되지 않은 것을 금지로 단정하지 않고 조건부로 둔다. 건물 용도
     # 분류가 붙으면 확인된 주거·정온시설만 배제로 옮긴다.
     ord_parts = []
+    # 코드가 아니라 지자체 이름으로 적는다. '조례 이격거리 (12850)'은
+    # 보고서에서 무엇을 가리키는지 알 수 없다.
+    name_of = {s['code']: s['sigungu'] for s in slices}
     for code, piece in buffers.items():
         conditional_parts.append(piece)
         ord_parts.append(piece)
         by_reason.append({
-            'layer': f'조례 이격거리 ({code})',
+            'layer': f'조례 이격거리 ({name_of.get(code) or code})',
             'status': Status.CONDITIONAL.value,
             'area_m2': float(piece.area),
             'ratio': float(piece.area) / total,

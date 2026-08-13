@@ -44,7 +44,7 @@ from collections import Counter
 
 from django.conf import settings
 
-from . import geo, httpcache
+from . import geo, httpcache, pnu
 from .providers.base import LayerProvider
 
 logger = logging.getLogger(__name__)
@@ -95,6 +95,10 @@ def fetch_dong(sigungu_cd: str, bjdong_cd: str) -> list[dict]:
     base = getattr(settings, 'BLDG_LEDGER_BASE', '')
     if not key or not base:
         return []
+    # 대장은 행정구역 개편 전 코드로 적재된 지역이 있다. 확인된 대응표가
+    # 있을 때만 바꿔 넘긴다 — 자세한 사연은 windsite/pnu.py 참고.
+    # (완도군: 12850으로 물으면 0건, 46890으로 물으면 206건)
+    sigungu_cd = pnu.for_ledger(sigungu_cd)
 
     def call() -> list[dict]:
         out: list[dict] = []

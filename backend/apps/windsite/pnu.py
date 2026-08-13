@@ -66,6 +66,50 @@ def _alias() -> dict[str, str]:
     return {}
 
 
+#: 구 시도 코드 ↔ 시도명. 후보를 만드는 데만 쓴다 — 어느 후보가 맞는지는
+#: 응답에 실린 소재지 주소로 대조해 확정한다.
+LEGACY_SIDO = {
+    '11': '서울', '26': '부산', '27': '대구', '28': '인천', '29': '광주',
+    '30': '대전', '31': '울산', '36': '세종', '41': '경기', '42': '강원',
+    '43': '충북', '44': '충남', '45': '전북', '46': '전남', '47': '경북',
+    '48': '경남', '50': '제주', '51': '강원', '52': '전북',
+}
+
+
+def candidates(sido_name: str) -> list[str]:
+    """
+    구 시군구 코드 후보. 시도명에 이름이 걸리는 시도를 앞에 둔다.
+
+    '전남광주통합특별시'처럼 통합된 이름은 옛 시도 여럿에 걸리므로 모두
+    앞으로 당긴다. 시군구 3자리는 5의 배수로만 훑는다(법정동코드 관행).
+    """
+    name = sido_name or ''
+    head = [c for c, n in LEGACY_SIDO.items() if n and n in name]
+    rest = [c for c in LEGACY_SIDO if c not in head]
+    return [f'{c}{n:03d}' for c in head + rest for n in range(100, 1000, 5)]
+
+
+def save_alias(new_code: str, old_code: str) -> None:
+    """확인된 대응을 파일에 적는다. 다음 검토부터 코드 수정 없이 쓰인다."""
+    path = Path(settings.BASE_DIR) / 'data' / ALIAS_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    cur = {}
+    if path.exists():
+        try:
+            cur = json.loads(path.read_text(encoding='utf-8'))
+        except Exception:                                       # noqa: BLE001
+            cur = {}
+    cur[str(new_code)] = str(old_code)
+    path.write_text(json.dumps(cur, ensure_ascii=False, indent=2, sort_keys=True),
+                    encoding='utf-8')
+    logger.info('PNU 대응표 갱신: %s → %s', new_code, old_code)
+
+
+def for_ledger(sigungu_code: str) -> str:
+    """건축물대장 sigunguCd. 대응표가 있으면 구 코드로."""
+    return _alias().get(str(sigungu_code), str(sigungu_code))
+
+
 def for_ned(pnu: str) -> str:
     """NED에 넘길 PNU. 대응표에 있으면 구 코드로 바꾸고, 없으면 그대로."""
     p = (pnu or '').strip()
