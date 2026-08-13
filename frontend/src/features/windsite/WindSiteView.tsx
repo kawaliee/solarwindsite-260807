@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import DateInput from '../../components/DateInput'
 import SitePicker, { type PickMode } from './SitePicker'
 import { windsiteApi } from './api'
 import {
@@ -319,8 +320,7 @@ export default function WindSiteView() {
             {(
               <div className="ws-radrow">
                 <label>발전사업허가일 <span className="opt">(선택)</span>
-                  <input type="date" value={permitDate}
-                    onChange={e => setPermitDate(e.target.value)} /></label>
+                  <DateInput value={permitDate} onChange={setPermitDate} /></label>
                 <em>조례 시행일보다 앞서면 부칙 경과조치 검토 대상으로 표시합니다</em>
               </div>
             )}

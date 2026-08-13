@@ -1712,6 +1712,29 @@ select.fs-input { cursor: pointer; }
   background: #101a24; border: 1px solid #22303f; color: #dbe7f2;
 }
 .ws-radrow em { font-style: normal; font-size: 11px; color: #6b7f94; padding-bottom: 5px; }
+
+/* 연·월·일 분리 입력 — 칸을 나눠 자릿수를 강제하고 커서를 자동으로 넘긴다 */
+.dateseg {
+  display: inline-flex; align-items: center; gap: 2px;
+  background: #101a24; border: 1px solid #22303f; border-radius: 6px;
+  padding: 4px 6px; width: max-content;
+}
+.dateseg:focus-within { border-color: #39d3e6; }
+.dateseg input {
+  padding: 1px 2px; border: none; background: none; flex: none;
+  color: #dbe7f2; font-size: 12px; text-align: center; border-radius: 3px;
+}
+.dateseg input:focus { outline: none; background: #1a2b3a; }
+.dateseg input::placeholder { color: #4d6072; }
+/* .ws-radrow input 의 width:110px 을 이겨야 하므로 클래스를 겹쳐 쓴다 */
+.dateseg input.dateseg-y { width: 40px; }
+.dateseg input.dateseg-s { width: 26px; }
+.dateseg b { color: #45596d; font-weight: 400; }
+.dateseg-x {
+  margin-left: 4px; padding: 0 3px; border: none; background: none;
+  color: #6b7f94; font-size: 13px; line-height: 1; cursor: pointer;
+}
+.dateseg-x:hover { color: #dbe7f2; }
 .ws-area-note { margin: 4px 0 8px; font-size: 11px; color: #7f93a8; }
 
 /* 배치선 모드 — 호기별 주소 목록 */
