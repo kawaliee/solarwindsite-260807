@@ -58,23 +58,51 @@ class LocalOrdinanceProvider(LayerProvider):
                 action_required='주소 또는 행정구역을 입력하면 조례를 조회합니다.',
             )
 
-        # DB에 없으면 자치법규 OPEN API로 그 자리에서 수집한다
-        rules = ordinances.ensure_ordinances(self.sido, self.sigungu)
+        # DB에 없으면 자치법규 OPEN API로 그 자리에서 수집한다.
+        # 빈손인 이유를 함께 받는다 — '규정이 없다'와 '물어보지 못했다'는
+        # 전혀 다른 사실인데 한 문장으로 뭉치면 없는 줄로 읽힌다.
+        rules, state = ordinances.ordinance_state(self.sido, self.sigungu)
 
-        if not rules:
+        if not rules and state == ordinances.UNVERIFIED:
+            err = ordinances.auth_failure()
             return self.item(
                 status=Status.UNKNOWN,
                 reason=(
-                    f'{self.sido} {self.sigungu}의 풍력 이격거리 조례를 '
-                    '자치법규 OPEN API에서 자동 조회했으나 이격거리 조항을 찾지 못했습니다. '
-                    '해당 지자체에 이격 규정이 없거나, 도시·군계획 조례가 아닌 '
-                    '별도 조례·지침에 있을 수 있습니다. 임의 판단하지 않습니다.'
+                    f'{self.sigungu}의 조례를 조회하지 못했습니다 — 국가법령정보 '
+                    'OPEN API가 요청을 거절했습니다. law.go.kr은 인증키(OC)와 별개로 '
+                    '**계정에 등록된 서버 IP**를 대조하는데, 등록된 주소와 현재 '
+                    '나가는 공인 IP가 다르면 거절합니다. 조례가 없는 것이 아니라 '
+                    f'물어보지 못한 상태입니다. (응답: {err[:80]})'
                 ),
                 difficulty=Difficulty.HIGH,
                 confidence=Confidence.LOW,
+                source_url='https://open.law.go.kr',
+                action_required=(
+                    '국가법령정보 공동활용(open.law.go.kr) → OPEN API → OPEN API 신청에서 '
+                    '현재 서버의 공인 IP를 등록하십시오. 유동 IP면 바뀔 때마다 갱신해야 '
+                    '하므로 고정 IP나 고정 출구를 두는 편이 낫습니다. 그동안은 '
+                    '자치법규정보시스템(elis.go.kr)에서 직접 확인하십시오.'),
+                unknown_reason='FETCH',
+            )
+
+        if not rules:
+            confirmed = state == ordinances.NO_RULE
+            return self.item(
+                status=Status.UNKNOWN,
+                reason=(
+                    f'{self.sido} {self.sigungu}의 조례를 자치법규 OPEN API로 조회했으나 '
+                    + ('조문·별표를 모두 판독한 결과 풍력 이격거리 조항이 없었습니다. '
+                       '다만 조례 외 지침·행정예고에 있을 수 있어 확정으로 보지 않습니다.'
+                       if confirmed else
+                       '해당 지자체의 조례를 찾지 못했습니다. 도시·군계획 조례와 '
+                       '별도 제정 조례(풍력·재생에너지·이격거리)를 모두 검색한 결과입니다.')
+                ),
+                difficulty=Difficulty.HIGH,
+                confidence=Confidence.LOW,
+                source_url='https://www.elis.go.kr',
                 action_required='자치법규정보시스템(elis.go.kr)에서 해당 지자체 조례를 직접 확인하고, '
                                 'python manage.py sync_ordinances --sigungu <시군구> --apply 로 등록하십시오.',
-                unknown_reason='NO_RULE',
+                unknown_reason='NO_RULE' if confirmed else 'NO_DATA',
             )
 
         order = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']

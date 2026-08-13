@@ -24,7 +24,7 @@ import logging
 import httpx
 from django.conf import settings
 
-from .. import geo, httpcache
+from .. import geo, httpcache, pnu as pnu_codes
 from ..schemas import AnalysisItem, Confidence, Difficulty, Status
 from .base import LayerProvider, SiteQuery
 from .cadastral import parse_jimok
@@ -45,6 +45,9 @@ class NedClient:
 
     @staticmethod
     def call(op: str, root: str, pnu: str, rows: int = 100) -> list[dict]:
+        # 지적과 NED의 법정동코드 체계가 어긋난 지역이 있다. 확인된 대응표가
+        # 있을 때만 바꿔 넘긴다 — 자세한 사연은 windsite/pnu.py 참고.
+        pnu = pnu_codes.for_ned(pnu)
         params = {
             'key': settings.VWORLD_API_KEY,
             'domain': getattr(settings, 'VWORLD_DOMAIN', '') or 'localhost',
@@ -138,6 +141,15 @@ class ParcelBasedProvider(LayerProvider):
         return parcels, total
 
     @staticmethod
+    def _code_gap(parcels: list[dict]) -> str:
+        """코드 체계 불일치로 0건이 된 것이면 그 사실을 돌려준다."""
+        for p in parcels:
+            why = pnu_codes.unmapped_reason(p.get('pnu') or '')
+            if why:
+                return why
+        return ''
+
+    @staticmethod
     def _coverage_note(parcels: list[dict], total: int) -> str:
         if total <= len(parcels):
             return ''
@@ -207,14 +219,17 @@ class ForestClassificationProvider(ParcelBasedProvider):
                     others.add(name)
 
         if not found:
+            gap = self._code_gap(parcels)
             return self.item(
                 status=Status.UNKNOWN,
-                reason=('조회한 필지에서 산지구분(보전산지/준보전산지) 정보가 확인되지 '
-                        '않았습니다. 산지가 아닌 필지이거나 자료가 미등재된 경우입니다.'
-                        + self._coverage_note(parcels, total)),
+                reason=(gap if gap else
+                        ('조회한 필지에서 산지구분(보전산지/준보전산지) 정보가 확인되지 '
+                         '않았습니다. 산지가 아닌 필지이거나 자료가 미등재된 경우입니다.'))
+                       + self._coverage_note(parcels, total),
                 difficulty=Difficulty.MEDIUM,
                 confidence=Confidence.LOW,
-                action_required='토지이용계획확인원으로 산지구분을 직접 확인하십시오.',
+                action_required=(pnu_codes.unmapped_action('') if gap else
+                                 '토지이용계획확인원으로 산지구분을 직접 확인하십시오.'),
                 raw={'parcels': parcels, 'total_parcels': total},
             )
 
@@ -308,9 +323,11 @@ class LandUseZoneProvider(ParcelBasedProvider):
                     z['conflict'] += 1
 
         if not zones:
+            gap = self._code_gap(parcels)
             return self.unknown(
-                reason='필지 지역지구 정보를 조회하지 못했습니다.',
-                action_required='토지이용계획확인원을 직접 확인하십시오.',
+                reason=gap or '필지 지역지구 정보를 조회하지 못했습니다.',
+                action_required=(pnu_codes.unmapped_action('') if gap else
+                                 '토지이용계획확인원을 직접 확인하십시오.'),
             )
 
         facilities = [z for z in zones.values()
@@ -395,9 +412,11 @@ class LandOwnershipProvider(ParcelBasedProvider):
                 })
 
         if not rows:
+            gap = self._code_gap(parcels)
             return self.unknown(
-                reason='소유구분 정보를 조회하지 못했습니다.',
-                action_required='토지대장·등기사항증명서로 소유구분을 확인하십시오.',
+                reason=gap or '소유구분 정보를 조회하지 못했습니다.',
+                action_required=(pnu_codes.unmapped_action('') if gap else
+                                 '토지대장·등기사항증명서로 소유구분을 확인하십시오.'),
             )
 
         public = [r for r in rows if r['owner'] in ('국유지', '공유지')]
@@ -466,7 +485,12 @@ class LandCharacteristicsProvider(ParcelBasedProvider):
                 })
 
         if not rows:
-            return self.unknown(reason='토지특성 정보를 조회하지 못했습니다.')
+            gap = self._code_gap(parcels)
+            return self.unknown(
+                reason=gap or '토지특성 정보를 조회하지 못했습니다.',
+                action_required=(pnu_codes.unmapped_action('') if gap else
+                                 '토지(임야)대장으로 지형·도로접면을 확인하십시오.'),
+            )
 
         landlocked = [r for r in rows if '맹지' in r['road']]
         steep = [r for r in rows if '급경사' in r['terrain'] or '고지' in r['terrain']]

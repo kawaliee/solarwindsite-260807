@@ -569,17 +569,28 @@ def merge_items(evals: list[dict]) -> list[dict]:
         if not res:
             continue
         for it in res.analysis_items:
+            new = it.item_name not in merged
             row = merged.setdefault(it.item_name, {
                 'category': it.category, 'item_name': it.item_name,
                 'status': 'POSSIBLE', 'worst_no': None, 'reason': '',
                 'law': it.law, 'article': it.article,
+                # 조건부·확인 필요 항목을 어디서 어떻게 확인하는지 보고서에
+                # 싣기 위해 함께 들고 간다. 판정만 있고 다음 행동이 없으면
+                # 읽는 사람이 각 기관을 다시 찾아야 한다.
+                'action_required': it.action_required, 'source_url': it.source_url,
+                'data_source': it.data_source, 'difficulty': it.difficulty.value,
                 'unknown_reason': '', 'per_point': {},
             })
             s = it.status.value
             row['per_point'][ev['no']] = s
-            if _SEVERITY[s] > _SEVERITY[row['status']]:
+            # 첫 항목의 사유는 무조건 채운다. 종전에는 '더 나쁜 값'일 때만
+            # 채워, 모든 호기가 같은 판정이면(특히 해당없음) 주요 결과 칸이
+            # 통째로 비어 나갔다.
+            if new or _SEVERITY[s] > _SEVERITY[row['status']]:
                 row.update(status=s, worst_no=ev['no'], reason=it.reason,
-                           unknown_reason=it.unknown_reason)
+                           unknown_reason=it.unknown_reason,
+                           action_required=it.action_required,
+                           source_url=it.source_url, difficulty=it.difficulty.value)
     rows = list(merged.values())
     for r in rows:
         nos = sorted(no for no, v in r['per_point'].items()

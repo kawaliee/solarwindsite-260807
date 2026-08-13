@@ -49,6 +49,15 @@ def _fmt_ha(m2: float) -> str:
     return f'{m2 / 10_000:,.1f} ha'
 
 
+#: 1평 = 3.305785 m² (척관법 환산). 국내 부지 협의는 여전히 평으로 오간다.
+PYEONG_M2 = 3.305785
+
+
+def _fmt_area(m2: float) -> str:
+    """면적은 ha와 평을 함께 적는다 — 지주 협의·매매는 평으로 오간다."""
+    return f'{m2 / 10_000:,.1f} ha ({m2 / PYEONG_M2:,.0f}평)'
+
+
 def _pct(part: float, whole: float) -> str:
     return f'{(part / whole * 100):.1f}%' if whole else '-'
 
@@ -83,18 +92,26 @@ def build_area_report(result: dict, evals: list | None = None, *,
     for sec in doc.sections:
         sec.left_margin = sec.right_margin = Cm(1.8)
         sec.top_margin = sec.bottom_margin = Cm(1.9)
+    _page_numbers(doc, WD_ALIGN_PARAGRAPH)
 
     total = result['total_area_m2']
     layout = result.get('layout')
     grand = result.get('grandfathering') or {}
     juris = result.get('jurisdictions') or []
 
+    jmeta = result.get('jurisdiction_meta') or {}
+    outside = float(jmeta.get('uncovered_ratio') or 0)
     meta = [('검토 대상',
              (f'발전기 {len(layout["turbines"])}기 배치선'
               if layout else '사업구역(폴리곤)')),
-            ('검토 면적', _fmt_ha(total)),
-            ('관할 지자체', ' · '.join(f'{j["sigungu"]} {j["ratio"] * 100:.1f}%'
-                                   for j in juris) or '-'),
+            ('검토 면적', _fmt_area(total)),
+            # 종전에는 '완도군 24.8%'만 적어 24.8%가 무엇의 비율인지 알 수 없었다.
+            # 이 값은 검토 면적 중 그 지자체 관할이 차지하는 비율이며, 조례는
+            # 관할 구역에만 적용되므로 배분을 밝혀야 판정을 읽을 수 있다.
+            ('관할 지자체',
+             (' · '.join(f'{j["sigungu"]} {j["ratio"] * 100:.1f}%' for j in juris)
+              + (f' · 시군구 경계 밖 {outside * 100:.1f}%' if outside >= 0.005 else '')
+              + '  (검토 면적 대비)') if juris else '-'),
             ('작성', datetime.now().strftime('%Y-%m-%d %H:%M'))]
     if layout:
         meta += [('발전기 검토반경', f'{layout["turbine_radius_m"]:,} m'),
@@ -113,6 +130,7 @@ def build_area_report(result: dict, evals: list | None = None, *,
 
         _part(doc, 2, '입지조건 종합평가', f'검토 항목 {len(merged)}개 · 영역별', '2E6FB7')
         _assessment(doc, merged, Pt)
+        _how_to_check(doc, merged)
 
         _part(doc, 3, '호기별 종합비교표', '어느 호기가 문제인가', '7C5BB5')
         _per_point(doc, evals)
@@ -134,16 +152,26 @@ def build_area_report(result: dict, evals: list | None = None, *,
         ('판정 보류', _fmt_ha(result['pending_m2']), _pct(result['pending_m2'], total),
          STATUS_COLORS['UNKNOWN']),
     ])
+    if outside >= 0.05:
+        # 해상·경계 밖은 어떤 시군구 조례도 적용되지 않아 '제약 없음'으로
+        # 집계된다. 도서 지역에서는 이 몫이 절반을 넘기도 하므로, 가용면적을
+        # 그대로 읽으면 실제보다 크게 본다.
+        _callout(doc, '검토 면적의 %.1f%%가 시군구 경계 밖입니다' % (outside * 100),
+                 '해상이거나 행정경계에 포함되지 않은 범위입니다. 이 부분에는 어떤 '
+                 '지자체 조례도 적용되지 않아 아래 표에서 「제약 없음」으로 집계됩니다. '
+                 '실제 부지로 쓸 수 없는 면적이 섞여 있으므로 가용면적을 그대로 '
+                 '읽지 마십시오. 육상 면적만 필요하면 배치선을 육지 안으로 좁혀 '
+                 '다시 검토하십시오.', tone='UNKNOWN')
     _styled_table(doc, ['구분', '면적', '비율', '설명'], [
-        ['배제', _fmt_ha(result['blocked_m2']), _pct(result['blocked_m2'], total),
+        ['배제', _fmt_area(result['blocked_m2']), _pct(result['blocked_m2'], total),
          '불가 판정 레이어 · 조례 이격거리 위반 범위'],
-        ['조건부', _fmt_ha(result['conditional_m2']), _pct(result['conditional_m2'], total),
+        ['조건부', _fmt_area(result['conditional_m2']), _pct(result['conditional_m2'], total),
          '협의·저감 조건 하에 진행 가능'],
-        ['제약 없음', _fmt_ha(result['free_m2']), _pct(result['free_m2'], total),
+        ['제약 없음', _fmt_area(result['free_m2']), _pct(result['free_m2'], total),
          '조회된 어떤 규제 레이어에도 걸리지 않음'],
-        ['판정 보류', _fmt_ha(result['pending_m2']), _pct(result['pending_m2'], total),
+        ['판정 보류', _fmt_area(result['pending_m2']), _pct(result['pending_m2'], total),
          '조례를 확인하지 못한 지자체 구간'],
-    ], accent='18907E', widths=[2.6, 3.0, 2.0, 8.4])
+    ], accent='18907E', widths=[2.6, 4.6, 1.8, 7.0])
 
     doc.add_heading('가용면적', level=2)
     doc.add_paragraph(
@@ -151,9 +179,9 @@ def build_area_report(result: dict, evals: list | None = None, *,
         '생태자연도 1등급도 백두대간 핵심구역도 「불가」가 아니라 「조건부」로 봅니다. '
         '법률상 예외 행위가 있기 때문입니다. 어느 값을 쓸지는 사업 판단입니다.')
     _table(doc, ['구분', '면적', '비율'], [
-        ['엄격 가용', _fmt_ha(result['available_strict_m2']),
+        ['엄격 가용', _fmt_area(result['available_strict_m2']),
          _pct(result['available_strict_m2'], total)],
-        ['협의 포함 가용', _fmt_ha(result['available_with_consultation_m2']),
+        ['협의 포함 가용', _fmt_area(result['available_with_consultation_m2']),
          _pct(result['available_with_consultation_m2'], total)],
     ])
 
@@ -310,6 +338,7 @@ def _table(doc, headers, rows):
         cells = t.add_row().cells
         for i, v in enumerate(r):
             cells[i].text = str(v)
+    _table_flow(t)
     doc.add_paragraph()
     return t
 
@@ -358,9 +387,9 @@ def _overall(doc, evals, merged, area, Pt, RGBColor) -> None:
             _fmt_ha(area['available_with_consultation_m2']))),
     ]
     if wind:
-        rows.append(('풍력 자원', '%s — %s' % (_sig(wind.status.value), wind.reason[:90])))
+        rows.append(('풍력 자원', '%s — %s' % (_sig(wind.status.value), wind.reason)))
     if grid:
-        rows.append(('계통 연계', '%s — %s' % (_sig(grid.status.value), grid.reason[:90])))
+        rows.append(('계통 연계', '%s — %s' % (_sig(grid.status.value), grid.reason)))
     _kv(doc, rows)
 
     p = doc.add_paragraph(
@@ -369,6 +398,84 @@ def _overall(doc, evals, merged, area, Pt, RGBColor) -> None:
         '종합 판정으로 씁니다 — 한 기라도 걸리면 그 항목은 해결해야 하기 때문입니다.')
     p.runs[0].font.size = Pt(8.5)
     p.runs[0].font.color.rgb = RGBColor(0x66, 0x66, 0x66)
+
+    _score_rule(doc, evals)
+
+
+def _score_rule(doc, evals) -> None:
+    """
+    점수가 어떻게 나왔는지 그 자리에서 밝힌다.
+
+    산식을 감추면 '46점'이 무슨 뜻인지 물어볼 데가 없다. 특히 이 산식은
+    감점을 단순 합산하지 않는다 — 레이어를 늘릴수록 점수가 나빠지면
+    데이터가 좋아진 것을 나쁜 결과로 표시하는 셈이기 때문이다.
+    """
+    from . import engine
+
+    doc.add_heading('점수 산식', level=2)
+    doc.add_paragraph(
+        '100점에서 세 가지를 뺍니다. 불가 항목이 하나라도 있으면 산식과 무관하게 '
+        '0점입니다.')
+    _table(doc, ['감점 항목', '계산', '뜻'], [
+        ['worst', '가장 불리한 한 항목의 (판정 감점 + 난이도 감점)', '리스크의 크기'],
+        ['spread', '조건부 항목 수에서 1을 뺀 값 × 3점', '리스크의 개수'],
+        ['gap', '확인 필요 항목 수 × 2점', '정보 부족'],
+    ])
+
+    def _key(k):
+        return k.value if hasattr(k, 'value') else str(k)
+
+    diff_label = {'LOW': '낮음', 'MEDIUM': '보통', 'HIGH': '높음', 'CRITICAL': '치명'}
+    pen = ' · '.join(f'{SIGNAL.get(_key(k), ("", _key(k)))[1]} {v}점'
+                     for k, v in engine.STATUS_PENALTY.items())
+    dif = ' · '.join(f'{diff_label.get(_key(k), _key(k))} {v}점'
+                     for k, v in engine.DIFFICULTY_PENALTY.items())
+    _note(doc, f'판정 감점 — {pen}')
+    _note(doc, f'난이도 감점 — {dif}')
+
+    # 실제 이 검토의 숫자로 한 번 풀어 보인다. 산식만 적으면 대조가 안 된다.
+    worst_e = min(evals, key=lambda e: e['result'].overall_feasibility.score)
+    items = worst_e['result'].analysis_items
+    cond = [i for i in items if i.status.value == 'CONDITIONAL']
+    unk = [i for i in items if i.status.value == 'UNKNOWN']
+    w = max((engine.STATUS_PENALTY[i.status] + engine.DIFFICULTY_PENALTY[i.difficulty]
+             for i in cond + unk), default=0)
+    sp, gp = 3 * max(0, len(cond) - 1), 2 * len(unk)
+    _note(doc,
+          '이 검토의 최저점(%d호기) — 100 − worst %d − spread %d(조건부 %d건) '
+          '− gap %d(확인 필요 %d건) = %d점'
+          % (worst_e['no'], w, sp, len(cond), gp, len(unk),
+             max(0, min(100, 100 - (w + sp + gp)))),
+          color=INK)
+
+
+def _how_to_check(doc, merged) -> None:
+    """
+    조건부·확인 필요 항목을 **무엇을 근거로 어디서** 확인하는지.
+
+    판정만 적고 끝내면 읽는 사람이 항목마다 소관 기관을 다시 찾아야 한다.
+    근거 규정과 확인처는 판정을 낼 때 이미 알고 있는 값이므로 함께 싣는다.
+    """
+    rows = []
+    for m in merged:
+        if m['status'] not in ('IMPOSSIBLE', 'CONDITIONAL', 'UNKNOWN'):
+            continue
+        basis = ' '.join(x for x in (m.get('law'), m.get('article')) if x) or '-'
+        how = m.get('action_required') or '-'
+        where = m.get('source_url') or ''
+        src = m.get('data_source') or ''
+        rows.append([m['item_name'], _sig(m['status']), basis,
+                     how + (f'\n▸ {where}' if where else '')
+                         + (f'\n(판정 자료: {src})' if src else '')])
+    if not rows:
+        return
+    doc.add_heading('조건부·확인 필요 항목 — 무엇을 어디서 확인하나', level=2)
+    doc.add_paragraph(
+        '아래는 판정의 근거 규정과, 그 판정을 확정하기 위해 실제로 밟아야 하는 '
+        '절차입니다. 링크는 해당 자료를 제공하는 기관의 조회처입니다.')
+    _styled_table(doc, ['항목', '판정', '근거 규정', '확인 방법 · 조회처'], rows,
+                  accent='2E6FB7', status_col=1,
+                  widths=[3.8, 2.0, 3.6, 7.6])
 
 
 def _assessment(doc, merged, Pt) -> None:
@@ -389,7 +496,7 @@ def _assessment(doc, merged, Pt) -> None:
         _styled_table(doc, ['항목', '판정', '해당 호기', '주요 결과'],
                [[m['item_name'], _sig(m['status']),
                  (m.get('hit_label') or '-' if m['status'] != 'POSSIBLE' else '-'),
-                 (m['reason'] or '')[:110]]
+                 (m['reason'] or '')]
                 for m in items],
                       accent=SECTION_COLORS.get(cat, DEFAULT_SECTION_COLOR),
                       status_col=1, widths=[4.2, 2.2, 3.4, 7.2])
@@ -418,20 +525,31 @@ def _short(item) -> str:
     """
     비교표 칸에 들어갈 한 줄 요약.
 
-    풍황은 판정이 UNKNOWN(구조적으로 실측 대상)이지만 관측 연평균은 실제로
-    산출돼 있다. 기호만 찍으면 표가 비어 보이므로 숫자를 꺼내 쓴다.
-    다만 그 값이 관측소 원측정치임을 알 수 있게 관측높이를 함께 적는다.
+    풍황은 **허브고도 100m 환산값**으로 적는다. 관측소 원측정치(대개 지상
+    10m)를 그대로 실으면 '2.5 m/s'처럼 사업이 성립하지 않는 숫자로 보이는데,
+    그것은 관측 높이가 다르기 때문이지 이 부지의 바람이 아니다.
+
+    계통은 **154kV 이상**을 먼저 적는다. 최근접이라도 배전급이면 풍력
+    연계점이 될 수 없어, 그 거리는 사업 판단에 쓸 수 없는 숫자다.
     """
     if item is None:
         return '-'
     raw = item.raw or {}
+    hub = raw.get('hub_extrapolation') or {}
     obs = raw.get('observation') or {}
     if isinstance(obs.get('mean_ws'), (int, float)):
+        lo, hi = (hub.get('judge_range_ms') or [None, None])[:2]
+        if isinstance(lo, (int, float)) and isinstance(hi, (int, float)):
+            return '%.1f~%.1f m/s@%dm' % (lo, hi, hub.get('judge_hub_m') or 100)
         h = (raw.get('station') or {}).get('anemometer_h_m')
         return '%.1f m/s%s' % (obs['mean_ws'], ('@%.0fm' % h) if h else '')
     subs = [s for s in (raw.get('substations') or []) if s.get('distance_m')]
     if subs:
-        return '%.2f km' % (min(s['distance_m'] for s in subs) / 1000)
+        hv = [s for s in subs if (s.get('voltage') or 0) >= 154_000]
+        pick = min(hv or subs, key=lambda s: s['distance_m'])
+        kv = (pick.get('voltage') or 0) // 1000
+        return '%.2f km%s' % (pick['distance_m'] / 1000,
+                              (' (%dkV)' % kv) if kv else ' (전압 미상)')
     return SIGNAL.get(item.status.value, ('-',))[0]
 
 
@@ -478,28 +596,46 @@ def _detail_sections(doc, evals, Pt) -> None:
             continue
         raw = it.raw or {}
         st, obs = raw.get('station') or {}, raw.get('observation') or {}
+        hub = raw.get('hub_extrapolation') or {}
+        lo, hi = (hub.get('judge_range_ms') or [None, None])[:2]
         rows.append([
             '%d호기' % e['no'],
             '%s(%s) %.1fkm' % (st.get('name', '-'), st.get('stn_id', '-'),
                                st.get('distance_km', 0)),
             '%.2f m/s' % obs['mean_ws'] if isinstance(obs.get('mean_ws'), (int, float)) else '-',
             '%.0f m' % st['anemometer_h_m'] if st.get('anemometer_h_m') else '-',
-            '%.0f m' % st['alt_m'] if st.get('alt_m') else '-',
+            # 판정도 사업 판단도 허브고도 기준이다. 이 열을 표의 중심으로 둔다.
+            ('%.1f~%.1f m/s' % (lo, hi)
+             if isinstance(lo, (int, float)) and isinstance(hi, (int, float)) else '-'),
             obs.get('period', '-'),
         ])
     if rows:
+        hub_m = 0
+        for e in evals:
+            it = _item_of(e['result'], WIND_ITEM)
+            hub_m = ((it.raw or {}).get('hub_extrapolation') or {}).get('judge_hub_m') if it else 0
+            if hub_m:
+                break
         _styled_table(doc,
-                      ['호기', '관측소', '연평균 풍속', '관측높이', '관측소 표고', '관측기간'],
+                      ['호기', '관측소', '관측 연평균', '관측높이',
+                       '허브고도 %dm 환산' % (hub_m or 100), '관측기간'],
                       rows, accent='C05E2E',
-                      widths=[1.5, 4.4, 2.4, 2.0, 2.4, 4.1])
+                      widths=[1.5, 4.0, 2.2, 1.8, 3.2, 4.1])
         first = _item_of(evals[0]['result'], WIND_ITEM)
         if first:
             doc.add_paragraph(first.reason)
+        _note(doc,
+              '환산은 멱법칙(power law)에 전단지수 α를 개활지~산림 범위로 적용한 '
+              '구간 추정입니다. 관측 연평균은 관측소 원측정치(대개 지상 10m)라 '
+              '허브고도 값과 그대로 비교할 수 없습니다.')
 
     _kier(doc, evals)
-    doc.add_paragraph(
-        '※ 풍황은 실측 대상입니다. 위 값은 재분석·관측소 기반 추정이며 '
-        '사업성 판단에는 현장 계측(최소 1년)이 필요합니다.')
+    _callout(doc, '풍황 수치는 참고자료입니다 — 실제 관측 데이터를 사용하십시오',
+             '위 값은 기상관측소·재분석 자료를 허브고도로 환산한 추정치이며, '
+             '지형에 따른 국지 가속·감속을 담지 못합니다. 발전량 산정과 투자 '
+             '판단에는 현장 풍황탑(또는 라이다) 실측 최소 1년 자료를 쓰십시오. '
+             '이 보고서의 풍황 판정은 후보지 선별용입니다.',
+             tone='UNKNOWN')
 
     doc.add_heading('전력계통 인프라', level=2)
     grid = next((it for e in evals
@@ -530,7 +666,7 @@ def _detail_sections(doc, evals, Pt) -> None:
     _supply(doc, evals)
 
     doc.add_heading('정온시설 이격거리', level=2)
-    rows = [['%d호기' % e['no'], _sig(it.status.value), (it.reason or '')[:150]]
+    rows = [['%d호기' % e['no'], _sig(it.status.value), (it.reason or '')]
             for e in evals
             for it in [_item_of(e['result'], QUIET_ITEM)] if it]
     if rows:
@@ -715,8 +851,59 @@ def _styled_table(doc, headers: list, rows: list, *, accent: str = BRAND,
             for i, w in enumerate(widths):
                 if w:
                     row.cells[i].width = Cm(w)
+    _table_flow(t)
     doc.add_paragraph()
     return t
+
+
+def _table_flow(t) -> None:
+    """
+    쪽이 넘어갈 때 표가 읽히도록 두 가지를 건다.
+
+      · 머리글 행을 다음 쪽에도 다시 찍는다 — 두 번째 쪽부터 어느 열이
+        무엇인지 알 수 없으면 표가 아니라 글자 더미가 된다
+      · 한 행이 쪽 경계에서 쪼개지지 않게 한다 — 첨부 사진처럼 '3호기'만
+        앞 쪽에 남고 내용은 다음 쪽으로 넘어가면 짝을 못 맞춘다
+    """
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    hdr = OxmlElement('w:tblHeader')
+    t.rows[0]._tr.get_or_add_trPr().append(hdr)
+    for row in t.rows:
+        cant = OxmlElement('w:cantSplit')
+        row._tr.get_or_add_trPr().append(cant)
+
+
+def _page_numbers(doc, WD_ALIGN_PARAGRAPH) -> None:
+    """
+    바닥글에 'N / M' 쪽번호.
+
+    docx의 쪽 수는 파일을 만드는 시점에 알 수 없다(글꼴·여백에 따라 Word가
+    다시 흘린다). 그래서 숫자를 직접 쓰지 않고 필드 코드를 심어 Word가
+    열 때 계산하게 한다.
+    """
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    def field(par, instr: str):
+        run = par.add_run()
+        begin = OxmlElement('w:fldChar'); begin.set(qn('w:fldCharType'), 'begin')
+        instr_el = OxmlElement('w:instrText')
+        instr_el.set(qn('xml:space'), 'preserve'); instr_el.text = f' {instr} '
+        end = OxmlElement('w:fldChar'); end.set(qn('w:fldCharType'), 'end')
+        run._r.append(begin); run._r.append(instr_el); run._r.append(end)
+        run.font.size = __import__('docx.shared', fromlist=['Pt']).Pt(8.5)
+        run.font.name = '맑은 고딕'
+        return run
+
+    for sec in doc.sections:
+        p = sec.footer.paragraphs[0] if sec.footer.paragraphs else sec.footer.add_paragraph()
+        p.text = ''
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        field(p, 'PAGE')
+        _run(p, ' / ', size=8.5, color=MUTED)
+        field(p, 'NUMPAGES')
 
 
 #: 표에 찍힌 '● 불가' 같은 문자열을 다시 상태 키로 되돌리기 위한 역인덱스

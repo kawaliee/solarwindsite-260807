@@ -29,6 +29,12 @@ logger = logging.getLogger(__name__)
 #: 조례명 후보 — 지자체마다 제명이 다르다 (도시계획 / 군계획 / 도시·군계획)
 ORDINANCE_KEYWORDS = ('도시계획 조례', '군계획 조례', '도시·군계획 조례', '도시군계획 조례')
 
+#: 이격거리가 **도시·군계획 조례가 아닌 별도 조례**에 있는 지자체가 있다.
+#: 종전에는 '계획 조례'만 찾아, 별도 제정한 곳은 조례가 없는 것처럼 보였다.
+#: 아래 검색어로 한 번 더 훑고, 이름이 걸리는 조례를 모두 후보로 둔다.
+STANDALONE_QUERIES = ('풍력', '이격거리', '재생에너지 발전시설')
+STANDALONE_KEYWORDS = ('풍력', '풍력발전', '재생에너지', '신재생에너지', '이격거리')
+
 #: 거리 수치 표현. '2,000미터' / '2000m' / '1.5킬로미터'
 _DIST = r'([0-9][0-9,\.]*)\s*(미터|m|M|킬로미터|km|KM)'
 
@@ -236,18 +242,45 @@ def sync_sigungu(sido: str, sigungu: str, apply: bool = False) -> dict:
             if sigungu in h['org'] and any(k in h['name'] for k in ORDINANCE_KEYWORDS)]
     if not cand:
         cand = [h for h in hits if sigungu in h['org'] and '계획' in h['name']]
+
+    # 별도 제정 조례도 후보에 넣는다. 계획 조례를 찾았더라도 함께 본다 —
+    # 계획 조례에 이격 규정이 없고 별도 조례에만 있는 지자체가 있다.
+    seen = {h['mst'] for h in cand}
+    for kw in STANDALONE_QUERIES:
+        try:
+            extra = lawapi.search_ordinance(sigungu, kw)
+        except lawapi.LawApiAuthError:
+            raise
+        except Exception:                                       # noqa: BLE001
+            logger.warning('별도 조례 검색 실패 %s %s', sigungu, kw)
+            continue
+        hits += [h for h in extra if h['mst'] not in {x['mst'] for x in hits}]
+        for h in extra:
+            if (h['mst'] not in seen and sigungu in h['org']
+                    and any(k in h['name'] for k in STANDALONE_KEYWORDS)):
+                seen.add(h['mst'])
+                cand.append(h)
+
     if not cand:
         return {**blank, 'search_hits': hits}
 
+    # 첫 조례에서 못 찾으면 다음 후보로 넘어간다. 종전에는 cand[0]만 보고
+    # 끝내, 계획 조례에 규정이 없으면 '이격 규정 없음'으로 확정해 버렸다.
     target = cand[0]
-    body = lawapi.fetch_ordinance_articles(target['mst'])
+    found, source = None, ''
+    body: dict = {}
+    for h in cand:
+        body = lawapi.fetch_ordinance_articles(h['mst'])
+        got = extract_from_articles(body['articles'])
+        src = '조문'
+        if not got:
+            # 조문에 없으면 별표를 본다 — 청도군처럼 별표에만 규정된 사례가 있다
+            got = extract_from_appendices(h['mst'])
+            src = '별표'
+        if got:
+            target, found, source = h, got, src
+            break
 
-    found = extract_from_articles(body['articles'])
-    source = '조문'
-    if not found:
-        # 조문에 없으면 별표를 본다 — 청도군처럼 별표에만 규정된 사례가 있다
-        found = extract_from_appendices(target['mst'])
-        source = '별표'
     if not found:
         return {**blank, 'ordinance': target, 'search_hits': hits}
 
