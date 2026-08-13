@@ -26,7 +26,44 @@ from .base import LayerProvider, SiteQuery
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_OVERPASS_URL = 'https://overpass-api.de/api/interpreter'
+DEFAULT_OVERPASS_URL = (
+    'https://overpass-api.de/api/interpreter,'
+    'https://overpass.kumi.systems/api/interpreter,'
+    'https://overpass.private.coffee/api/interpreter'
+)
+
+
+def snap(lat: float, lng: float, grid_deg: float) -> tuple[float, float]:
+    """
+    조회 중심을 격자에 붙인다.
+
+    배치선 11기는 서로 4km 안에 있는데, 변전소는 반경 30km로 찾는다. 두 원은
+    95% 겹치지만 중심 좌표가 다르다는 이유로 캐시 키가 전부 달라져 같은 조회를
+    11번 새로 했다. 공개 Overpass가 사용량 제한을 건 직접적 원인이다.
+
+    **판정 정확도는 떨어지지 않는다.** 중심은 '어디를 훑을지'만 정하고, 실제
+    거리는 부지 도형에서 다시 계산한다(_distance_m). 대신 격자로 옮긴 만큼
+    반경을 넓혀, 붙이면서 훑는 범위가 좁아지는 일이 없게 한다.
+    """
+    return (round(lat / grid_deg) * grid_deg, round(lng / grid_deg) * grid_deg)
+
+
+#: 격자 간격(도)과 그로 인한 최대 이동거리(m). 반경이 클수록 굵게 잡아도 된다.
+#:
+#: 변전소는 반경 30km로 찾고 결과를 거리순으로만 쓰므로, 훑는 범위가 조금 넓어도
+#: 판정이 달라지지 않는다. 굵게 잡을수록 호기 간 캐시 공유가 커진다.
+#: 0.05° ≈ 위도 5.5km — 대각선 절반이 최대 이동이라 4km를 더한다.
+SUB_SNAP_DEG = 0.05
+SUB_SNAP_MARGIN_M = 4000
+
+#: 송전선로는 반경 10km. 중간 굵기로 둔다.
+SNAP_GRID_DEG = 0.02
+SNAP_MARGIN_M = 1600
+
+#: 정온시설용 격자 — 반경이 2~3km로 작아 더 잘게 쓴다.
+#: 0.005° ≈ 위도 555m, 절반이 최대 이동이므로 400m를 더한다.
+QUIET_SNAP_DEG = 0.005
+QUIET_SNAP_MARGIN_M = 400
 
 #: 공개 인스턴스는 동시요청·빈도를 강하게 제한한다(429). 검토 1회에 여러 어댑터가
 #: 동시에 호출하면 대부분 거절되므로 프로세스 단위로 직렬화한다.
@@ -105,7 +142,11 @@ class OverpassClient:
         last = ''
         with _OVERPASS_LOCK:
             for attempt, wait in enumerate((0,) + _RETRY_BACKOFF):
-                if wait:
+                # 백오프는 **같은 서버를 다시 두드릴 때만** 필요하다. 아직 안 써본
+                # 미러로 넘어가는 것이라면 기다릴 이유가 없다. 종전에는 미러를
+                # 바꾸면서도 3·8·20초를 쉬어, 살아 있는 미러에 닿기까지 11초를
+                # 헛되이 보냈다.
+                if wait and attempt >= len(endpoints):
                     time.sleep(wait)
                 url = endpoints[attempt % len(endpoints)]
                 try:
@@ -357,10 +398,13 @@ class OsmGridProvider(LayerProvider):
 
     # ------------------------------------------------------------------
     def _substations(self, q: SiteQuery, site) -> tuple[list[dict], str]:
-        r = self.SUBSTATION_SEARCH_M
+        # 반경 30km 조회를 호기마다 새로 하지 않도록 중심을 격자에 붙인다.
+        # 넓은 반경일수록 이득이 크고 정확도 손실은 없다(거리는 따로 계산한다).
+        clat, clng = snap(q.lat, q.lng, SUB_SNAP_DEG)
+        r = self.SUBSTATION_SEARCH_M + SUB_SNAP_MARGIN_M
         ql = f"""[out:json][timeout:90];
 (
-  nwr["power"="substation"](around:{r},{q.lat},{q.lng});
+  nwr["power"="substation"](around:{r},{clat},{clng});
 );
 out center tags;"""
         out: list[dict] = []
@@ -402,10 +446,11 @@ out center tags;"""
         return out, error
 
     def _lines(self, q: SiteQuery, site) -> tuple[list[dict], str]:
-        r = self.LINE_SEARCH_M
+        clat, clng = snap(q.lat, q.lng, SNAP_GRID_DEG)
+        r = self.LINE_SEARCH_M + SNAP_MARGIN_M
         ql = f"""[out:json][timeout:90];
 (
-  way["power"="line"](around:{r},{q.lat},{q.lng});
+  way["power"="line"](around:{r},{clat},{clng});
 );
 out geom tags;"""
         out: list[dict] = []
@@ -691,13 +736,17 @@ class QuietFacilityProvider(LayerProvider):
 
     # ------------------------------------------------------------------
     def _from_osm(self, q: SiteQuery, site, search_m: int) -> tuple[list[dict], str]:
+        # 정온시설은 반경이 2~3km로 작아 스냅 이동이 상대적으로 크다.
+        # 격자를 잘게 쓰고 그만큼만 반경을 넓힌다 — 좁아지면 시설을 놓친다.
+        clat, clng = snap(q.lat, q.lng, QUIET_SNAP_DEG)
+        search_m = int(search_m + QUIET_SNAP_MARGIN_M)
         pattern = '|'.join(self.AMENITY_TAGS)
         houses = '|'.join(self.RESIDENTIAL_BUILDINGS)
         ql = f"""[out:json][timeout:90];
 (
-  nwr["amenity"~"^({pattern})$"](around:{search_m},{q.lat},{q.lng});
-  nwr["healthcare"](around:{search_m},{q.lat},{q.lng});
-  nwr["building"~"^({houses})$"](around:{search_m},{q.lat},{q.lng});
+  nwr["amenity"~"^({pattern})$"](around:{search_m},{clat},{clng});
+  nwr["healthcare"](around:{search_m},{clat},{clng});
+  nwr["building"~"^({houses})$"](around:{search_m},{clat},{clng});
 );
 out center tags;"""
         out: list[dict] = []

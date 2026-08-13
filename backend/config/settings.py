@@ -257,7 +257,15 @@ KEPCO_GRID_URL = os.environ.get(
 
 # OpenStreetMap Overpass — 변전소·송전선로·정온시설 탐색 (인증키 불필요).
 # 공개 인스턴스는 사용량 제한이 있으므로 필요 시 자체 인스턴스 URL로 교체한다.
-OVERPASS_URL = os.environ.get('OVERPASS_URL', 'https://overpass-api.de/api/interpreter')
+# Overpass — 쉼표로 여러 인스턴스를 지정하면 재시도마다 번갈아 쓴다.
+# 공개 인스턴스 한 곳만 쓰면 사용량 제한(429/504)에 걸렸을 때 대안이 없어
+# 전력계통·정온시설 항목이 통째로 '조회 실패'가 된다. 실측에서 배치선 11기
+# 보고서가 여기서 20분 넘게 갇혔다.
+OVERPASS_URL = os.environ.get('OVERPASS_URL', ','.join([
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass.private.coffee/api/interpreter',
+]))
 
 # ───── File Storage ─────
 MEDIA_ROOT = BASE_DIR / 'media'
