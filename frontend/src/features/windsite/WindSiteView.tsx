@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import DateInput from '../../components/DateInput'
 import SitePicker, { type PickMode } from './SitePicker'
+import SavedPlans from './SavedPlans'
 import { windsiteApi } from './api'
 import {
   CONFIDENCE_HINT,
@@ -18,9 +19,10 @@ import {
   type LawRef,
   ORDINANCE_STATE_LABEL,
   type ProviderConfigRow,
+  type SitePlan,
 } from './types'
 
-type Tab = 'result' | 'compare' | 'permits' | 'laws' | 'config';
+type Tab = 'result' | 'saved' | 'compare' | 'permits' | 'laws' | 'config';
 
 /** 검토 반경 기본값·허용범위 — 백엔드 engine.py의 같은 이름 상수와 맞춘다 */
 const DEFAULT_RADIUS_M = 100;
@@ -82,6 +84,84 @@ export default function WindSiteView() {
    * 검토 실행이 매번 수 분 걸리면 배치를 다듬을 수가 없다.
    */
   const ITEMS_AUTO_MAX = 3;
+
+  /* ── 배치안 저장·불러오기 ─────────────────────────────────────── */
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedKey, setSavedKey] = useState(0);
+  const [savedMsg, setSavedMsg] = useState('');
+  const [saveForm, setSaveForm] = useState({ project: '', name: '', note: '' });
+  /** 이미 있는 사업명 — 새 사업을 만들 셈으로 오타를 내면 목록이 갈라진다 */
+  const [projectNames, setProjectNames] = useState<string[]>([]);
+  useEffect(() => {
+    if (!saveOpen) return;
+    windsiteApi.projects()
+      .then(d => setProjectNames(d.results.map(p => p.name)))
+      .catch(() => setProjectNames([]));
+  }, [saveOpen]);
+
+  /**
+   * 배치안 저장 — 좌표와 검토 조건을 남긴다.
+   *
+   * 62개 항목의 판정 전문은 담지 않는다. 규제·조례는 개정되므로 몇 달 뒤에
+   * 옛 판정을 그대로 펼쳐 보이면 지금도 그런 줄 알게 된다. 점수·면적 같은
+   * 요약만 산출 시점과 함께 남겨, 목록에서 견줄 때 쓴다.
+   */
+  async function savePlan() {
+    const project = saveForm.project.trim();
+    if (!project) { setError('사업명을 입력하십시오.'); return; }
+    setSaving(true); setError('');
+    const s = areaResult;
+    try {
+      const plan = await windsiteApi.savePlan({
+        project, name: saveForm.name.trim(), note: saveForm.note,
+        turbines: ring,
+        turbine_radius_m: turbineR, corridor_radius_m: corridorR,
+        capacity_mw: capacity || null, permit_date: permitDate,
+        sido, sigungu,
+        summary: s ? {
+          points: ring.length,
+          total_ha: s.total.ha, free_ha: s.free.ha,
+          blocked_ha: s.blocked.ha, conditional_ha: s.conditional.ha,
+          // 여러 호기면 가장 나쁜 지점이 그 배치의 성적이다.
+          ...(s.items?.points?.length
+            ? (() => {
+                const w = s.items!.points.reduce((a, b) => (a.score <= b.score ? a : b));
+                return { score: w.score, grade: w.grade };
+              })()
+            : {}),
+        } : {},
+      });
+      setSaveOpen(false);
+      setSaveForm({ project, name: '', note: '' });
+      setSavedKey(k => k + 1);
+      setSavedMsg(`${plan.project_name} · ${plan.name} 저장됨`);
+      window.setTimeout(() => setSavedMsg(''), 4000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '배치안 저장에 실패했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /** 저장한 배치안을 지도와 검토 조건에 그대로 되돌린다 */
+  function loadPlan(x: SitePlan) {
+    setPickMode('layout');
+    setRing(x.turbines);
+    setTurbineAddrs([]);           // 주소는 좌표에서 다시 채운다
+    setTurbineR(x.turbine_radius_m);
+    setCorridorR(x.corridor_radius_m);
+    setCapacity(x.capacity_mw != null ? String(x.capacity_mw) : '');
+    setPermitDate(x.permit_date || '');
+    setSido(x.sido); setSigungu(x.sigungu);
+    // 저장된 요약은 그 시점 규제 기준이다. 결과 칸에 옛 판정을 남겨두면
+    // 지금 판정으로 오인하므로 비우고 다시 실행하게 한다.
+    setAreaResult(null);
+    setSaveForm(f => ({ ...f, project: x.project_name, name: '', note: '' }));
+    setTab('result');
+    setSavedMsg(`${x.project_name} · ${x.name} 불러옴 — 검토를 다시 실행하십시오.`);
+    window.setTimeout(() => setSavedMsg(''), 6000);
+  }
 
   async function downloadAreaReport() {
     const id = (crypto.randomUUID?.() ?? String(Date.now()));
@@ -421,6 +501,12 @@ export default function WindSiteView() {
                     disabled={!areaResult || areaLoading}>
                     보고서 내려받기 (docx)
                   </button>
+                  {pickMode === 'layout' && (
+                    <button className="ws-btn2" disabled={!ring.length || areaLoading}
+                      onClick={() => { setSaveOpen(true); setError(''); }}>
+                      배치안 저장
+                    </button>
+                  )}
                   {pickMode === 'layout' && ring.length === 1 && (
                     <button className="ws-btn2" onClick={addCandidate}
                       disabled={areaLoading}>
@@ -442,6 +528,7 @@ export default function WindSiteView() {
                     + '5~10분 걸리고, 이후 재생성은 10초 내로 끝납니다.'}
             </p>
 
+            {savedMsg && <p className="ws-ok">{savedMsg}</p>}
             {error && <p className="ws-error">{error}</p>}
 
             {notConfigured.length > 0 && (
@@ -458,6 +545,7 @@ export default function WindSiteView() {
       <div className="ws-tabs">
         {([
           ['result', '입지 검토 결과'],
+          ['saved', '저장한 배치안'],
           ['compare', `후보지 비교${candidates.length ? ` (${candidates.length})` : ''}`],
           ['permits', '인허가 로드맵'],
           ['laws', `관련 법령 (${laws.length})`],
@@ -516,11 +604,11 @@ export default function WindSiteView() {
                       <p>{m.reason}</p>
                       <div className="ws-item-ft">
                         {m.law && <span>{m.law} {m.article}</span>}
-                        {m.status !== 'POSSIBLE' && m.total > 1 && (
-                          <span className="hit">
-                            {m.hits}/{m.total}지점
-                            {m.worst_no ? ` · 최악 ${m.worst_no}번` : ''}
-                          </span>
+                        {/* '최악 N호기'는 붙이지 않는다. 여기 적히는 호기들은
+                            모두 같은 판정을 받은 것이라, 그중 하나를 최악으로
+                            지목하면 나머지가 더 나은 것처럼 읽힌다. */}
+                        {m.status !== 'POSSIBLE' && m.hits > 0 && (
+                          <span className="hit">{m.hit_label}</span>
                         )}
                       </div>
                     </div>
@@ -530,6 +618,11 @@ export default function WindSiteView() {
             ))}
           </>
         )
+      )}
+
+      {/* ── 저장한 배치안 ── */}
+      {tab === 'saved' && (
+        <SavedPlans onLoad={loadPlan} refreshKey={savedKey} />
       )}
 
       {/* ── 후보지 비교 ── */}
@@ -699,6 +792,50 @@ export default function WindSiteView() {
             비행안전구역 제1~6구역)과 <b>계통 접속 가능 용량 확정</b>, <b>허브고도 풍황</b>뿐이며
             관할부대·한전 협의와 현장 계측으로 처리하십시오.
           </p>
+        </div>
+      )}
+
+      {/* ── 배치안 저장 ── */}
+      {saveOpen && (
+        <div className="ws-modal-bg" onClick={() => setSaveOpen(false)}>
+          <div className="ws-modal" onClick={e => e.stopPropagation()}>
+            <b>배치안 저장</b>
+            <p className="ws-modal-note">
+              지점 {ring.length}곳과 검토 조건(반경 {turbineR}/{corridorR}m
+              {permitDate && ` · 허가일 ${permitDate}`})을 남깁니다.
+              {areaResult
+                ? ' 지금 검토 결과의 요약도 산출 시점과 함께 저장됩니다.'
+                : ' 아직 검토를 실행하지 않아 좌표만 저장됩니다.'}
+            </p>
+            <label className="ws-fld">
+              <span>사업명 <em>(없으면 새로 만듭니다)</em></span>
+              <input value={saveForm.project} maxLength={120} list="ws-projects"
+                placeholder="예) 삼척 천봉풍력"
+                onChange={e => setSaveForm(f => ({ ...f, project: e.target.value }))} />
+              <datalist id="ws-projects">
+                {projectNames.map(n => <option key={n} value={n} />)}
+              </datalist>
+            </label>
+            <label className="ws-fld">
+              <span>배치안명 <em>(비우면 배치안 1, 2… 로 붙습니다)</em></span>
+              <input value={saveForm.name} maxLength={120} placeholder="배치안 1"
+                onChange={e => setSaveForm(f => ({ ...f, name: e.target.value }))} />
+            </label>
+            <label className="ws-fld">
+              <span>메모 <em>(무엇을 바꿨는지 적어두면 나중에 알아봅니다)</em></span>
+              <textarea rows={3} value={saveForm.note}
+                placeholder="예) 3호기를 능선 남쪽으로 300m 이설 — 주거 이격 회피"
+                onChange={e => setSaveForm(f => ({ ...f, note: e.target.value }))} />
+            </label>
+            {error && <p className="ws-error">{error}</p>}
+            <div className="ws-modal-acts">
+              <button className="ws-btn2" onClick={() => setSaveOpen(false)}>취소</button>
+              <button className="btn-primary" onClick={() => void savePlan()}
+                disabled={saving || !saveForm.project.trim()}>
+                {saving ? '저장 중…' : '저장'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

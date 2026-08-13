@@ -388,12 +388,11 @@ def _assessment(doc, merged, Pt) -> None:
         doc.add_heading('%s (%d개) — %s' % (cat, len(items), _sig(worst)), level=2)
         _styled_table(doc, ['항목', '판정', '해당 호기', '주요 결과'],
                [[m['item_name'], _sig(m['status']),
-                 ('%d/%d기' % (m['hits'], m['total'])
-                  if m['status'] != 'POSSIBLE' else '-'),
+                 (m.get('hit_label') or '-' if m['status'] != 'POSSIBLE' else '-'),
                  (m['reason'] or '')[:110]]
                 for m in items],
                       accent=SECTION_COLORS.get(cat, DEFAULT_SECTION_COLOR),
-                      status_col=1, widths=[4.6, 2.4, 1.8, 8.2])
+                      status_col=1, widths=[4.2, 2.2, 3.4, 7.2])
 
 
 def _per_point(doc, evals) -> None:
@@ -448,9 +447,12 @@ def _common_risk(doc, merged, n_points: int) -> None:
     doc.add_paragraph('전체 %d기 공통 제약 — 배치를 바꿔도 남습니다.' % n_points)
     if common:
         for m in common:
+            # 여기는 이미 '공통' 항목만 모은 자리라 '(전 호기)'가 겹친다.
+            # total을 넘기지 않아 번호만 받는다.
             doc.add_paragraph(
-                '· %s — %s (%d/%d기)'
-                % (m['item_name'], _sig(m['status']), m['hits'], m['total']),
+                '· %s — %s (%s)'
+                % (m['item_name'], _sig(m['status']),
+                   available.nos_label(m.get('hit_nos') or [])),
                 style='List Bullet')
     else:
         doc.add_paragraph('· 공통으로 걸리는 항목 없음', style='List Bullet')
@@ -458,10 +460,11 @@ def _common_risk(doc, merged, n_points: int) -> None:
     if partial:
         doc.add_paragraph('일부 호기만 해당 — 해당 호기를 옮기면 해소될 수 있습니다.')
         for m in partial:
+            # 여기 적히는 호기는 모두 같은 판정을 받은 것이다. 그중 하나를
+            # '최악'으로 지목하면 나머지가 더 나은 것처럼 읽히므로 적지 않는다.
             doc.add_paragraph(
-                '· %s — %s (%d/%d기, 최악 %s호기)'
-                % (m['item_name'], _sig(m['status']), m['hits'], m['total'],
-                   m['worst_no']),
+                '· %s — %s · %s'
+                % (m['item_name'], _sig(m['status']), m.get('hit_label') or '-'),
                 style='List Bullet')
 
 

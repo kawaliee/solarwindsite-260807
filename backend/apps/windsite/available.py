@@ -582,8 +582,43 @@ def merge_items(evals: list[dict]) -> list[dict]:
                            unknown_reason=it.unknown_reason)
     rows = list(merged.values())
     for r in rows:
-        r['hits'] = sum(1 for v in r['per_point'].values()
-                        if _SEVERITY[v] >= _SEVERITY[r['status']] > 0)
+        nos = sorted(no for no, v in r['per_point'].items()
+                     if _SEVERITY[v] >= _SEVERITY[r['status']] > 0)
+        r['hit_nos'] = nos
+        r['hits'] = len(nos)
         r['total'] = len(r['per_point'])
+        r['hit_label'] = nos_label(nos, r['total'])
     rows.sort(key=lambda r: (-_SEVERITY[r['status']], r['category'], r['item_name']))
     return rows
+
+
+def nos_label(nos: list[int], total: int = 0) -> str:
+    """
+    걸린 호기 번호를 사람이 읽는 형태로.
+
+    '10/10기'는 몇 기인지만 알려줄 뿐 어느 기를 옮겨야 하는지는 말해주지
+    않는다. 배치를 고치려면 번호가 필요하다.
+
+        [1..10] (총 10) → '1~10호기 (전 호기)'
+        [1,3,4,5,9]     → '1·3~5·9호기 (5기)'
+        [7]             → '7호기'
+
+    total을 주지 않으면 개수를 붙이지 않는다. 이미 '공통 제약'처럼 문맥이
+    개수를 말하고 있는 자리에서 '(2기)'가 겹쳐 붙는 것을 피하기 위해서다.
+    """
+    if not nos:
+        return '-'
+    runs: list[tuple[int, int]] = []
+    for n in nos:
+        if runs and n == runs[-1][1] + 1:
+            runs[-1] = (runs[-1][0], n)
+        else:
+            runs.append((n, n))
+    # 3연속 이상만 물결로 묶는다. '1~2'는 '1·2'보다 읽기 나쁘다.
+    body = '·'.join(f'{a}~{b}' if b - a >= 2 else '·'.join(str(x) for x in range(a, b + 1))
+                    for a, b in runs)
+    if not total or len(nos) == 1:
+        return f'{body}호기'
+    if len(nos) == total > 1:
+        return f'{body}호기 (전 호기)'
+    return f'{body}호기 ({len(nos)}기)'

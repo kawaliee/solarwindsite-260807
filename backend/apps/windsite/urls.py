@@ -1,8 +1,13 @@
 from django.urls import path
 
-from . import views
+from . import projects, views
 
 urlpatterns = [
+    # 검토 프로젝트·배치안 — 찍은 배치를 남겨 두고 다시 불러온다
+    path('projects/', projects.project_list, name='windsite-projects'),
+    path('projects/<uuid:pk>/', projects.project_detail, name='windsite-project'),
+    path('plans/', projects.plan_create, name='windsite-plan-create'),
+    path('plans/<uuid:pk>/', projects.plan_detail, name='windsite-plan'),
     path('evaluate-area/', views.evaluate_area, name='windsite-evaluate-area'),
     path('area-report/', views.area_report_download, name='windsite-area-report'),
     path('area-report/cancel/', views.area_report_cancel, name='windsite-area-report-cancel'),

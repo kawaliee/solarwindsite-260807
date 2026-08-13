@@ -381,3 +381,81 @@ class SiteEvaluation(models.Model):
 
     def __str__(self):
         return f'{self.address or f"{self.lat},{self.lng}"} · {self.grade}'
+
+
+# ======================================================================
+# 검토 프로젝트와 배치안
+# ----------------------------------------------------------------------
+# 배치선 검토는 한 번 찍고 끝나지 않는다. 이격거리에 걸린 호기를 옮기고
+# 다시 돌리기를 반복하며, 몇 달 뒤 "그때 그 배치가 왜 안 됐더라"를 다시
+# 들춘다. 좌표를 남겨두지 않으면 그 반복이 매번 처음부터다.
+#
+# 그래서 사업(프로젝트) 아래에 배치안을 여러 개 둔다. 배치안 하나가
+# 지도에 찍은 호기 좌표 한 벌이고, 검토 조건(반경·허가일)과 그때의 요약
+# 판정을 함께 들고 있어 다시 불러 그대로 재검토하거나 서로 견줄 수 있다.
+#
+# 판정 전문(62개 항목)은 담지 않는다. 규제·조례는 개정되므로 몇 달 뒤의
+# 옛 판정은 오히려 오해를 부른다. 좌표와 조건만 남기고 판정은 그때그때
+# 다시 낸다. 저장된 요약은 '그때는 이랬다'는 기록으로만 쓴다.
+# ======================================================================
+class SiteProject(models.Model):
+    """검토 프로젝트 — 배치안을 묶는 단위 (예: '삼척 천봉풍력')"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField('사업명', max_length=120, unique=True)
+    description = models.TextField('설명', blank=True)
+    sido = models.CharField('시·도', max_length=50, blank=True)
+    sigungu = models.CharField('시·군·구', max_length=50, blank=True)
+
+    created_by = models.ForeignKey('accounts.User', null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name='wind_projects')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'windsite_project'
+        verbose_name = '검토 프로젝트'
+        verbose_name_plural = '검토 프로젝트'
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return self.name
+
+
+class SitePlan(models.Model):
+    """배치안 — 호기 좌표 한 벌과 그때의 검토 조건"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(SiteProject, on_delete=models.CASCADE,
+                                related_name='plans')
+    name = models.CharField('배치안명', max_length=120)
+    note = models.TextField('메모', blank=True)
+
+    #: [[위도, 경도], …] — 1호기부터의 순서가 곧 연결선 순서다
+    turbines = models.JSONField('호기 좌표', default=list)
+    turbine_radius_m = models.PositiveIntegerField('발전기 검토반경(m)', default=500)
+    corridor_radius_m = models.PositiveIntegerField('연결선 검토반경(m)', default=100)
+    capacity_mw = models.FloatField('설비용량(MW)', null=True, blank=True)
+    permit_date = models.CharField('발전사업허가일', max_length=10, blank=True)
+    sido = models.CharField('시·도', max_length=50, blank=True)
+    sigungu = models.CharField('시·군·구', max_length=50, blank=True)
+
+    #: 저장 시점의 요약. 규제는 개정되므로 '그때는 이랬다'는 기록이다.
+    summary = models.JSONField('저장 시점 요약', default=dict, blank=True)
+    evaluated_at = models.DateTimeField('요약 산출 시점', null=True, blank=True)
+
+    created_by = models.ForeignKey('accounts.User', null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name='wind_plans')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'windsite_plan'
+        verbose_name = '배치안'
+        verbose_name_plural = '배치안'
+        ordering = ['created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['project', 'name'],
+                                    name='windsite_plan_unique_name'),
+        ]
+
+    def __str__(self):
+        return f'{self.project.name} · {self.name}'

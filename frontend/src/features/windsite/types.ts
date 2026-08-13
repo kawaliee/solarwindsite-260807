@@ -309,6 +309,10 @@ export interface AreaItem {
   /** 그 판정에 해당하는 지점 수 / 전체 지점 수 */
   hits: number;
   total: number;
+  /** 해당 호기 번호 — 몇 기인지보다 어느 기인지가 배치를 고칠 때 쓸모 있다 */
+  hit_nos: number[];
+  /** 사람이 읽는 형태 ('1~10호기 (전 호기)', '1·3~5호기 (4기)') */
+  hit_label: string;
   per_point: Record<string, FeasibilityStatus>;
 }
 
@@ -325,4 +329,52 @@ export interface AreaItemPoint {
 export interface AreaItems {
   merged: AreaItem[];
   points: AreaItemPoint[];
+}
+
+/* ── 검토 프로젝트·배치안 ─────────────────────────────────────────── */
+
+/** 배치안 저장 시점의 요약 — 규제는 개정되므로 evaluated_at과 함께 읽는다 */
+export interface PlanSummary {
+  score?: number;
+  grade?: FeasibilityStatus;
+  points?: number;
+  total_ha?: number;
+  free_ha?: number;
+  blocked_ha?: number;
+  conditional_ha?: number;
+}
+
+/** 배치안 — 호기 좌표 한 벌과 그때의 검토 조건 */
+export interface SitePlan {
+  id: string;
+  project_id: string;
+  project_name: string;
+  name: string;
+  note: string;
+  turbines: LatLng[];
+  turbine_count: number;
+  turbine_radius_m: number;
+  corridor_radius_m: number;
+  capacity_mw: number | null;
+  permit_date: string;
+  sido: string;
+  sigungu: string;
+  summary: PlanSummary;
+  /** 요약을 산출한 시점. 비어 있으면 판정 없이 좌표만 저장한 것이다 */
+  evaluated_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 검토 프로젝트 — 배치안을 묶는 단위 */
+export interface SiteProject {
+  id: string;
+  name: string;
+  description: string;
+  sido: string;
+  sigungu: string;
+  plan_count: number;
+  plans: SitePlan[];
+  created_at: string;
+  updated_at: string;
 }

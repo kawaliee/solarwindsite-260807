@@ -1713,6 +1713,66 @@ select.fs-input { cursor: pointer; }
 }
 .ws-radrow em { font-style: normal; font-size: 11px; color: #6b7f94; padding-bottom: 5px; }
 
+/* 저장한 배치안 */
+.ws-saved { display: flex; flex-direction: column; gap: 14px; }
+.ws-proj {
+  border: 1px solid #1c2836; border-radius: 10px; background: #0e161e; overflow: hidden;
+}
+.ws-proj-hd {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 10px 14px; background: #111c26; border-bottom: 1px solid #1c2836;
+}
+.ws-proj-hd b { font-size: 13px; color: #e3edf6; }
+.ws-proj-hd em {
+  font-style: normal; margin-left: 8px; font-size: 11px; color: #39d3e6;
+}
+.ws-proj-hd .desc { display: block; margin-top: 2px; font-size: 11px; color: #7f93a8; }
+.ws-planlist { display: flex; flex-direction: column; }
+.ws-plan {
+  display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center;
+  padding: 10px 14px; border-bottom: 1px solid #16212c;
+}
+.ws-plan:last-child { border-bottom: none; }
+.ws-plan.on { background: #10202a; }
+.ws-plan .pick { display: flex; justify-content: center; }
+.ws-plan .ln1 { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ws-plan .ln1 b { font-size: 13px; color: #dbe7f2; }
+.ws-plan .chip {
+  padding: 1px 7px; border-radius: 999px; font-size: 11px;
+  background: #16232f; color: #8ba3ba;
+}
+.ws-plan .note { margin: 4px 0 0; font-size: 12px; color: #a9bccd; }
+.ws-plan .meta { margin: 3px 0 0; font-size: 11px; color: #6b7f94; }
+.ws-plan .acts { display: flex; align-items: center; gap: 6px; }
+.ws-link.danger { color: #d98a9a; }
+.ws-ok {
+  margin: 8px 0 0; padding: 7px 10px; border-radius: 6px; font-size: 12px;
+  background: #10241f; border: 1px solid #1f4a3c; color: #7fd6b2;
+}
+.ws-table-wrap { overflow-x: auto; }
+
+/* 모달 — 배치안 저장·수정 */
+.ws-modal-bg {
+  position: fixed; inset: 0; z-index: 900; display: flex;
+  align-items: center; justify-content: center; padding: 20px;
+  background: rgba(4, 10, 16, 0.72);
+}
+.ws-modal {
+  width: min(460px, 100%); max-height: 90vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 18px 20px; border-radius: 12px;
+  background: #0f1a24; border: 1px solid #24333f;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+}
+.ws-modal > b { font-size: 14px; color: #e3edf6; }
+.ws-modal-note { margin: 0; font-size: 11px; color: #7f93a8; line-height: 1.6; }
+.ws-modal textarea {
+  padding: 7px 9px; border-radius: 6px; resize: vertical;
+  background: #101a24; border: 1px solid #22303f; color: #dbe7f2;
+  font-size: 12px; font-family: inherit;
+}
+.ws-modal-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
 /* 화면 단위 오류 경계 */
 .view-error {
   margin: 20px; padding: 16px 18px; border-radius: 10px;

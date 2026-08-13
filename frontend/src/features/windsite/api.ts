@@ -8,6 +8,8 @@ import type {
   LawRef,
   PermitStep,
   ProviderConfigRow,
+  SitePlan,
+  SiteProject,
 } from './types'
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
@@ -94,6 +96,30 @@ export const windsiteApi = {
       body: JSON.stringify({ job_id: jobId }),
     });
   },
+
+  /* ── 검토 프로젝트·배치안 ─────────────────────────────────────── */
+
+  /** 사업 목록 — 배치안까지 함께 온다 */
+  projects: () => req<{ count: number; results: SiteProject[] }>('/projects/'),
+
+  patchProject: (id: string, body: Partial<Pick<SiteProject, 'name' | 'description'>>) =>
+    req<SiteProject>(`/projects/${id}/`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  deleteProject: (id: string) =>
+    req<{ ok: boolean; deleted_plans: number }>(`/projects/${id}/`, { method: 'DELETE' }),
+
+  /**
+   * 배치안 저장. project(사업명)가 처음 보는 이름이면 사업도 함께 만든다 —
+   * 저장하려면 사업부터 만들라고 하면 지도를 찍어둔 채 화면을 두 번 오간다.
+   */
+  savePlan: (body: Record<string, unknown>) =>
+    req<SitePlan>('/plans/', { method: 'POST', body: JSON.stringify(body) }),
+
+  patchPlan: (id: string, body: Record<string, unknown>) =>
+    req<SitePlan>(`/plans/${id}/`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  deletePlan: (id: string) =>
+    req<{ ok: boolean }>(`/plans/${id}/`, { method: 'DELETE' }),
 
 };
 
