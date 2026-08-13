@@ -67,6 +67,14 @@ def evaluate_area(request):
     return Response(_area_payload(result, ring))
 
 
+def _capacity(d: dict):
+    try:
+        v = d.get('capacity_mw')
+        return float(v) if v not in (None, '') else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _parse_area_request(d: dict):
     """
     구역/배치선 요청 본문을 검증한다.
@@ -152,8 +160,31 @@ def area_report_download(request):
         return Response({'detail': f'행정경계를 조회하지 못했습니다: {e}'},
                         status=http.HTTP_502_BAD_GATEWAY)
 
+    # 규제 62개 항목·풍황·계통은 지점에서만 성립하므로 호기마다 따로 돌린다.
+    # 면적 분포만으로는 '어느 호기가 무엇에 걸리는지'를 알 수 없어 배치를 고칠 수 없다.
+    evals = []
     try:
-        blob = area_report.build_area_report(result)
+        layout = result.get('layout')
+        pts = [(a, o) for a, o in layout['turbines']] if layout else [
+            (result['geoms']['area'].centroid.y, result['geoms']['area'].centroid.x)]
+        if layout:
+            evals = available.evaluate_points(
+                pts, radius_m=layout['turbine_radius_m'],
+                capacity_mw=_capacity(request.data or {}))
+        else:
+            # 폴리곤 검토에는 호기가 없다. 구역 대표점 한 곳에서 항목 평가를 낸다.
+            c = result['geoms']['area'].centroid
+            lat, lng = geo.to_geographic_xy(c.x, c.y)[1], geo.to_geographic_xy(c.x, c.y)[0]
+            evals = available.evaluate_points(
+                [(lat, lng)], radius_m=100,
+                capacity_mw=_capacity(request.data or {}), label='지점')
+    except Exception:                                           # noqa: BLE001
+        # 항목 평가가 실패해도 면적 보고서는 나와야 한다. 빠졌다는 사실은
+        # 보고서 '한계'에 남는다.
+        logger.exception('호기별 항목 평가 실패')
+
+    try:
+        blob = area_report.build_area_report(result, evals)
     except Exception as e:                                      # noqa: BLE001
         logger.exception('구역 보고서 생성 실패')
         return Response({'detail': f'보고서 생성에 실패했습니다: {type(e).__name__}'},

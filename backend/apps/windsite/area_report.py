@@ -23,9 +23,25 @@ import io
 import logging
 from datetime import datetime
 
-from . import maps
+from . import available, maps
 
 logger = logging.getLogger(__name__)
+
+
+#: 판정 신호. 이모지(🔴🟡🟢)를 쓰지 않는다 — 한글 폰트에 없어 docx/PDF에서
+#: 엉뚱한 글자로 대체된다(참조 보고서에서 '밃·밄·꾂'으로 깨져 있었다).
+#: 아래 기호는 맑은 고딕에 모두 있다.
+SIGNAL = {
+    'IMPOSSIBLE': ('●', '불가', 0xC0, 0x39, 0x2B),
+    'CONDITIONAL': ('▲', '조건부', 0xC0, 0x76, 0x00),
+    'UNKNOWN': ('◇', '확인 필요', 0x66, 0x66, 0x66),
+    'POSSIBLE': ('○', '해당없음', 0x1E, 0x7E, 0x34),
+}
+
+
+def _sig(status: str) -> str:
+    m, label, *_ = SIGNAL.get(status, ('-', status, 0, 0, 0))
+    return f'{m} {label}'
 
 
 def _fmt_ha(m2: float) -> str:
@@ -36,8 +52,24 @@ def _pct(part: float, whole: float) -> str:
     return f'{(part / whole * 100):.1f}%' if whole else '-'
 
 
-def build_area_report(result: dict, *, title_suffix: str = '') -> bytes:
-    """available.compute*() 결과 → docx 바이트"""
+#: 62개 항목을 묶어 보여줄 순서. 참조 보고서의 영역 구분과 맞춘다.
+CATEGORY_ORDER = ['규제/법령', '안전/문화재', '환경', '산림',
+                  '지자체 조례', '인프라', '사업성']
+
+WIND_ITEM = '풍황(연평균 풍속)'
+GRID_ITEM = '전력계통 연계(변전소·송전선로)'
+QUIET_ITEM = '정온시설 이격거리(동심원 분석)'
+
+
+def build_area_report(result: dict, evals: list | None = None, *,
+                      title_suffix: str = '') -> bytes:
+    """
+    available.compute*() 결과 + 호기별 지점 검토 → docx 바이트
+
+    evals가 있으면 규제 62개 항목·풍황·계통·정온시설을 호기별로 싣는다.
+    면적 분포만으로는 '어느 호기가 무엇에 걸리는지'를 알 수 없어 배치를
+    고칠 수 없기 때문이다.
+    """
     from docx import Document
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.shared import Cm, Pt, RGBColor
@@ -70,8 +102,28 @@ def build_area_report(result: dict, *, title_suffix: str = '') -> bytes:
                  ('연결선 검토반경', f'{layout["corridor_radius_m"]:,} m')]
     _kv(doc, rows)
 
-    # ── 2. 면적 분포 ───────────────────────────────────────────
-    doc.add_heading('2. 면적 분포', level=1)
+    evals = [e for e in (evals or []) if e.get('result')]
+    merged = available.merge_items(evals) if evals else []
+
+    # ── 2. 종합 판정 ───────────────────────────────────────────
+    if evals:
+        doc.add_heading('2. 종합 판정', level=1)
+        _overall(doc, evals, merged, result, Pt, RGBColor)
+
+        doc.add_heading('3. 입지조건 종합평가', level=1)
+        _assessment(doc, merged, Pt)
+
+        doc.add_heading('4. 호기별 종합비교표', level=1)
+        _per_point(doc, evals)
+
+        doc.add_heading('5. 공통 리스크 요약', level=1)
+        _common_risk(doc, merged, len(evals))
+        base = 5
+    else:
+        base = 1
+
+    # ── 면적 분포 ──────────────────────────────────────────────
+    doc.add_heading(f'{base + 1}. 면적 분포', level=1)
     _table(doc, ['구분', '면적', '비율', '설명'], [
         ['배제', _fmt_ha(result['blocked_m2']), _pct(result['blocked_m2'], total),
          '불가 판정 레이어 · 조례 이격거리 위반 범위'],
@@ -96,7 +148,7 @@ def build_area_report(result: dict, *, title_suffix: str = '') -> bytes:
     ])
 
     # ── 3. 제약도 ──────────────────────────────────────────────
-    doc.add_heading('3. 제약도', level=1)
+    doc.add_heading(f'{base + 2}. 제약도', level=1)
     g = result.get('geoms') or {}
     try:
         png = maps.constraint_map(
@@ -109,7 +161,7 @@ def build_area_report(result: dict, *, title_suffix: str = '') -> bytes:
         doc.add_paragraph('※ 제약도를 생성하지 못했습니다. 배경지도 조회 실패일 수 있습니다.')
 
     # ── 4. 제약 사유 ───────────────────────────────────────────
-    doc.add_heading('4. 제약 사유별 면적', level=1)
+    doc.add_heading(f'{base + 3}. 제약 사유별 면적', level=1)
     reasons = result.get('by_reason') or []
     if reasons:
         _table(doc, ['제약 사유', '판정', '면적', '비율'],
@@ -140,7 +192,7 @@ def build_area_report(result: dict, *, title_suffix: str = '') -> bytes:
                 for z in zoning])
 
     # ── 5. 조례 ────────────────────────────────────────────────
-    doc.add_heading('5. 지자체 조례', level=1)
+    doc.add_heading(f'{base + 4}. 지자체 조례', level=1)
     _table(doc, ['지자체', '구역 내 비율', '조례 상태', '최대 이격거리'],
            [[j['sigungu'], f'{j["ratio"] * 100:.1f}%',
              _ord_state(j.get('ordinance_state', '')),
@@ -177,8 +229,13 @@ def build_area_report(result: dict, *, title_suffix: str = '') -> bytes:
             r = doc.add_paragraph(addenda[:3000]).runs[0]
             r.font.size = Pt(8.5)
 
-    # ── 6. 한계 ────────────────────────────────────────────────
-    doc.add_heading('6. 이 보고서의 한계', level=1)
+    # ── 풍황·계통·정온시설 ─────────────────────────────────────
+    if evals:
+        doc.add_heading(f'{base + 5}. 풍황·전력계통·정온시설', level=1)
+        _detail_sections(doc, evals, Pt)
+
+    # ── 한계 ───────────────────────────────────────────────────
+    doc.add_heading(f'{base + 6}. 이 보고서의 한계', level=1)
     doc.add_paragraph(
         '아래 사항은 결과 수치에 직접 영향을 줍니다. 수치만 발췌해 인용하지 마십시오.')
     limits = list(result.get('notes') or [])
@@ -245,3 +302,214 @@ def _table(doc, headers, rows):
             cells[i].text = str(v)
     doc.add_paragraph()
     return t
+
+
+# ======================================================================
+# 호기별 검토를 쓰는 섹션들
+# ======================================================================
+def _worst(evals: list) -> str:
+    order = ['POSSIBLE', 'CONDITIONAL', 'UNKNOWN', 'IMPOSSIBLE']
+    grades = [e['result'].overall_feasibility.grade for e in evals]
+    return max(grades, key=order.index) if grades else 'UNKNOWN'
+
+
+def _item_of(res, name: str):
+    return next((i for i in res.analysis_items if i.item_name == name), None)
+
+
+def _overall(doc, evals, merged, area, Pt, RGBColor) -> None:
+    """
+    한 장짜리 종합 판정 — 신호등과 점수를 함께 낸다.
+
+    점수만 실으면 표에서 숫자만 발췌돼 절대 기준처럼 인용된다. 신호등만
+    실으면 후보지 간 우열을 가릴 수 없다. 둘을 같이 두고, 점수가 상대
+    지표라는 사실을 바로 옆에 적는다.
+    """
+    scores = [e['result'].overall_feasibility.score for e in evals]
+    counts = {k: sum(1 for m in merged if m['status'] == k)
+              for k in ('IMPOSSIBLE', 'CONDITIONAL', 'UNKNOWN', 'POSSIBLE')}
+
+    wind = next((_item_of(e['result'], WIND_ITEM) for e in evals), None)
+    grid = next((_item_of(e['result'], GRID_ITEM) for e in evals), None)
+
+    rows = [
+        ('종합 판정',
+         '%s · 점수 %d~%d점 (호기 %d기)'
+         % (_sig(_worst(evals)), min(scores), max(scores), len(evals))),
+        ('검토 항목',
+         '%d개 — %s %d건 · %s %d건 · %s %d건 · %s %d건'
+         % (len(merged), _sig('IMPOSSIBLE'), counts['IMPOSSIBLE'],
+            _sig('CONDITIONAL'), counts['CONDITIONAL'],
+            _sig('UNKNOWN'), counts['UNKNOWN'],
+            _sig('POSSIBLE'), counts['POSSIBLE'])),
+        ('가용면적',
+         '엄격 %s · 협의 포함 %s'
+         % (_fmt_ha(area['available_strict_m2']),
+            _fmt_ha(area['available_with_consultation_m2']))),
+    ]
+    if wind:
+        rows.append(('풍력 자원', '%s — %s' % (_sig(wind.status.value), wind.reason[:90])))
+    if grid:
+        rows.append(('계통 연계', '%s — %s' % (_sig(grid.status.value), grid.reason[:90])))
+    _kv(doc, rows)
+
+    p = doc.add_paragraph(
+        '※ 점수는 후보지 간 상대 비교용 지표이며 법적 판단이나 절대 기준이 '
+        '아닙니다. 항목별 판정과 함께 읽으십시오. 여러 호기 중 가장 나쁜 값을 '
+        '종합 판정으로 씁니다 — 한 기라도 걸리면 그 항목은 해결해야 하기 때문입니다.')
+    p.runs[0].font.size = Pt(8.5)
+    p.runs[0].font.color.rgb = RGBColor(0x66, 0x66, 0x66)
+
+
+def _assessment(doc, merged, Pt) -> None:
+    """62개 항목을 영역별로 묶어 신호등으로 낸다 (참조 보고서의 '입지조건 종합평가')."""
+    if not merged:
+        doc.add_paragraph('호기별 검토 결과가 없습니다.')
+        return
+    by_cat = {}
+    for m in merged:
+        by_cat.setdefault(m['category'] or '기타', []).append(m)
+
+    for cat in CATEGORY_ORDER + [c for c in by_cat if c not in CATEGORY_ORDER]:
+        items = by_cat.get(cat)
+        if not items:
+            continue
+        worst = max(items, key=lambda m: available._SEVERITY[m['status']])['status']
+        doc.add_heading('%s (%d개) — %s' % (cat, len(items), _sig(worst)), level=2)
+        _table(doc, ['항목', '판정', '해당 호기', '주요 결과'],
+               [[m['item_name'], _sig(m['status']),
+                 ('%d/%d기' % (m['hits'], m['total'])
+                  if m['status'] != 'POSSIBLE' else '-'),
+                 (m['reason'] or '')[:110]]
+                for m in items])
+
+
+def _per_point(doc, evals) -> None:
+    """호기별 비교표 — 어느 기가 문제인지 한눈에 보이게 한다."""
+    rows = []
+    for e in evals:
+        r = e['result']
+        o = r.overall_feasibility
+        bad = sum(1 for i in r.analysis_items if i.status.value == 'IMPOSSIBLE')
+        cond = sum(1 for i in r.analysis_items if i.status.value == 'CONDITIONAL')
+        rows.append([
+            '%d호기' % e['no'],
+            (e['address'] or '%.5f, %.5f' % (e['lat'], e['lng']))[:34],
+            '%s %d점' % (_sig(o.grade), o.score),
+            '%d건' % bad, '%d건' % cond,
+            _short(_item_of(r, WIND_ITEM)), _short(_item_of(r, GRID_ITEM)),
+        ])
+    _table(doc, ['호기', '위치', '판정·점수', '불가', '조건부', '풍황', '계통'], rows)
+
+
+def _short(item) -> str:
+    """
+    비교표 칸에 들어갈 한 줄 요약.
+
+    풍황은 판정이 UNKNOWN(구조적으로 실측 대상)이지만 관측 연평균은 실제로
+    산출돼 있다. 기호만 찍으면 표가 비어 보이므로 숫자를 꺼내 쓴다.
+    다만 그 값이 관측소 원측정치임을 알 수 있게 관측높이를 함께 적는다.
+    """
+    if item is None:
+        return '-'
+    raw = item.raw or {}
+    obs = raw.get('observation') or {}
+    if isinstance(obs.get('mean_ws'), (int, float)):
+        h = (raw.get('station') or {}).get('anemometer_h_m')
+        return '%.1f m/s%s' % (obs['mean_ws'], ('@%.0fm' % h) if h else '')
+    subs = [s for s in (raw.get('substations') or []) if s.get('distance_m')]
+    if subs:
+        return '%.2f km' % (min(s['distance_m'] for s in subs) / 1000)
+    return SIGNAL.get(item.status.value, ('-',))[0]
+
+
+def _common_risk(doc, merged, n_points: int) -> None:
+    """모든(또는 다수) 호기에 공통으로 걸린 항목 — 배치를 바꿔도 남는 제약이다."""
+    common = [m for m in merged
+              if m['status'] in ('IMPOSSIBLE', 'CONDITIONAL', 'UNKNOWN')
+              and m['hits'] >= max(1, n_points)]
+    partial = [m for m in merged
+               if m['status'] in ('IMPOSSIBLE', 'CONDITIONAL')
+               and 0 < m['hits'] < n_points]
+
+    doc.add_paragraph('전체 %d기 공통 제약 — 배치를 바꿔도 남습니다.' % n_points)
+    if common:
+        for m in common:
+            doc.add_paragraph(
+                '· %s — %s (%d/%d기)'
+                % (m['item_name'], _sig(m['status']), m['hits'], m['total']),
+                style='List Bullet')
+    else:
+        doc.add_paragraph('· 공통으로 걸리는 항목 없음', style='List Bullet')
+
+    if partial:
+        doc.add_paragraph('일부 호기만 해당 — 해당 호기를 옮기면 해소될 수 있습니다.')
+        for m in partial:
+            doc.add_paragraph(
+                '· %s — %s (%d/%d기, 최악 %s호기)'
+                % (m['item_name'], _sig(m['status']), m['hits'], m['total'],
+                   m['worst_no']),
+                style='List Bullet')
+
+
+def _detail_sections(doc, evals, Pt) -> None:
+    """풍황·전력계통·정온시설 — 참조 보고서의 5·6·7장에 대응."""
+    doc.add_heading('풍력자원', level=2)
+    rows = []
+    for e in evals:
+        it = _item_of(e['result'], WIND_ITEM)
+        if not it:
+            continue
+        raw = it.raw or {}
+        st, obs = raw.get('station') or {}, raw.get('observation') or {}
+        rows.append([
+            '%d호기' % e['no'],
+            '%s(%s) %.1fkm' % (st.get('name', '-'), st.get('stn_id', '-'),
+                               st.get('distance_km', 0)),
+            '%.2f m/s' % obs['mean_ws'] if isinstance(obs.get('mean_ws'), (int, float)) else '-',
+            '%.0f m' % st['anemometer_h_m'] if st.get('anemometer_h_m') else '-',
+            '%.0f m' % st['alt_m'] if st.get('alt_m') else '-',
+            obs.get('period', '-'),
+        ])
+    if rows:
+        _table(doc, ['호기', '관측소', '연평균 풍속', '관측높이', '관측소 표고', '관측기간'], rows)
+        first = _item_of(evals[0]['result'], WIND_ITEM)
+        if first:
+            doc.add_paragraph(first.reason)
+    doc.add_paragraph(
+        '※ 풍황은 실측 대상입니다. 위 값은 재분석·관측소 기반 추정이며 '
+        '사업성 판단에는 현장 계측(최소 1년)이 필요합니다.')
+
+    doc.add_heading('전력계통 인프라', level=2)
+    grid = next((it for e in evals
+                 for it in [_item_of(e['result'], GRID_ITEM)] if it), None)
+    if grid:
+        doc.add_paragraph(grid.reason)
+        subs = [s for s in ((grid.raw or {}).get('substations') or [])
+                if (s.get('name') or '') != '(명칭 미상)'
+                and (s.get('voltage') or 0) >= 154_000]
+        subs.sort(key=lambda s: s.get('distance_m') or 0)
+        if subs:
+            _table(doc,
+                   ['변전소', '전압(kV)', '직선거리', '변전소 여유(kW)', '선로 여유(kW)'],
+                   [[s.get('name', ''), '%d' % ((s.get('voltage') or 0) // 1000),
+                     '%.2f km' % ((s.get('distance_m') or 0) / 1000),
+                     ('{:,}'.format(s['bank_margin_kw'])
+                      if s.get('bank_margin_kw') is not None else '-'),
+                     ('{:,}'.format(s['line_margin_kw'])
+                      if s.get('line_margin_kw') is not None else '-')]
+                    for s in subs[:3]])
+        doc.add_paragraph(
+            '※ 여유용량은 조회 시점 스냅샷이며 선점으로 변동합니다. '
+            '실제 연계는 한전 협의로 확정됩니다.')
+    else:
+        doc.add_paragraph('전력계통 정보를 조회하지 못했습니다.')
+
+    doc.add_heading('정온시설 이격거리', level=2)
+    rows = [['%d호기' % e['no'], _sig(it.status.value), (it.reason or '')[:150]]
+            for e in evals
+            for it in [_item_of(e['result'], QUIET_ITEM)] if it]
+    if rows:
+        _table(doc, ['호기', '판정', '내용'], rows)
+    else:
+        doc.add_paragraph('정온시설 판정 결과가 없습니다.')

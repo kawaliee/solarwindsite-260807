@@ -490,3 +490,84 @@ def _compute(area, separation_zone=None, layout: dict | None = None,
         'geoms': {'area': area, 'blocked': blocked,
                   'conditional': conditional, 'free': free},
     }
+
+
+# ======================================================================
+# 호기별 지점 검토
+# ======================================================================
+def evaluate_points(points: list, radius_m: int, capacity_mw=None,
+                    label: str = '호기') -> list[dict]:
+    """
+    지점마다 기존 62개 항목 검토를 돌린다.
+
+    구역 제약도는 '면적이 어떻게 나뉘는가'에 답하지만, 규제 항목별 가부는
+    지점에서만 성립한다. 배치선 검토에서 그 둘이 다 필요하다 — 어느 호기가
+    무엇에 걸리는지 알아야 배치를 고칠 수 있기 때문이다.
+
+    지점 간은 **순차**로 돈다. 각 지점 내부가 이미 스레드풀이라, 지점까지
+    동시에 돌리면 외부 API에 과도한 동시요청이 간다(engine.compare와 같은 이유).
+
+    반환 [{'no','lat','lng','address','sido','sigungu','result'}]
+    """
+    from .engine import evaluate
+    from .geocode import reverse_geocode
+
+    out = []
+    for i, (lat, lng) in enumerate(points, start=1):
+        addr = sido = sigungu = ''
+        try:
+            g = reverse_geocode(lat, lng) or {}
+            addr = g.get('address') or g.get('road_address') or ''
+            sido, sigungu = g.get('sido', ''), g.get('sigungu', '')
+        except Exception:                                       # noqa: BLE001
+            logger.warning('%d%s 역지오코딩 실패', i, label)
+        try:
+            res = evaluate(lat=lat, lng=lng, radius_m=radius_m, address=addr,
+                           capacity_mw=capacity_mw, sido=sido, sigungu=sigungu)
+        except Exception as e:                                  # noqa: BLE001
+            logger.exception('%d%s 검토 실패', i, label)
+            out.append({'no': i, 'lat': lat, 'lng': lng, 'address': addr,
+                        'sido': sido, 'sigungu': sigungu, 'result': None,
+                        'error': type(e).__name__})
+            continue
+        out.append({'no': i, 'lat': lat, 'lng': lng, 'address': addr,
+                    'sido': sido, 'sigungu': sigungu, 'result': res})
+    return out
+
+
+#: 항목 상태의 서열 — 여러 지점의 결과를 합칠 때 '가장 나쁜 값'을 고른다.
+#: 한 호기라도 불가면 그 항목은 불가로 보고해야 한다. 평균을 내면 묻힌다.
+_SEVERITY = {'IMPOSSIBLE': 3, 'UNKNOWN': 2, 'CONDITIONAL': 1, 'POSSIBLE': 0}
+
+
+def merge_items(evals: list[dict]) -> list[dict]:
+    """
+    호기별 검토를 항목 단위로 합친다.
+
+    반환 [{'category','item_name','status','worst_no','hits','reason',
+           'per_point': {호기번호: status}}]
+    """
+    merged: dict[str, dict] = {}
+    for ev in evals:
+        res = ev.get('result')
+        if not res:
+            continue
+        for it in res.analysis_items:
+            row = merged.setdefault(it.item_name, {
+                'category': it.category, 'item_name': it.item_name,
+                'status': 'POSSIBLE', 'worst_no': None, 'reason': '',
+                'law': it.law, 'article': it.article,
+                'unknown_reason': '', 'per_point': {},
+            })
+            s = it.status.value
+            row['per_point'][ev['no']] = s
+            if _SEVERITY[s] > _SEVERITY[row['status']]:
+                row.update(status=s, worst_no=ev['no'], reason=it.reason,
+                           unknown_reason=it.unknown_reason)
+    rows = list(merged.values())
+    for r in rows:
+        r['hits'] = sum(1 for v in r['per_point'].values()
+                        if _SEVERITY[v] >= _SEVERITY[r['status']] > 0)
+        r['total'] = len(r['per_point'])
+    rows.sort(key=lambda r: (-_SEVERITY[r['status']], r['category'], r['item_name']))
+    return rows
