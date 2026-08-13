@@ -1713,6 +1713,18 @@ select.fs-input { cursor: pointer; }
 }
 .ws-radrow em { font-style: normal; font-size: 11px; color: #6b7f94; padding-bottom: 5px; }
 
+/* 화면 단위 오류 경계 */
+.view-error {
+  margin: 20px; padding: 16px 18px; border-radius: 10px;
+  background: #1b1216; border: 1px solid #4b2732; color: #e6ccd2;
+}
+.view-error b { display: block; font-size: 14px; margin-bottom: 6px; }
+.view-error p { margin: 0 0 10px; font-size: 12px; color: #b795a0; }
+.view-error code {
+  display: block; margin-bottom: 12px; padding: 8px 10px; border-radius: 6px;
+  background: #100b0d; color: #f0a6b4; font-size: 12px; word-break: break-all;
+}
+
 /* 연·월·일 분리 입력 — 칸을 나눠 자릿수를 강제하고 커서를 자동으로 넘긴다 */
 .dateseg {
   display: inline-flex; align-items: center; gap: 2px;

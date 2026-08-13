@@ -473,7 +473,7 @@ export default function WindSiteView() {
       {tab === 'result' && (
         !areaResult ? (
           <p className="ops-empty">지도에서 지점을 찍고 검토를 실행하십시오.</p>
-        ) : !areaResult.items ? (
+        ) : !areaResult.items?.points?.length ? (
           <div className="ws-gaps">
             <b>규제 항목 상세가 아직 조회되지 않았습니다</b>
             <p>

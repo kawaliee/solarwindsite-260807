@@ -7,6 +7,7 @@ import OpsView from './features/ops/OpsView'
 import WindSiteView from './features/windsite/WindSiteView'
 import FactSheetView from './features/factsheet/FactSheetView'
 import PlaceholderView from './components/PlaceholderView'
+import ViewBoundary from './components/ViewBoundary'
 import Login from './components/Login'
 
 type ViewType = 'chat' | 'contract' | 'finance' | 'ops' | 'windsite' | 'factsheet';
@@ -74,6 +75,9 @@ export default function App() {
       <main className="main-content">
         <Topbar title={meta.title} subtitle={meta.sub} view={activeView} />
 
+        {/* 화면 하나가 터져도 앱 전체가 흰 화면이 되지 않도록 가둔다.
+            key를 화면 이름으로 줘 메뉴를 옮기면 경계가 새로 만들어진다. */}
+        <ViewBoundary key={activeView} name={meta.title}>
         {activeView === 'chat' && (
           <ChatView
             conversationId={activeConversationId}
@@ -99,6 +103,7 @@ export default function App() {
         {activeView === 'windsite' && <WindSiteView />}
 
         {activeView === 'factsheet' && <FactSheetView />}
+        </ViewBoundary>
       </main>
     </>
   );

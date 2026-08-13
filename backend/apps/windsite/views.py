@@ -361,11 +361,17 @@ def _area_payload(r: dict, ring: list, evals: list | None = None) -> dict:
     }
 
 
-def _items_payload(evals: list) -> dict:
-    """호기별 결과를 화면이 쓸 형태로 — 항목별 최악값 + 지점별 요약."""
+def _items_payload(evals: list) -> dict | None:
+    """
+    호기별 결과를 화면이 쓸 형태로 — 항목별 최악값 + 지점별 요약.
+
+    없을 때는 빈 dict가 아니라 None을 준다. 빈 dict는 JSON에서 {}가 되고
+    자바스크립트에서 참으로 취급돼, '항목이 있다'고 판단한 화면이 없는
+    필드를 읽다 통째로 죽는다(빈 화면). 없음은 null로 말해야 한다.
+    """
     ok = [e for e in evals if e.get('result')]
     if not ok:
-        return {}
+        return None
     merged = available.merge_items(ok)
     return {
         'merged': merged,
