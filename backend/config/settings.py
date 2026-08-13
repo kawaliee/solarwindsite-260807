@@ -228,6 +228,11 @@ TAVILY_API_KEY = os.environ.get('TAVILY_API_KEY', '')
 # 이격 대상이 되어 배제면적이 크게 부풀어난다.
 #   값은 DATA_GO_KR_KEY와 같은 포털 인증키다. .env에 값은 있었으나 여기에
 #   정의가 없어 그동안 읽히지 않고 있었다.
+# KIER 풍력 시공간 자원정보 (공공데이터포털 B551184).
+# 판정이 아니라 고도별·방위별 참고 수치용이다 — 값이 순간 풍속으로 보인다.
+# 값은 DATA_GO_KR_KEY와 같은 포털 인증키이므로 미설정 시 그쪽으로 내려앉는다.
+KIER_API_KEY = os.environ.get('KIER_API_KEY', '') or DATA_GO_KR_KEY
+
 _RAW_BLDG_LEDGER_API_KEY = os.environ.get('BLDG_LEDGER_API_KEY', '')
 BLDG_LEDGER_API_KEY = (
     (unquote(_RAW_BLDG_LEDGER_API_KEY) if '%' in _RAW_BLDG_LEDGER_API_KEY

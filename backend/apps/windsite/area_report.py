@@ -23,7 +23,7 @@ import io
 import logging
 from datetime import datetime
 
-from . import available, maps
+from . import available, kier, maps
 
 logger = logging.getLogger(__name__)
 
@@ -484,10 +484,15 @@ def _detail_sections(doc, evals, Pt) -> None:
             obs.get('period', '-'),
         ])
     if rows:
-        _table(doc, ['호기', '관측소', '연평균 풍속', '관측높이', '관측소 표고', '관측기간'], rows)
+        _styled_table(doc,
+                      ['호기', '관측소', '연평균 풍속', '관측높이', '관측소 표고', '관측기간'],
+                      rows, accent='C05E2E',
+                      widths=[1.5, 4.4, 2.4, 2.0, 2.4, 4.1])
         first = _item_of(evals[0]['result'], WIND_ITEM)
         if first:
             doc.add_paragraph(first.reason)
+
+    _kier(doc, evals)
     doc.add_paragraph(
         '※ 풍황은 실측 대상입니다. 위 값은 재분석·관측소 기반 추정이며 '
         '사업성 판단에는 현장 계측(최소 1년)이 필요합니다.')
@@ -737,3 +742,43 @@ def _callout(doc, title: str, body: str, *, tone: str = 'CONDITIONAL') -> None:
     p = c.add_paragraph()
     _run(p, body, size=8.5, color=INK)
     doc.add_paragraph()
+
+
+def _kier(doc, evals) -> None:
+    """
+    KIER 격자 풍황 — 고도별·방위별 참고 수치.
+
+    **판정에 쓰지 않는다.** 시각을 지정하는 파라미터가 없고 값의 크기가
+    연평균으로 보기에 너무 낮아 순간 풍속으로 판단된다. 그럼에도 싣는 이유는
+    ASOS 관측소가 수십 km 떨어져 있는 반면 이 격자는 부지 위에 있어,
+    고도에 따른 증가폭과 방위별 편차를 보는 데 쓸모가 있기 때문이다.
+    """
+    rep = evals[0] if evals else None
+    if not rep:
+        return
+    rows = kier.fetch(rep['lat'], rep['lng'])
+    s = kier.summarize(rows, rep['lat'], rep['lng'])
+    if not s:
+        _note(doc, '※ KIER 격자 풍황을 조회하지 못했습니다.')
+        return
+
+    doc.add_heading('KIER 격자 풍황 (참고)', level=3)
+    alt = s['by_altitude_ms']
+    _styled_table(doc, ['고도'] + [f'{k}m' for k in alt],
+                  [['풍속(m/s)'] + [f'{v:.2f}' for v in alt.values()]],
+                  accent='8E6BB5')
+
+    azi = s['by_azimuth_ms']
+    top = sorted(azi.items(), key=lambda x: -x[1])[:6]
+    _styled_table(doc, ['방위각'] + [f'{k}°' for k, _ in top],
+                  [['풍속(m/s)'] + [f'{v:.2f}' for _, v in top]],
+                  accent='8E6BB5')
+
+    _callout(
+        doc, '이 값은 판정에 쓰지 않았습니다',
+        f"{s['caveat']} 격자 {s['grid_points']}점(부지 반경 "
+        f"{s['radius_km'] or '-'}km) · 표본 {s['samples']:,}건. "
+        f"방위별로는 {s['dominant_azimuth_deg']}° 섹터가 가장 높으나, "
+        f"순간값 기반이라 연간 주풍향으로 단정할 수 없습니다. "
+        f"사업성 판정은 기상청 ASOS 연평균 기준으로 별도 산출했습니다.",
+        tone='UNKNOWN')
