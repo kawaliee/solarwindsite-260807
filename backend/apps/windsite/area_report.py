@@ -24,6 +24,7 @@ import logging
 from datetime import datetime
 
 from . import available, kier, maps
+from .providers import kepco
 
 logger = logging.getLogger(__name__)
 
@@ -520,7 +521,10 @@ def _detail_sections(doc, evals, Pt) -> None:
             '※ 여유용량은 조회 시점 스냅샷이며 선점으로 변동합니다. '
             '실제 연계는 한전 협의로 확정됩니다.')
     else:
-        doc.add_paragraph('전력계통 정보를 조회하지 못했습니다.')
+        _note(doc, '※ OSM 변전소 정보를 조회하지 못했습니다(사용량 제한 등). '
+                   '거리 판정은 빠져 있으나 아래 공급관계는 확인됩니다.')
+
+    _supply(doc, evals)
 
     doc.add_heading('정온시설 이격거리', level=2)
     rows = [['%d호기' % e['no'], _sig(it.status.value), (it.reason or '')[:150]]
@@ -781,4 +785,66 @@ def _kier(doc, evals) -> None:
         f"방위별로는 {s['dominant_azimuth_deg']}° 섹터가 가장 높으나, "
         f"순간값 기반이라 연간 주풍향으로 단정할 수 없습니다. "
         f"사업성 판정은 기상청 ASOS 연평균 기준으로 별도 산출했습니다.",
+        tone='UNKNOWN')
+
+
+def _supply(doc, evals) -> None:
+    """
+    공급가능 변전소 — 한전 공식 자료.
+
+    OSM은 '가까운 변전소'를 알려주지만 가깝다고 그 변전소에서 공급받는 것은
+    아니다. 이 자료는 읍면동마다 실제로 공급하는 변전소를 알려주므로 성격이
+    다르고, Overpass가 막혀도 조회된다.
+
+    다만 변전소명이 첫 글자만 남고 가려져 있다(국가기밀시설). 여유용량 자료와
+    첫 글자로 대조해 후보를 좁히되, 하나로 좁혀지지 않으면 좁히지 않는다 —
+    임의로 고르면 엉뚱한 변전소의 여유용량을 붙이게 된다.
+    """
+    rep = next((e for e in evals if e.get('sigungu')), None)
+    if not rep:
+        return
+    emd = ''
+    for part in (rep.get('address') or '').split():
+        if part.endswith(('읍', '면', '동')):
+            emd = part
+            break
+    info = kepco.supply_for(rep.get('sido', ''), rep['sigungu'], emd)
+    if not info:
+        return
+
+    # 후보를 전국에서 고르면 '삼*'에 삼계·삼미·삼죽·삼척이 모두 걸린다.
+    # 도 단위로 줄여야 대개 하나로 특정된다.
+    try:
+        rows = kepco.KepcoGridClient.fetch(
+            metro_cd=kepco.METRO_CD.get(rep.get('sido', ''), ''))
+    except Exception:                                           # noqa: BLE001
+        rows = []
+    known = sorted({r.get('substNm', '') for r in rows if r.get('substNm')})
+    margins = kepco.KepcoGridClient.summarize(rows) if rows else {}
+
+    table = []
+    for masked in info['names']:
+        cand = kepco.match_masked(masked, known)
+        if len(cand) == 1:
+            rec = margins.get(kepco.normalize_substation(cand[0])) or {}
+            table.append([
+                masked, cand[0],
+                f"{rec.get('substation_margin_kw', 0):,.0f}" if rec else '-',
+                f"{rec.get('best_line_margin_kw', 0):,.0f}" if rec else '-',
+            ])
+        else:
+            table.append([masked,
+                          ' / '.join(cand) if cand else '대조 실패',
+                          '-', '-'])
+
+    doc.add_heading('공급가능 변전소 (한전 공식)', level=3)
+    _styled_table(doc,
+                  ['공급변전소(비식별)', '대조 결과', '변전소 여유(kW)', '선로 여유(kW)'],
+                  table, accent='C05E2E', widths=[3.6, 4.4, 3.4, 3.4])
+    _callout(
+        doc, f'{info["scope"]} 기준 공급가능 변전소 {len(info["names"])}개소',
+        '한전 공식 자료라 거리 기반 추정과 다릅니다 — 가깝다고 그 변전소에서 '
+        '공급받는 것은 아니고, 멀어도 공급 대상일 수 있습니다. 변전소명은 '
+        '국가기밀시설이라 첫 글자만 공개되며, 여유용량 자료와 첫 글자로 '
+        '대조했습니다. 후보가 둘 이상이면 좁히지 않고 그대로 적었습니다.',
         tone='UNKNOWN')

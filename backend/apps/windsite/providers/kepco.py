@@ -133,3 +133,110 @@ def _num(v) -> float:
         return float(str(v).replace(',', '').strip() or 0)
     except (TypeError, ValueError):
         return 0.0
+
+
+# ======================================================================
+# 지역별 공급가능 변전소 (공공데이터포털 15128065)
+# ----------------------------------------------------------------------
+# 읍면동마다 어느 변전소가 공급하는지를 알려준다. OSM 거리와는 다른 정보다 —
+# 가까워도 공급 대상이 아닐 수 있고, 멀어도 공급 대상일 수 있다.
+#
+# **변전소명은 첫 글자만 남기고 가려져 있다**(삼*, 도*, 태* — 전국 209개).
+# 국가기밀시설이라 위치와 이름을 공개하지 않는 정책이다. 그래서 이 자료만으로
+# 변전소를 특정할 수 없고, 좌표는 어디서도 얻을 수 없다.
+#
+# 그럼에도 싣는 이유는 둘이다.
+#   · Overpass가 막혀 OSM 변전소를 못 받아도 "이 읍면동에 공급 가능한
+#     변전소가 N개소 있다"는 사실은 남길 수 있다
+#   · 첫 글자로 여유용량 자료와 대조해 후보를 좁힐 수 있다
+# ======================================================================
+#: 시·도 → 여유용량 API의 metroCd. 후보를 전국에서 고르면 '삼*'에
+#: 삼계·삼미·삼죽·삼척이 모두 걸려 좁혀지지 않는다. 도 단위로 줄이면
+#: 대개 하나로 특정된다(강원 '삼*' → 삼척).
+#: 값은 법정동 시·도 코드다. 강원은 특별자치도 전환으로 42가 아니라 51이며,
+#: 42로 부르면 404가 온다(실측).
+METRO_CD = {
+    '서울특별시': '11', '부산광역시': '26', '대구광역시': '27', '인천광역시': '28',
+    '광주광역시': '29', '대전광역시': '30', '울산광역시': '31', '세종특별자치시': '36',
+    '경기도': '41', '강원특별자치도': '51', '강원도': '51',
+    '충청북도': '43', '충청남도': '44',
+    '전북특별자치도': '52', '전라북도': '52', '전라남도': '46',
+    '경상북도': '47', '경상남도': '48', '제주특별자치도': '50',
+}
+
+SUPPLY_URL = ('https://api.odcloud.kr/api/15128065/v1/'
+              'uddi:3a841aea-8d81-499a-a82a-ac6588c35b88')
+SUPPLY_PAGE = 1000
+SUPPLY_MAX_PAGES = 8
+
+
+def fetch_supply_map() -> list[dict]:
+    """전국 공급가능 변전소 표(4,557행). 한 번 받아 캐시한다."""
+    key = getattr(settings, 'DATA_GO_KR_KEY', '')
+    if not key:
+        return []
+
+    def call() -> list[dict]:
+        out: list[dict] = []
+        for page in range(1, SUPPLY_MAX_PAGES + 1):
+            res = httpx.get(SUPPLY_URL,
+                            params={'serviceKey': key, 'page': str(page),
+                                    'perPage': str(SUPPLY_PAGE)},
+                            timeout=90.0,
+                            headers={'User-Agent': 'windsite-feasibility/1.0'})
+            res.raise_for_status()
+            d = res.json()
+            rows = d.get('data') or []
+            if not rows:
+                break
+            out.extend(rows)
+            if len(out) >= int(d.get('totalCount') or 0):
+                break
+        return out
+
+    try:
+        return httpcache.get_or_set('kepco_supply', {'v': 1}, call)
+    except Exception as e:                                      # noqa: BLE001
+        logger.warning('공급가능 변전소 조회 실패: %s', e)
+        return []
+
+
+def supply_for(sido: str, sigungu: str, eupmyeondong: str = '') -> dict:
+    """
+    행정구역에 공급 가능한 변전소 목록.
+
+    반환 {'names': ['삼*', …], 'scope': '근덕면'|'삼척시', 'masked': True}
+    읍면동이 맞지 않으면 시군구 단위로 넓혀 답한다 — 없다고 하는 것보다 낫다.
+    """
+    rows = fetch_supply_map()
+    if not rows:
+        return {}
+
+    def pick(pred) -> list[str]:
+        return sorted({r['공급변전소'] for r in rows
+                       if r.get('공급변전소') and pred(r)})
+
+    if eupmyeondong:
+        names = pick(lambda r: r.get('시군구') == sigungu
+                     and r.get('읍면동') == eupmyeondong)
+        if names:
+            return {'names': names, 'scope': eupmyeondong, 'masked': True}
+    names = pick(lambda r: r.get('시군구') == sigungu
+                 and (not sido or r.get('시도') == sido))
+    if names:
+        return {'names': names, 'scope': sigungu, 'masked': True}
+    return {}
+
+
+def match_masked(masked: str, candidates: list[str]) -> list[str]:
+    """
+    '삼*' 처럼 가려진 이름에 맞는 후보를 고른다.
+
+    첫 글자만 남아 있어 여럿이 걸릴 수 있다. 하나로 좁혀지지 않으면
+    좁히지 않고 그대로 돌려준다 — 임의로 하나를 고르면 여유용량을 엉뚱한
+    변전소 것으로 붙이게 된다.
+    """
+    head = (masked or '').replace('*', '').strip()
+    if not head:
+        return []
+    return [c for c in candidates if c.startswith(head)]
