@@ -37,7 +37,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import re
 
-from . import buildings, geo, jurisdiction
+from . import buildings, geo, jobs, jurisdiction
 from .providers.vworld import VworldClient
 from .schemas import Status
 
@@ -299,7 +299,7 @@ DEFAULT_TURBINE_RADIUS_M = 500
 DEFAULT_CORRIDOR_RADIUS_M = 100
 
 
-def compute(area_ring: list, permit_date=None) -> dict:
+def compute(area_ring: list, permit_date=None, job_id: str = '') -> dict:
     """
     사업구역(폴리곤)의 제약도를 만든다.
 
@@ -308,13 +308,13 @@ def compute(area_ring: list, permit_date=None) -> dict:
     area = geo.polygon_metric(area_ring)
     if area is None:
         raise ValueError('사업구역 폴리곤이 유효하지 않습니다 (꼭짓점 3개 이상 필요).')
-    return _compute(area, permit_date=permit_date)
+    return _compute(area, permit_date=permit_date, job_id=job_id)
 
 
 def compute_layout(turbines: list,
                    turbine_radius_m: int = DEFAULT_TURBINE_RADIUS_M,
                    corridor_radius_m: int = DEFAULT_CORRIDOR_RADIUS_M,
-                   permit_date=None) -> dict:
+                   permit_date=None, job_id: str = '') -> dict:
     """
     발전기 배치선의 제약도를 만든다.
 
@@ -334,7 +334,8 @@ def compute_layout(turbines: list,
     area = geo.union([spots, route])
     if area is None:
         raise ValueError('배치선으로 검토 구역을 만들지 못했습니다.')
-    return _compute(area, separation_zone=spots, permit_date=permit_date, layout={
+    return _compute(area, separation_zone=spots, permit_date=permit_date,
+                    job_id=job_id, layout={
         'turbines': [[round(a, 6), round(o, 6)] for a, o in turbines],
         'turbine_radius_m': turbine_radius_m,
         'corridor_radius_m': corridor_radius_m,
@@ -345,7 +346,7 @@ def compute_layout(turbines: list,
 
 
 def _compute(area, separation_zone=None, layout: dict | None = None,
-             permit_date=None) -> dict:
+             permit_date=None, job_id: str = '') -> dict:
     total = float(area.area)
 
     slices, jmeta = jurisdiction.with_ordinances(area)
@@ -364,6 +365,9 @@ def _compute(area, separation_zone=None, layout: dict | None = None,
     failures: list[str] = []
 
     def work(layer):
+        # 스레드 안에서 확인해야 남은 레이어 조회가 실제로 멈춘다.
+        # 루프 밖에서만 보면 pool.map이 이미 전부 제출한 뒤라 소용없다.
+        jobs.check(job_id)
         return layer, _layer_geoms(area, layer)
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
@@ -496,7 +500,7 @@ def _compute(area, separation_zone=None, layout: dict | None = None,
 # 호기별 지점 검토
 # ======================================================================
 def evaluate_points(points: list, radius_m: int, capacity_mw=None,
-                    label: str = '호기') -> list[dict]:
+                    label: str = '호기', job_id: str = '') -> list[dict]:
     """
     지점마다 기존 62개 항목 검토를 돌린다.
 
@@ -509,11 +513,14 @@ def evaluate_points(points: list, radius_m: int, capacity_mw=None,
 
     반환 [{'no','lat','lng','address','sido','sigungu','result'}]
     """
-    from .engine import evaluate
+    from .engine import _Cancelled as _EngineCancelled, evaluate
     from .geocode import reverse_geocode
 
     out = []
     for i, (lat, lng) in enumerate(points, start=1):
+        # 호기 하나가 통째로 62개 조회다. 시작 전에 확인하면 남은 호기를
+        # 통째로 아낄 수 있다.
+        jobs.check(job_id)
         addr = sido = sigungu = ''
         try:
             g = reverse_geocode(lat, lng) or {}
@@ -523,7 +530,11 @@ def evaluate_points(points: list, radius_m: int, capacity_mw=None,
             logger.warning('%d%s 역지오코딩 실패', i, label)
         try:
             res = evaluate(lat=lat, lng=lng, radius_m=radius_m, address=addr,
-                           capacity_mw=capacity_mw, sido=sido, sigungu=sigungu)
+                           capacity_mw=capacity_mw, sido=sido, sigungu=sigungu,
+                           should_cancel=(lambda: jobs.is_cancelled(job_id))
+                           if job_id else None)
+        except _EngineCancelled as exc:
+            raise jobs.Cancelled(job_id) from exc
         except Exception as e:                                  # noqa: BLE001
             logger.exception('%d%s 검토 실패', i, label)
             out.append({'no': i, 'lat': lat, 'lng': lng, 'address': addr,

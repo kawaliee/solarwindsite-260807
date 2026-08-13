@@ -1751,3 +1751,5 @@ select.fs-input { cursor: pointer; }
 /* 배치선 번호 마커 — 클릭으로 삭제 가능함을 커서로 알린다 */
 .ws-turbine span { cursor: pointer; }
 .ws-turbine span:hover { background: #ff6b6b; color: #fff; }
+.ws-btn2.ws-cancel { border-color: rgba(255,77,79,.5); color: #f0a1a2; }
+.ws-btn2.ws-cancel:hover { background: rgba(255,77,79,.12); }

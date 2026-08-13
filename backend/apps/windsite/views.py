@@ -10,7 +10,7 @@ from rest_framework import status as http
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from . import area_report, available, geo, jurisdiction
+from . import area_report, available, geo, jobs, jurisdiction
 from .engine import DEFAULT_RADIUS_M, MAX_RADIUS_M, MIN_RADIUS_M, compare, evaluate
 from .geocode import geocode, reverse_geocode
 from .models import LawReference, LocalOrdinance, SiteEvaluation
@@ -65,6 +65,33 @@ def evaluate_area(request):
             status=http.HTTP_400_BAD_REQUEST)
 
     return Response(_area_payload(result, ring))
+
+
+#: 클라이언트가 요청을 접었을 때 쓰는 상태. 표준 코드가 없어 널리 쓰이는
+#: 499(Client Closed Request)를 따른다. 오류가 아니므로 화면에 빨간 문구를
+#: 띄우지 않도록 프런트에서 따로 다룬다.
+HTTP_CLIENT_CLOSED = 499
+
+
+def _cancelled():
+    return Response({'detail': '사용자 요청으로 중단했습니다.', 'cancelled': True},
+                    status=HTTP_CLIENT_CLOSED)
+
+
+@api_view(['POST'])
+def area_report_cancel(request):
+    """
+    진행 중인 구역 보고서 생성을 중단 요청한다.
+
+    플래그만 세운다. 작업은 다음 확인 지점에서 스스로 멈춘다 — 이미 나간
+    HTTP 요청 하나는 타임아웃까지 기다리므로 즉시 멈추지는 않는다.
+    """
+    job_id = str((request.data or {}).get('job_id') or '')[:64]
+    if not job_id:
+        return Response({'detail': 'job_id가 필요합니다.'},
+                        status=http.HTTP_400_BAD_REQUEST)
+    jobs.request_cancel(job_id)
+    return Response({'ok': True, 'job_id': job_id})
 
 
 def _capacity(d: dict):
@@ -145,15 +172,23 @@ def area_report_download(request):
     쓰면 화면에 보이는 값과 문서가 어긋날 수 있고(입력을 바꾼 뒤 눌렀을 때),
     캐시가 걸려 있어 재계산 비용도 크지 않다.
     """
-    parsed = _parse_area_request(request.data or {})
+    d = request.data or {}
+    parsed = _parse_area_request(d)
     if isinstance(parsed, Response):
         return parsed
     ring, is_layout, permit_date, radii = parsed
+    # 클라이언트가 만든 작업 id. 취소 요청과 실행 중인 작업을 잇는 유일한 끈이다.
+    job_id = str(d.get('job_id') or '')[:64]
+    jobs.clear(job_id)      # 같은 id의 지난 취소 플래그가 남아 있으면 즉시 죽는다
+
     try:
         if is_layout:
-            result = available.compute_layout(ring, permit_date=permit_date, **radii)
+            result = available.compute_layout(ring, permit_date=permit_date,
+                                              job_id=job_id, **radii)
         else:
-            result = available.compute(ring, permit_date=permit_date)
+            result = available.compute(ring, permit_date=permit_date, job_id=job_id)
+    except jobs.Cancelled:
+        return _cancelled()
     except ValueError as e:
         return Response({'detail': str(e)}, status=http.HTTP_400_BAD_REQUEST)
     except jurisdiction.BoundaryUnavailable as e:
@@ -170,26 +205,32 @@ def area_report_download(request):
         if layout:
             evals = available.evaluate_points(
                 pts, radius_m=layout['turbine_radius_m'],
-                capacity_mw=_capacity(request.data or {}))
+                capacity_mw=_capacity(d), job_id=job_id)
         else:
             # 폴리곤 검토에는 호기가 없다. 구역 대표점 한 곳에서 항목 평가를 낸다.
             c = result['geoms']['area'].centroid
             lat, lng = geo.to_geographic_xy(c.x, c.y)[1], geo.to_geographic_xy(c.x, c.y)[0]
             evals = available.evaluate_points(
                 [(lat, lng)], radius_m=100,
-                capacity_mw=_capacity(request.data or {}), label='지점')
+                capacity_mw=_capacity(d), label='지점', job_id=job_id)
+    except jobs.Cancelled:
+        return _cancelled()
     except Exception:                                           # noqa: BLE001
         # 항목 평가가 실패해도 면적 보고서는 나와야 한다. 빠졌다는 사실은
         # 보고서 '한계'에 남는다.
         logger.exception('호기별 항목 평가 실패')
 
     try:
+        jobs.check(job_id)
         blob = area_report.build_area_report(result, evals)
+    except jobs.Cancelled:
+        return _cancelled()
     except Exception as e:                                      # noqa: BLE001
         logger.exception('구역 보고서 생성 실패')
         return Response({'detail': f'보고서 생성에 실패했습니다: {type(e).__name__}'},
                         status=http.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    jobs.clear(job_id)
     name = f'풍력구역검토_{datetime.now():%Y-%m-%d}.docx'
     res = HttpResponse(
         blob,

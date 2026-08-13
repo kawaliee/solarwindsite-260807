@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import SitePicker, { type PickMode } from './SitePicker'
 import { windsiteApi } from './api'
 import {
@@ -71,6 +71,8 @@ export default function WindSiteView() {
   const [areaResult, setAreaResult] = useState<AreaResult | null>(null);
   const [areaLoading, setAreaLoading] = useState(false);
   const [areaReporting, setAreaReporting] = useState(false);
+  /** 진행 중인 보고서 작업 — 중단할 때 서버에 알릴 id와 fetch 취소 핸들 */
+  const reportJob = useRef<{ id: string; abort: AbortController } | null>(null);
 
   /** 검토와 보고서가 같은 입력을 쓰도록 한 곳에서 만든다 */
   function areaBody() {
@@ -81,14 +83,30 @@ export default function WindSiteView() {
   }
 
   async function downloadAreaReport() {
+    const id = (crypto.randomUUID?.() ?? String(Date.now()));
+    const abort = new AbortController();
+    reportJob.current = { id, abort };
     setAreaReporting(true); setError('');
     try {
-      await windsiteApi.downloadAreaReport(areaBody());
+      await windsiteApi.downloadAreaReport({ ...areaBody(), job_id: id }, abort.signal);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '보고서 생성에 실패했습니다.');
+      // 사용자가 끊은 것은 오류가 아니다
+      if (!(e instanceof DOMException && e.name === 'AbortError')) {
+        setError(e instanceof Error ? e.message : '보고서 생성에 실패했습니다.');
+      }
     } finally {
+      reportJob.current = null;
       setAreaReporting(false);
     }
+  }
+
+  function cancelAreaReport() {
+    const job = reportJob.current;
+    if (!job) return;
+    // 서버에 먼저 알린 뒤 화면을 푼다. 순서를 바꾸면 fetch가 끊긴 뒤
+    // 취소 요청이 도착해, 그 사이 서버가 다음 호기 조회를 시작한다.
+    windsiteApi.cancelAreaReport(job.id).catch(() => {});
+    job.abort.abort();
   }
 
   async function runArea() {
@@ -437,10 +455,16 @@ export default function WindSiteView() {
                     : pickMode === 'layout' ? '배치선 검토 실행' : '구역 검토 실행'}
                 </button>
                 <div className="ws-actions">
-                  <button className="ws-btn2" onClick={downloadAreaReport}
-                    disabled={!areaResult || areaReporting || areaLoading}>
-                    {areaReporting ? '보고서 생성 중… (최대 10분)' : '보고서 내려받기 (docx)'}
-                  </button>
+                  {areaReporting ? (
+                    <button className="ws-btn2 ws-cancel" onClick={cancelAreaReport}>
+                      생성 중단
+                    </button>
+                  ) : (
+                    <button className="ws-btn2" onClick={downloadAreaReport}
+                      disabled={!areaResult || areaLoading}>
+                      보고서 내려받기 (docx)
+                    </button>
+                  )}
                 </div>
                 <p className="ws-hint">
                   {ring.length === 0

@@ -96,13 +96,22 @@ def build_providers(sido: str = '', sigungu: str = '', substations=None):
 
 def evaluate(lat: float, lng: float, radius_m: int = DEFAULT_RADIUS_M, address: str = '',
              capacity_mw: float | None = None, sido: str = '', sigungu: str = '',
-             substations=None) -> EvaluationResult:
+             substations=None, should_cancel=None) -> EvaluationResult:
     q = SiteQuery(lat=lat, lng=lng, radius_m=radius_m, address=address, capacity_mw=capacity_mw)
     providers = build_providers(sido, sigungu, substations)
 
     # run()은 예외를 삼키고 항상 AnalysisItem을 반환하므로 병렬 실행이 안전하다.
+    #
+    # should_cancel을 주면 어댑터를 실행하기 **직전**에 확인한다. 62개를 전부
+    # 돌고 나서 확인하면 취소가 1분 넘게 늦어진다 — 남은 조회를 아끼는 것이
+    # 취소의 목적이므로 가장 안쪽에서 봐야 한다.
+    def _one(p):
+        if should_cancel and should_cancel():
+            raise _Cancelled()
+        return p.run(q)
+
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-        items: list[AnalysisItem] = list(pool.map(lambda p: p.run(q), providers))
+        items: list[AnalysisItem] = list(pool.map(_one, providers))
 
     # 저촉 없음(POSSIBLE·LOW)인 참고성 레이어가 화면을 뒤덮지 않도록 정렬만 조정한다.
     # (항목 자체는 근거 보존을 위해 제거하지 않는다)
@@ -131,6 +140,10 @@ def evaluate(lat: float, lng: float, radius_m: int = DEFAULT_RADIUS_M, address: 
 
 
 # ----------------------------------------------------------------------
+class _Cancelled(Exception):
+    """검토 도중 취소됐다. 호출부가 jobs.Cancelled로 바꿔 올린다."""
+
+
 def compare(candidates: list[dict]) -> dict:
     """
     복수 후보지를 같은 기준으로 검토해 비교표를 만든다.

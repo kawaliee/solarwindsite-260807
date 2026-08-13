@@ -89,9 +89,25 @@ export const windsiteApi = {
    * 검토 보고서(docx) 내려받기.
    * 응답이 JSON이 아니라 파일이라 req()를 쓰지 않고 직접 처리한다.
    */
-  /** 사업구역·배치선 제약도 보고서 — evaluate-area와 같은 body를 보낸다 */
-  downloadAreaReport(body: Record<string, unknown>): Promise<void> {
-    return download('/windsite/area-report/', body, '풍력구역검토');
+  /**
+   * 사업구역·배치선 제약도 보고서 — evaluate-area와 같은 body를 보낸다.
+   * signal로 화면을 즉시 풀고, cancelAreaReport로 서버 작업까지 멈춘다.
+   */
+  downloadAreaReport(body: Record<string, unknown>, signal?: AbortSignal): Promise<void> {
+    return download('/windsite/area-report/', body, '풍력구역검토', signal);
+  },
+
+  /**
+   * 진행 중인 보고서 생성 중단.
+   *
+   * fetch만 끊으면 서버는 계속 돈다 — Django 동기 뷰는 클라이언트가 끊긴
+   * 것을 모른다. 이 호출이 있어야 남은 외부 조회가 실제로 멈춘다.
+   */
+  cancelAreaReport(jobId: string) {
+    return req<{ ok: boolean }>('/area-report/cancel/', {
+      method: 'POST',
+      body: JSON.stringify({ job_id: jobId }),
+    });
   },
 
   async downloadReport(p: EvaluateParams & { with_maps?: boolean }): Promise<void> {
@@ -100,12 +116,16 @@ export const windsiteApi = {
 };
 
 /** docx 내려받기 공통 — 파일명은 Content-Disposition(RFC 5987)에서 읽는다 */
-async function download(path: string, body: unknown, fallbackName: string): Promise<void> {
+async function download(path: string, body: unknown, fallbackName: string,
+                        signal?: AbortSignal): Promise<void> {
     const res = await fetch(`${API_BASE}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal,
     });
+    // 499 = 사용자 중단. 오류가 아니므로 조용히 끝낸다.
+    if (res.status === 499) return;
     if (!res.ok) {
       const err = await res.json().catch(() => ({} as { detail?: string }));
       throw new Error(err.detail || `보고서 생성 실패 (${res.status})`);
