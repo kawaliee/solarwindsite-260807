@@ -1,0 +1,11 @@
+# backend/media는 docker-compose에서 ./backend/media:/app/media로 볼륨
+# 마운트된다. COPY . .가 이미지 안에도 통째로 구워서(1.1GB, 당진PJT 인허가
+# 서류 등 실사용 문서 포함) 완전히 중복이었다 — 이미지 용량만 키우고
+# 컨테이너에서는 볼륨이 덮어써 쓰이지도 않는다.
+media/
+
+__pycache__/
+*.pyc
+.pytest_cache/
+
+scratch/

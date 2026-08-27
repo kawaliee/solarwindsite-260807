@@ -74,10 +74,17 @@ class NedClient:
 # ----------------------------------------------------------------------
 def select_parcels(q: SiteQuery, limit: int = MAX_PARCELS) -> tuple[list[dict], int]:
     """
-    검토 반경 내 필지 중 **면적이 큰 순서로** 조사 대상을 고른다.
+    검토 대상 필지 중 **면적이 큰 순서로** 조사 대상을 고른다.
     연속지적 응답은 캐시되므로 CadastralProvider와 중복 호출이 발생하지 않는다.
 
-    returns: (선정 필지 목록, 반경 내 전체 필지 수)
+    ⚠️ **구역 모드에서는 실제 사업구역과 겹치는 필지만 후보로 삼는다.**
+    `q.lat/lng/radius_m`는 구역 모드에서 사업구역의 **외접원**일 뿐이다
+    (`SiteQuery` 문서 참고). 이 원으로 필지를 조회한 뒤 면적 큰 순으로만
+    골랐더니, 원 안에는 들어오지만 사업구역과는 전혀 접하지 않는 큰 필지가
+    뽑혔다(실측, 장흥 — 216.9ha 간척 농지의 외접원 반경 1,472m 안에는
+    인접 리·마을의 국유지 필지가 여럿 들어와, 6개 후보 중 4개가 실제
+    사업구역 밖이었다). 그래서 구역 모드에서는 `q.geom`(사업구역 폴리곤)과
+    실제로 겹치는 필지로 먼저 거른 뒤에만 면적순으로 추린다.
     """
     layer_id = 'lp_pa_cbnd_bubun'
     try:
@@ -98,6 +105,7 @@ def select_parcels(q: SiteQuery, limit: int = MAX_PARCELS) -> tuple[list[dict], 
             site = geo.point_metric(q.lat, q.lng)
         except geo.GeoUnavailable:
             site = None
+    review_geom = q.geom if (site is not None and q.is_area) else None
 
     rows: list[dict] = []
     for f in feats:
@@ -109,13 +117,16 @@ def select_parcels(q: SiteQuery, limit: int = MAX_PARCELS) -> tuple[list[dict], 
         contains_site = False
         if site is not None:
             g = geo.geom_from_geojson(f.get('geometry'))
-            if g is not None:
-                try:
-                    gm = geo.to_metric(g)
-                    area = geo.area_m2(gm)
-                    contains_site = gm.contains(site)
-                except Exception:                               # noqa: BLE001
-                    pass
+            if g is None:
+                continue
+            try:
+                gm = geo.to_metric(g)
+            except Exception:                                   # noqa: BLE001
+                continue
+            if review_geom is not None and not gm.intersects(review_geom):
+                continue                        # 외접원 안이지만 사업구역 밖
+            area = geo.area_m2(gm)
+            contains_site = gm.contains(site)
         rows.append({
             'pnu': pnu,
             'addr': props.get('addr', ''),
@@ -150,10 +161,14 @@ class ParcelBasedProvider(LayerProvider):
         return ''
 
     @staticmethod
-    def _coverage_note(parcels: list[dict], total: int) -> str:
+    def _coverage_note(parcels: list[dict], total: int, q: SiteQuery | None = None) -> str:
         if total <= len(parcels):
             return ''
-        return (f' ※ 반경 내 {total:,}개 필지 중 중심 필지와 면적 상위 '
+        # 구역 모드에서는 total이 **사업구역과 겹치는** 필지 수다(외접원 안
+        # 전체가 아니다 — select_parcels 참고). '반경 내'라고 하면 사업구역
+        # 밖 필지까지 센 것처럼 읽힌다.
+        scope = '사업구역 내' if (q is not None and q.is_area) else '반경 내'
+        return (f' ※ {scope} {total:,}개 필지 중 중심 필지와 면적 상위 '
                 f'{len(parcels)}개만 조회했습니다. 나머지 필지는 확인되지 않았습니다.')
 
 
@@ -225,7 +240,7 @@ class ForestClassificationProvider(ParcelBasedProvider):
                 reason=(gap if gap else
                         ('조회한 필지에서 산지구분(보전산지/준보전산지) 정보가 확인되지 '
                          '않았습니다. 산지가 아닌 필지이거나 자료가 미등재된 경우입니다.'))
-                       + self._coverage_note(parcels, total),
+                       + self._coverage_note(parcels, total, q),
                 difficulty=Difficulty.MEDIUM,
                 confidence=Confidence.LOW,
                 action_required=(pnu_codes.unmapped_action('') if gap else
@@ -250,7 +265,7 @@ class ForestClassificationProvider(ParcelBasedProvider):
         return self.item(
             status=status,
             reason=(f'조회 필지의 산지구분 — {" / ".join(summary)}. {note}{extra}'
-                    + self._coverage_note(parcels, total)),
+                    + self._coverage_note(parcels, total, q)),
             difficulty=difficulty,
             confidence=Confidence.MEDIUM,
             source_url='https://www.vworld.kr',
@@ -351,7 +366,7 @@ class LandUseZoneProvider(ParcelBasedProvider):
 
         return self.item(
             status=status,
-            reason=head + note + self._coverage_note(parcels, total),
+            reason=head + note + self._coverage_note(parcels, total, q),
             difficulty=difficulty,
             confidence=Confidence.MEDIUM,
             source_url='https://www.eum.go.kr',
@@ -427,7 +442,7 @@ class LandOwnershipProvider(ParcelBasedProvider):
                         + ', '.join(f'{r["addr"] or r["pnu"]}({r["owner"] or "구분미상"})'
                                     for r in rows[:4])
                         + '. 토지사용승낙은 개별 소유자와 협의로 진행합니다.'
-                        + self._coverage_note(parcels, total)),
+                        + self._coverage_note(parcels, total, q)),
                 difficulty=Difficulty.LOW,
                 confidence=Confidence.MEDIUM,
                 action_required='토지사용승낙서 또는 임대차·매매 계약 확보 계획을 수립하십시오.',
@@ -441,7 +456,7 @@ class LandOwnershipProvider(ParcelBasedProvider):
             status=Status.CONDITIONAL,
             reason=(f'국·공유지가 포함되어 있습니다 — {names}. 사용허가(대부) 절차가 필요하며 '
                     '소관청 협의에 상당한 기간이 소요됩니다.'
-                    + self._coverage_note(parcels, total)),
+                    + self._coverage_note(parcels, total, q)),
             difficulty=Difficulty.HIGH,
             confidence=Confidence.MEDIUM,
             action_required=(
@@ -512,7 +527,7 @@ class LandCharacteristicsProvider(ParcelBasedProvider):
         if landlocked or steep:
             return self.item(
                 status=Status.CONDITIONAL,
-                reason=head + ' ' + ' '.join(notes) + self._coverage_note(parcels, total),
+                reason=head + ' ' + ' '.join(notes) + self._coverage_note(parcels, total, q),
                 difficulty=Difficulty.MEDIUM,
                 confidence=Confidence.LOW,
                 action_required='진입도로 확보 계획과 평균경사도 실측을 사업계획에 반영하십시오.',
@@ -522,7 +537,7 @@ class LandCharacteristicsProvider(ParcelBasedProvider):
         return self.item(
             status=Status.POSSIBLE,
             reason=head + ' 진입도로 접면과 지형 조건에 특이사항이 확인되지 않았습니다.'
-                   + self._coverage_note(parcels, total),
+                   + self._coverage_note(parcels, total, q),
             difficulty=Difficulty.LOW,
             confidence=Confidence.LOW,
             action_required='실제 평균경사도·표고는 측량으로 확인하십시오.',

@@ -17,8 +17,11 @@ ZIP(또는 디렉토리) 안의 SHP째로 적재한다. GDAL 없이 pyshp만 사
   - ZIP 내부 한글 파일명(CP437로 저장된 CP949)을 복원한다.
   - `.prj`에서 EPSG를 판독한다. 판독 실패 시 `--srs`로 지정해야 하며,
     **추측해서 넘어가지 않는다.**
-  - 좌표는 원본 좌표계 그대로 WKB로 저장한다(국내 데이터는 EPSG:5179 =
-    검토 엔진의 계량 좌표계라 재투영이 불필요).
+  - 좌표는 **검토 엔진의 계량 좌표계(EPSG:5179)로 바꿔** WKB로 저장한다.
+    원본이 무엇이든 저장 좌표계는 하나여야 한다 — 조회가 5179 미터로
+    비교하므로, 다른 좌표계가 섞이면 하나도 걸리지 않고 조용히 '해당 없음'이
+    된다(철새도래지 원본은 EPSG:3857이다).
+    `srs_epsg` 필드에는 **원본** EPSG를 남겨 출처를 되짚을 수 있게 한다.
 """
 from __future__ import annotations
 
@@ -195,6 +198,7 @@ class Command(BaseCommand):
             code=code,
             defaults=dict(
                 name=label, category=o['category'], source=o['source'],
+                # 원본 EPSG를 남긴다. 저장된 도형은 5179로 바꾼 것이다.
                 source_file=Path(parts['_src']).name, srs_epsg=epsg,
                 name_field=name_f, source_url=o['source_url'],
                 loaded_at=timezone.now(), is_active=True,
@@ -215,12 +219,19 @@ class Command(BaseCommand):
     def _insert(self, reader, ds, epsg, name_f, kind_f, sido_f, sigg_f, shape) -> int:
         from apps.windsite import geo
 
-        to_wgs = None
-        if epsg != int(geo.METRIC_CRS.split(':')[1]):
+        # ⚠️ 도형은 **검토 엔진의 계량 좌표계(EPSG:5179)로 바꿔** 저장한다.
+        #
+        #    종전에는 원본 좌표계 그대로 넣었다. 적재한 것이 5179 자료뿐이라
+        #    문제가 드러나지 않았는데, 철새도래지(V-World 다운로드본)는
+        #    **EPSG:3857**이라 좌표가 통째로 어긋난다. 조회는 min_x·max_y를
+        #    5179 미터로 비교하므로 하나도 걸리지 않고, 걸리더라도 거리가
+        #    엉뚱해진다. **조용히 '해당 없음'이 되는** 가장 위험한 실패다.
+        metric_epsg = int(geo.METRIC_CRS.split(':')[1])
+        to_metric = None
+        if epsg != metric_epsg:
             from pyproj import Transformer
-            to_wgs = Transformer.from_crs(f'EPSG:{epsg}', geo.GEOGRAPHIC_CRS, always_xy=True)
-        else:
-            to_wgs = None       # 5179 → geo.to_geographic_xy 사용
+            to_metric = Transformer.from_crs(
+                f'EPSG:{epsg}', geo.METRIC_CRS, always_xy=True)
 
         buf: list[SpatialFeature] = []
         count = skipped = 0
@@ -240,14 +251,20 @@ class Command(BaseCommand):
                     skipped += 1
                     continue
 
+            if to_metric is not None:
+                from shapely.ops import transform as shp_transform
+                try:
+                    g = shp_transform(
+                        lambda x, y, _t=to_metric: _t.transform(x, y), g)
+                except Exception:                               # noqa: BLE001
+                    skipped += 1
+                    continue
+
             rec = sr.record.as_dict()
             minx, miny, maxx, maxy = g.bounds
             try:
                 p = g.representative_point()
-                if to_wgs is not None:
-                    lng, lat = to_wgs.transform(p.x, p.y)
-                else:
-                    lng, lat = geo.to_geographic_xy(p.x, p.y)
+                lng, lat = geo.to_geographic_xy(p.x, p.y)
             except Exception:                                   # noqa: BLE001
                 lat = lng = None
 

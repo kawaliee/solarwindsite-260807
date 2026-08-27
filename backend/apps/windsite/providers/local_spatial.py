@@ -38,16 +38,24 @@ class LocalSpatialProvider(LayerProvider):
     hit_difficulty: Difficulty = Difficulty.HIGH
 
     def _features(self, q: SiteQuery):
-        """bbox로 후보를 좁힌 뒤 (거리, 피처) 목록을 돌려준다."""
+        """
+        bbox로 후보를 좁힌 뒤 (거리, 피처) 목록을 돌려준다.
+
+        거리는 **사업구역 경계 기준**이다. 종전에는 구역 모드에서도 중심점
+        하나로 쟀는데, 216ha 구역이면 중심과 경계가 1km 가까이 떨어져 있어
+        '1.77km'라는 값이 실제 경계에서는 1km도 안 되는 유산을 멀리 있는
+        것처럼 말했다. 점 모드는 종전대로 점 기준이다(반경이 곧 경계다).
+        """
         from ..models import SpatialFeature                     # 지연 import
 
-        site = geo.point_metric(q.lat, q.lng)
+        site = q.geom if q.is_area else geo.point_metric(q.lat, q.lng)
         r = q.radius_m + self.search_margin_m
+        minx, miny, maxx, maxy = site.bounds
         qs = (SpatialFeature.objects
               .filter(dataset__code__in=self.dataset_codes,
                       dataset__is_active=True,
-                      min_x__lte=site.x + r, max_x__gte=site.x - r,
-                      min_y__lte=site.y + r, max_y__gte=site.y - r)
+                      min_x__lte=maxx + r, max_x__gte=minx - r,
+                      min_y__lte=maxy + r, max_y__gte=miny - r)
               .select_related('dataset'))
 
         cand = list(qs[:MAX_CANDIDATES])
@@ -128,7 +136,7 @@ class HeritageSpatialProvider(LocalSpatialProvider):
             return self.item(
                 status=Status.POSSIBLE,
                 reason=(
-                    f'검토 반경 {q.radius_m:,}m + 역사문화환경 보존지역 기본범위 '
+                    f'{q.scope_label} + 역사문화환경 보존지역 기본범위 '
                     f'{self.search_margin_m:,}m 내에서 지정·등록 국가유산 및 '
                     f'현상변경 허용기준 구역이 조회되지 않았습니다.'
                 ),
@@ -170,9 +178,11 @@ class HeritageSpatialProvider(LocalSpatialProvider):
             d, f = designated[0]
             near = ', '.join(f'{ff.name}({ff.kind}, {geo.format_distance(dd)})'
                              for dd, ff in designated[:5])
+            basis = ('사업구역 경계 기준' if q.is_area
+                     else f'검토 지점 기준')
             lines.append(
                 f'인근 지정·등록 국가유산 {len(designated)}건 — {near}. '
-                f'최근접 {geo.format_distance(d)}.'
+                f'최근접 {geo.format_distance(d)} ({basis} 직선거리).'
             )
 
         if truncated:

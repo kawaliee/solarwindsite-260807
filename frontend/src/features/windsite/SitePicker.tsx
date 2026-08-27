@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import type { EnvLayer, LatLng, RoadDetail } from './types'
 
-export type PickMode = 'point' | 'area' | 'layout';
+export type PickMode = 'point' | 'area' | 'layout' | 'parcel';
 
 interface SitePickerProps {
   lat: number | null;
@@ -10,8 +11,9 @@ interface SitePickerProps {
   radiusM: number;
   onPick: (lat: number, lng: number) => void;
   /**
-   * 'area'  클릭이 사업구역 꼭짓점을 찍는다
+   * 'area'   클릭이 사업구역 꼭짓점을 찍는다
    * 'layout' 클릭이 발전기 위치를 순서대로 찍는다 (1호기부터)
+   * 'parcel' 클릭이 그 자리의 **필지**를 고른다 (태양광)
    */
   mode?: PickMode;
   /** 구역 꼭짓점 또는 발전기 위치 [[lat, lng], …] */
@@ -20,9 +22,86 @@ interface SitePickerProps {
   /** 배치선 모드 — 발전기 검토반경 / 연결선 검토반경 (m) */
   turbineRadiusM?: number;
   corridorRadiusM?: number;
+  /**
+   * parcel 모드에서 확정된 필지들. ring(클릭 좌표)과 별개로 받는다 —
+   * 조회가 비동기라, 클릭은 이미 찍혔는데 경계는 아직 없는 순간이 있다.
+   */
+  parcels?: { pnu: string; jibun: string; rings: [number, number][][];
+              exact: boolean }[];
+  /**
+   * 스크리닝 채색 결과. 켜져 있을 때만 채워 준다.
+   * 필지를 누르면 onScreenPick으로 대표좌표가 올라간다 → 정밀판정으로 잇는다.
+   */
+  screening?: { pnu: string; jibun: string; jimok: string; area_m2: number;
+                grade: string; reasons: string[]; rings: [number, number][][];
+                lat: number | null; lng: number | null }[] | null;
+  onScreenPick?: (lat: number, lng: number) => void;
+  /** 지도를 움직였을 때 현재 범위를 알린다 (스크리닝 갱신용) */
+  onBoundsChange?: (b: [number, number, number, number], zoom: number) => void;
+  /**
+   * 이 값이 바뀌면 ring 전체가 보이도록 지도를 맞춘다.
+   *
+   * 저장한 사업지를 불러오면 좌표만 복원되고 지도는 전국 시점에 머물러,
+   * 사용자가 매번 손으로 찾아 들어가야 했다. 값이 바뀔 때만 움직이므로
+   * 지도를 옮기는 중에 시점이 되돌아가지 않는다.
+   */
+  fitToken?: number;
   /** 검토 결과를 지도에 겹쳐 그릴 영역 */
   overlays?: { blocked: [number, number][][]; conditional: [number, number][][];
-               free: [number, number][][] } | null;
+               free: [number, number][][];
+               /** 조례 이격 범위 — 배제·조건부 면에 이미 포함. 윤곽만 덧그린다 */
+               ordinance_house?: [number, number][][];
+               ordinance_road?: [number, number][][];
+               ordinance_road_uncertain?: [number, number][][] } | null;
+  /**
+   * 조례 이격을 배제가 아니라 **조건부**로 셌는가(경과규정 대상).
+   *
+   * 발전사업허가일이 조례 시행일보다 앞서면 부칙으로 종전 기준이 적용될 수
+   * 있어 무조건 불가가 아니다. 색이 이미 조건부로 나오므로 지도에서는
+   * 이격 윤곽의 안내 문구만 달라진다.
+   */
+  ordinanceGrandfathered?: boolean;
+  /**
+   * 겹침 면에 커서를 올렸을 때 보여 줄 문구. {overlay 열쇠: 한 줄}
+   *
+   * 붉은 면만 보면 **왜 배제인지** 알 수 없어 다음 행동이 서지 않는다.
+   * 조례 이격이면 어느 도로에서 몇 m인지까지 적어 준다.
+   */
+  overlayLabels?: Record<string, string>;
+  /**
+   * 도로별 선과 이격 범위. **어느 도로로부터 얼마만큼 침범되는가**를
+   * 지도에서 보기 위한 것이다 — 합친 붉은 면 하나로는 알 수 없다.
+   */
+  roadDetail?: RoadDetail[] | null;
+  /**
+   * 지도(L.Map)가 만들어지면 그 인스턴스를 올려준다.
+   *
+   * 보고서 캡처가 이 지도를 그대로 이미지로 떠야 화면과 문서가 어긋나지
+   * 않는다. 캡처는 부모(WindSiteView)가 버튼을 눌렀을 때 하므로, 그 시점에
+   * 지도 컨테이너에 접근할 손잡이가 필요하다.
+   */
+  onMapReady?: (map: L.Map) => void;
+  /**
+   * **사업구역 경계**(필지 기반, 검토 실행 후 서버가 확정한 도형).
+   *
+   * 그린 폴리곤(ring)과 다르다 — 그린 구역 안 도로·구거 같은 '대상 아님'
+   * 필지를 뺀, 판정·면적·보고서 지도가 실제로 쓰는 도형이다. 화면이 이
+   * 경계를 그려야 캡처(제약도)와 서버 렌더 지도의 사업구역이 같은 도형이
+   * 된다. 검토 전에는 없다.
+   */
+  siteRings?: [number, number][][] | null;
+  /** 환경성 평가 항목별 지도 미리보기 목록 (용도지역 구성·농업진흥지역도 등) */
+  envLayers?: EnvLayer[];
+  /**
+   * 지금 화면에 낼 것 — null이면 평소대로 제약도(overlays)·필지 채색을
+   * 그린다. 'zoning'이면 용도지역 구성 전체를, 그 밖의 값이면 그 이름과
+   * 같은 envLayers 항목 하나만 단독으로 그린다.
+   *
+   * 보고서가 화면과 같은 그림을 캡처하려면, 화면이 "지금 이 항목만" 보여줄
+   * 방법이 있어야 한다 — 평소의 제약도 위에 겹쳐 그리면 그 항목의 경계가
+   * 다른 색에 묻혀 협의 자료로 못 쓴다.
+   */
+  activeEnvLayer?: string | null;
 }
 
 /**
@@ -113,11 +192,133 @@ export function corridorRing(pts: [number, number][], radiusM: number): [number,
   return ring.map(toLL);
 }
 
+/**
+ * 스크리닝 채색 — 판정 4단계를 그대로 따른다.
+ * 배제는 **붉게** 칠한다. 종전에는 검은 음영으로 '걷어 낸다'는 뜻을 주려
+ * 했는데, 같은 지도 위 제약도 겹침(blocked)이 붉은색이라 **같은 '배제'가 두
+ * 색으로 보였다.** 범례의 네모도 검정이어서 지도의 빨간 면이 무엇인지 알 수
+ * 없었다. 뜻이 같으면 색도 같아야 한다.
+ */
+const SCREEN_STYLE: Record<string, L.PathOptions> = {
+  POSSIBLE: { color: '#52c41a', weight: 1, fillColor: '#52c41a', fillOpacity: 0.45 },
+  CONDITIONAL: { color: '#faad14', weight: 1, fillColor: '#faad14', fillOpacity: 0.4 },
+  IMPOSSIBLE: { color: '#ff4d4f', weight: 1, fillColor: '#ff4d4f', fillOpacity: 0.45 },
+  UNKNOWN: { color: '#40a9ff', weight: 1, fillColor: '#40a9ff', fillOpacity: 0.3 },
+  // 대상 아님 — 후보가 아니므로 경계만 희미하게 남긴다. 지우지는 않는다.
+  NOT_APPLICABLE: { color: '#8c8c8c', weight: 0.5, fill: false, opacity: 0.35 },
+};
+
+/**
+ * 겹침 면 기본 설명. 조례 이격처럼 서버가 사유를 만들어 주는 것은
+ * `overlayLabels`가 덮어쓴다.
+ */
+const OVERLAY_TIP: Record<string, string> = {
+  blocked: '배제 — 불가 판정 레이어 또는 조례 이격 범위',
+  conditional: '조건부 — 협의·저감 조건 하에 진행 가능',
+  free: '제약 없음 — 조회된 규제 레이어에 걸리지 않음',
+  ordinance_house: '조례 주거 이격',
+  ordinance_road: '조례 도로 이격 (국도·지방도)',
+  ordinance_road_uncertain: '조례 도로 이격 (시·군도 — 군도 여부 확인 필요)',
+};
+
+/**
+ * 도로 이격 표시 색.
+ *
+ * ⚠️ **채움 색과 겹치면 안 된다.** 지도의 면은 초록(제약없음)·주황(조건부)·
+ *    빨강(배제)이 이미 차지하고 있다. 종전에 도로를 호박색(#ffd166)으로
+ *    그렸더니 주황 조건부 면과 붙어 무엇이 도로인지 구분되지 않았다.
+ *    그래서 **면에 쓰지 않는 찬 색**으로 가른다.
+ *
+ *      배제 도로(국도·지방도)   시안   — 거리를 바꿀 수 없어 부지를 옮겨야 한다
+ *      조건부 도로(시·군도)     자홍   — 군도 노선 여부부터 확인해야 한다
+ *
+ * 선은 굵게 실선, 이격 범위는 같은 색 파선으로 둬 **원인과 결과가 한 색으로
+ * 묶이게** 한다. 배제는 촘촘한 파선, 조건부는 성긴 점선으로 또 한 번 가른다.
+ */
+const ROAD_COLOR = { blocked: '#00e5ff', uncertain: '#ff5cf0' } as const;
+//: 지도에 이름표를 다는 도로 수. 다 달면 글자가 겹쳐 아무것도 안 읽힌다.
+const ROAD_LABEL_MAX = 4;
+
+//: "지도 보기"에서 용도지역 구성을 고르면 쓰는 고정 키. 서버(area_report.py
+//: ENV_ZONING_KEY)와 같은 값이어야 캡처 이미지가 짝을 찾는다.
+export const ENV_ZONING_KEY = 'zoning';
+//: 용도지역 4분류 색 — 서버(maps.py ZONING_COLORS)와 같은 값.
+const ZONING_COLORS: Record<string, string> = {
+  '도시지역': '#4a6fa5', '관리지역': '#c9a227',
+  '농림지역': '#4caf50', '자연환경보전지역': '#2e7d32',
+};
+const ZONING_DEFAULT = '#8a8f98';
+//: 개별 항목 색 — 서버(area_report.py _ENV_MAP_COLOR)와 같은 값.
+const ENV_ITEM_COLOR: Record<string, string> = {
+  IMPOSSIBLE: '#d9363e', CONDITIONAL: '#e8a33d',
+};
+
+const ROAD_LINE: Record<string, L.PathOptions> = {
+  blocked: { color: ROAD_COLOR.blocked, weight: 3.5, opacity: 1 },
+  uncertain: { color: ROAD_COLOR.uncertain, weight: 3, opacity: 0.95,
+               dashArray: '10 5' },
+};
+//: 선이 배경에 묻히지 않도록 어두운 후광을 깐다.
+const ROAD_LINE_HALO: L.PathOptions = {
+  color: '#08121c', weight: 7, opacity: 0.55, interactive: false,
+};
+/** 도로별 이격 범위 — 면은 이미 배제·조건부가 칠했으므로 **윤곽만** 얹는다. */
+const ROAD_ZONE: Record<string, L.PathOptions> = {
+  blocked: { color: ROAD_COLOR.blocked, weight: 1.8, dashArray: '8 5',
+             fill: false, opacity: 0.9 },
+  uncertain: { color: ROAD_COLOR.uncertain, weight: 1.6, dashArray: '2 6',
+               fill: false, opacity: 0.85 },
+};
+
+/**
+ * 서버가 준 한 줄을 툴팁 HTML로 바꾼다.
+ *
+ *   `배제 — 국도 1,000m … 조례⏎(장흥대로, …)`
+ *   → `<b>배제</b><br>국도 1,000m … 조례<br>(장흥대로, …)`
+ *
+ * 등급을 굵게 떼고 줄바꿈을 살린다. 줄바꿈 문자를 그대로 두면 HTML에서
+ * 공백이 되어 한 줄로 흘러 읽히지 않는다.
+ */
+function fmtTip(text: string): string {
+  const br = (t: string) => t.split('\n').join('<br>');
+  const [head, ...rest] = text.split(' — ');
+  return rest.length
+    ? `<b>${head}</b><br>${br(rest.join(' — '))}`
+    : br(text);
+}
+
+/**
+ * 도로 이름표를 놓을 자리 — 가장 긴 선분의 중간점.
+ *
+ * 선이 없는 도로(구간이 짧아 line이 비는 경우)는 이격 범위 윤곽의 첫 점으로
+ * 대신한다 — 위치가 완벽하지 않아도 "이 부근"이라는 뜻은 전달된다.
+ */
+function roadLabelPoint(d: RoadDetail): LatLng | null {
+  const longest = [...d.line].sort((a, b) => b.length - a.length)[0];
+  if (longest && longest.length) return longest[Math.floor(longest.length / 2)];
+  const ring = d.rings[0];
+  return ring && ring.length ? ring[0] : null;
+}
+
+const SCREEN_LABEL: Record<string, string> = {
+  POSSIBLE: '가능', CONDITIONAL: '조건부', IMPOSSIBLE: '배제', UNKNOWN: '미확인',
+  NOT_APPLICABLE: '대상 아님',
+};
+
 /** 제약 등급별 표시색 — 배경이 위성영상이라 채도를 높이고 투명도를 낮춘다 */
 const OVERLAY_STYLE: Record<string, L.PathOptions> = {
   blocked: { color: '#ff4d4f', weight: 1, fillColor: '#ff4d4f', fillOpacity: 0.42 },
   conditional: { color: '#faad14', weight: 1, fillColor: '#faad14', fillOpacity: 0.3 },
   free: { color: '#52c41a', weight: 1, fillColor: '#52c41a', fillOpacity: 0.28 },
+  // 조례 주거 이격 — **면은 칠하지 않는다.** 배제(붉은 면)에 이미 들어 있어
+  // 겹쳐 칠하면 색만 진해질 뿐 무엇 때문에 불가인지는 여전히 알 수 없다.
+  // 파선 윤곽으로 짚어 주면 '규제 레이어 때문'과 '조례 이격 때문'이 갈린다 —
+  // 앞은 부지를 옮겨야 하고 뒤는 이격을 확보하면 되므로 다음 행동이 다르다.
+  ordinance_house: { color: '#9b51e0', weight: 2, dashArray: '6 4',
+                     fill: false, interactive: false },
+  // ⚠️ 도로 이격은 **합집합 윤곽을 그리지 않는다.** 도로별(roadDetail)로
+  //    같은 경계를 이미 그리고 있어 두 번 겹쳐 그려지고, 그쪽은 도로 이름과
+  //    침범 면적까지 말해 주므로 합집합은 정보를 더하지 않고 지도만 어지럽힌다.
 };
 
 /**
@@ -151,10 +352,21 @@ const KR_ZOOM = 7;
 /** 지점을 찍었을 때 들어가는 배율 — 능선이 판별되는 수준 */
 const SITE_ZOOM = 14;
 
+/**
+ * 저장한 사업지로 날아가는 시간(초).
+ *
+ * 짧으면 순간이동처럼 보여 어디로 갔는지 놓치고, 길면 기다리게 된다.
+ * 1.6초면 전국 시점에서 읍면 단위까지 경로가 읽히면서 답답하지 않다.
+ */
+const FLY_SECONDS = 1.6;
+
 export default function SitePicker({
   lat, lng, radiusM, onPick,
-  mode = 'point', ring, onRingChange, overlays,
-  turbineRadiusM = 500, corridorRadiusM = 100,
+  mode = 'point', ring, onRingChange, overlays, overlayLabels, roadDetail,
+  siteRings,
+  turbineRadiusM = 500, corridorRadiusM = 100, parcels,
+  screening, onScreenPick, onBoundsChange, fitToken, onMapReady,
+  envLayers, activeEnvLayer,
 }: SitePickerProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -162,6 +374,14 @@ export default function SitePicker({
   const circleRef = useRef<L.Circle | null>(null);
   const drawRef = useRef<L.LayerGroup | null>(null);
   const overlayRef = useRef<L.LayerGroup | null>(null);
+  const screenRef = useRef<L.LayerGroup | null>(null);
+  const envLayerRef = useRef<L.LayerGroup | null>(null);
+  const onBoundsRef = useRef(onBoundsChange);
+  const onScreenPickRef = useRef(onScreenPick);
+  const onMapReadyRef = useRef(onMapReady);
+  onBoundsRef.current = onBoundsChange;
+  onScreenPickRef.current = onScreenPick;
+  onMapReadyRef.current = onMapReady;
   /** 지도 클릭으로 방금 바꾼 좌표 — 외부 입력과 구분해 불필요한 화면 이동을 막는다 */
   const selfSetRef = useRef<string>('');
   /**
@@ -224,6 +444,10 @@ export default function SitePicker({
       zoomControl: true,
       minZoom: 6,
       maxZoom: 19,
+      // 스크리닝은 폴리곤을 수천 개 그린다. Leaflet 기본(SVG)은 도형마다
+      // DOM 노드를 만들어 수천 개에서 이미 버벅이고 수만 개면 멈춘다.
+      // canvas는 한 장에 그려 그 한계가 없다. 툴팁·클릭은 그대로 동작한다.
+      preferCanvas: true,
     });
 
     L.control.layers(bases, tileOverlays, { position: 'topright', collapsed: false }).addTo(map);
@@ -243,8 +467,18 @@ export default function SitePicker({
       setHover({ lat: e.latlng.lat, lng: e.latlng.lng }));
     map.on('mouseout', () => setHover(null));
     map.on('zoomend', () => setZoom(map.getZoom()));
+    // 스크리닝은 '보이는 범위'가 곧 조회 범위다. 이동·확대가 끝난 뒤에만
+    // 알린다 — 드래그 중에 매 프레임 알리면 조회가 폭주한다.
+    const notify = () => {
+      const b = map.getBounds();
+      onBoundsRef.current?.(
+        [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()], map.getZoom());
+    };
+    map.on('moveend', notify);
+    map.on('zoomend', notify);
 
     mapRef.current = map;
+    onMapReadyRef.current?.(map);
 
     // 카드 폭이 확정된 뒤에야 타일 크기가 맞는다 — 컨테이너 크기 변화를 따라간다
     const ro = new ResizeObserver(() => map.invalidateSize());
@@ -261,6 +495,7 @@ export default function SitePicker({
       circleRef.current = null;
       drawRef.current = null;
       overlayRef.current = null;
+      screenRef.current = null;
     };
     // 최초 1회만 생성한다. onPick은 setState만 쓰므로 클로저가 낡아도 안전하다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -295,6 +530,42 @@ export default function SitePicker({
     if (mode === 'point' || !ring?.length) return;
 
     const g = L.layerGroup().addTo(map);
+
+    if (mode === 'parcel') {
+      // 확정된 필지는 경계째 칠한다. 경계 근처를 눌러 인접 필지로 대신
+      // 고른 건(exact=false)은 점선으로 달리 그려, 확정과 구분되게 한다.
+      (parcels ?? []).forEach(p => {
+        p.rings.forEach(r => {
+          if (r.length < 4) return;
+          g.addLayer(L.polygon(r, {
+            color: p.exact ? '#39d3e6' : '#faad14',
+            weight: 2,
+            dashArray: p.exact ? undefined : '5 4',
+            fillColor: p.exact ? '#39d3e6' : '#faad14',
+            fillOpacity: 0.18,
+          }).bindTooltip(
+            `${p.jibun || p.pnu}${p.exact ? '' : ' (경계 인접 — 확인 필요)'}`,
+            { direction: 'top' }));
+        });
+      });
+      // 클릭 지점은 항상 보여준다. 조회 중이거나 필지를 못 찾은 자리도
+      // 표시돼야 어디를 눌렀는지 알고 되돌릴 수 있다.
+      ring.forEach(([a, o], i) => {
+        const v = L.circleMarker([a, o], {
+          radius: 5, color: '#39d3e6', weight: 2,
+          fillColor: '#fff', fillOpacity: 1, bubblingMouseEvents: false,
+        });
+        v.bindTooltip(`필지 ${i + 1} — 클릭하면 제외`, { direction: 'top' });
+        v.on('click', (ev) => {
+          L.DomEvent.stopPropagation(ev);
+          const cur = ringRef.current;
+          onRingChangeRef.current?.(cur.filter((_, k) => k !== i));
+        });
+        g.addLayer(v);
+      });
+      drawRef.current = g;
+      return;
+    }
 
     if (mode === 'layout') {
       // 발전기를 찍은 순서대로 잇는다. 그 선이 집전선로·진입도로 경로가 된다.
@@ -367,7 +638,100 @@ export default function SitePicker({
       g.addLayer(v);
     });
     drawRef.current = g;
-  }, [mode, ring, turbineRadiusM, corridorRadiusM]);
+  }, [mode, ring, turbineRadiusM, corridorRadiusM, parcels]);
+
+  // ── 불러온 사업지로 날아가기 ────────────────────────────────────────
+  //
+  // 시점을 툭 바꾸지 않고 **이동하면서 확대**한다. 전국 시점에서 필지 하나로
+  // 순간이동하면 지금 보는 곳이 어디인지 놓치는데, 날아가는 동안 경로가
+  // 보이면 사업지가 국토 어디쯤인지가 함께 읽힌다.
+  //
+  // Leaflet의 flyTo는 먼 거리를 한 번 줌아웃했다가 다시 들어가는 곡선을
+  // 그린다. 거리가 멀수록 그 호가 커져, 전국 → 읍면 이동이 자연스럽다.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !fitToken || !ring?.length) return;
+
+    // 동작 줄이기를 켠 사용자에게는 움직이지 않고 바로 맞춘다.
+    // 애니메이션이 어지럼을 유발할 수 있어 OS 설정을 따른다.
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+    if (ring.length === 1) {
+      const z = Math.max(map.getZoom(), SITE_ZOOM);
+      if (still) map.setView(ring[0], z);
+      else map.flyTo(ring[0], z, { duration: FLY_SECONDS });
+      return;
+    }
+    // 여백을 둬 경계가 화면 끝에 붙지 않게 한다. maxZoom을 걸어 두는 이유는
+    // 아주 작은 구역에서 최대 배율까지 파고들면 주변이 안 보이기 때문이다.
+    const opts = { padding: [40, 40] as [number, number], maxZoom: 17 };
+    const b = L.latLngBounds(ring);
+    if (still) map.fitBounds(b, opts);
+    else map.flyToBounds(b, { ...opts, duration: FLY_SECONDS });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitToken]);
+
+  // ── 스크리닝 채색 ───────────────────────────────────────────────────
+  //
+  // 미확인은 색만 다르게 하지 않고 **빗금**을 넣는다. 색은 범례를 봐야 뜻이
+  // 통하는데, 빗금은 보자마자 '이건 다른 것'으로 읽힌다. 조회 안 된 필지가
+  // 가능으로 오독되는 것을 막는 마지막 장치다(기획서 §3.4).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    screenRef.current?.remove();
+    screenRef.current = null;
+    // 환경성 항목 지도(용도지역 등)를 보는 중에는 필지 채색을 감춘다 —
+    // 다른 항목 색이 섞이면 그 항목 하나만 짚어 보여주는 지도가 안 된다.
+    if (!screening?.length || activeEnvLayer) return;
+
+    const g = L.layerGroup().addTo(map);
+    // 배제 → 조건부 → 가능 순으로 깔아 엄한 쪽이 위로 오게 한다.
+    const order: Record<string, number> = {
+      NOT_APPLICABLE: 0, POSSIBLE: 1, CONDITIONAL: 2, UNKNOWN: 3, IMPOSSIBLE: 4 };
+    [...screening].sort((a, b) => (order[a.grade] ?? 0) - (order[b.grade] ?? 0))
+      .forEach(p => {
+        p.rings.forEach(r => {
+          if (r.length < 4) return;
+          const poly = L.polygon(r, {
+            ...SCREEN_STYLE[p.grade],
+            className: p.grade === 'UNKNOWN' ? 'ws-screen-unknown' : undefined,
+          });
+          // 사유를 한 줄로 붙이지 않고 목록으로 편다. 조건부는 색이 하나라
+          // **무엇 때문인지**가 여기서만 갈린다 — 조례 이격만인지,
+          // 농업진흥지역까지인지에 따라 다음 행동이 다르다.
+          // 등급을 **맨 앞**에 굵게 둔다. 지번부터 읽으면 결론이 셋째 줄에
+          // 묻힌다. 사유는 줄로 나눠 하나씩 세운다.
+          poly.bindTooltip(
+            `<b>${SCREEN_LABEL[p.grade] ?? p.grade}</b>`
+            + ` <span style="opacity:.75">${p.jibun || p.pnu} · ${p.jimok}`
+            + ` · ${Math.round(p.area_m2).toLocaleString()}㎡</span>`
+            + (p.reasons.length
+                ? '<br>· ' + p.reasons.join('<br>· ')
+                : '<br><span style="opacity:.7">걸리는 제약 없음</span>'),
+            { direction: 'top' });
+          // 후보가 아닌 필지는 눌러도 검토 대상으로 담지 않는다.
+          // 사유는 툴팁으로 볼 수 있으므로 정보가 사라지지는 않는다.
+          if (p.grade !== 'NOT_APPLICABLE') {
+            poly.on('click', (ev) => {
+              L.DomEvent.stopPropagation(ev);
+              if (p.lat != null && p.lng != null) onScreenPickRef.current?.(p.lat, p.lng);
+            });
+          }
+          g.addLayer(poly);
+        });
+      });
+    // ⚠️ 도로 이격(overlays 이펙트)의 fill:false 폴리곤도 내부 전체가
+    // 클릭·호버를 가로챈다(위 ROAD_ZONE 주석 참고). 두 이펙트는 갱신 시점이
+    // 서로 달라 어느 쪽이 나중에 그려질지(=위로 올지) 실행 순서에 좌우된다
+    // — 그 결과 필지가 실제로는 농업진흥지역 때문에 조건부인데도, 마침
+    // 그 자리가 도로 이격 버퍼 안이면 도로 사유만 뜨고 진짜 사유(농업진흥
+    // 지역 등)는 안 보이는 문제가 있었다(실측). 필지 채색이 **모든** 사유를
+    // 모아 보여주는 더 정확한 답이므로, 그리는 순서와 무관하게 항상 맨
+    // 위로 끌어올려 도로 이격 레이어가 필지를 가리지 못하게 한다.
+    g.eachLayer((l) => { if (l instanceof L.Polygon) l.bringToFront(); });
+    screenRef.current = g;
+  }, [screening, activeEnvLayer]);
 
   // ── 검토 결과 겹쳐 그리기 ───────────────────────────────────────────
   useEffect(() => {
@@ -375,18 +739,127 @@ export default function SitePicker({
     if (!map) return;
     overlayRef.current?.remove();
     overlayRef.current = null;
-    if (!overlays) return;
+    // 환경성 항목 지도를 보는 중에는 평소 제약도(배제·조건부·도로 등)를
+    // 감춘다 — 같이 그리면 그 항목 하나만 짚어 보여주는 지도가 안 된다.
+    if (!overlays || activeEnvLayer) return;
 
     const g = L.layerGroup().addTo(map);
     // 배제 → 조건부 → 제약없음 순으로 겹친다. 강한 제약이 위로 올라와야
     // 겹치는 지점에서 더 엄한 쪽이 보인다.
-    (['free', 'conditional', 'blocked'] as const).forEach((k) => {
+    (['free', 'conditional', 'blocked', 'ordinance_house'] as const).forEach((k) => {
+      const tip = overlayLabels?.[k] || OVERLAY_TIP[k];
       (overlays[k] || []).forEach((r) => {
-        if (r.length >= 4) g.addLayer(L.polygon(r, OVERLAY_STYLE[k]));
+        if (r.length < 4) return;
+        const poly = L.polygon(r, OVERLAY_STYLE[k]);
+        // 이격 윤곽(fill:false)은 커서가 닿지 않으므로 면에만 붙는다.
+        // 등급('배제'/'조건부')과 사유를 줄로 나눈다 — 한 줄로 흐르면
+        // 무엇이 결론이고 무엇이 근거인지 구분되지 않는다.
+        if (tip) poly.bindTooltip(fmtTip(tip), { direction: 'top', sticky: true });
+        g.addLayer(poly);
       });
     });
+    // ── 도로별 이격 — 어느 도로로부터 얼마만큼 ────────────────────
+    // 배제 면 위에 **기준이 된 도로 선**과 그 도로의 이격 범위 윤곽을 얹는다.
+    // 도로를 옮길 수는 없으니, 어느 도로가 원인인지 알아야 배치를 어디로
+    // 물릴지 정해진다.
+    (roadDetail || []).forEach((d) => {
+      // 툴팁 제목도 선과 같은 색으로 둔다 — 어느 선을 가리키는지가 색으로
+      // 바로 이어져야 지도와 글이 따로 놀지 않는다.
+      const c = d.blocked ? ROAD_COLOR.blocked : ROAD_COLOR.uncertain;
+      const tip = `<b style="color:${c}">${d.name}</b> · ${d.rank}<br>`
+        + `이격 ${d.distance_m.toLocaleString()}m`
+        + ` — ${d.blocked ? '배제' : '조건부'}`
+        + ` <b>${(d.area_m2 / 1e4).toFixed(1)} ha</b> 침범`
+        + (d.blocked ? '' : '<br>※ 군도 노선 여부 확인 필요');
+      const kind = d.blocked ? 'blocked' : 'uncertain';
+      d.rings.forEach((r) => {
+        if (r.length < 4) return;
+        // ⚠️ 툴팁을 **반드시** 붙인다. Leaflet은 `fill:false` 폴리곤도
+        //    _containsPoint가 내부 전체를 참으로 보아 **이벤트를 가로챈다.**
+        //    윤곽만 그린다고 그냥 두면 이 도형이 아래 배제 면을 덮어,
+        //    붉은 면에 커서를 올려도 아무 문구가 뜨지 않는다(실측).
+        //    여기가 오히려 더 정확한 답이다 — 어느 도로의 이격인지까지 말한다.
+        g.addLayer(L.polygon(r, ROAD_ZONE[kind])
+          .bindTooltip(tip, { direction: 'top', sticky: true }));
+      });
+      d.line.forEach((ln) => {
+        if (ln.length < 2) return;
+        g.addLayer(L.polyline(ln, ROAD_LINE_HALO));
+        g.addLayer(L.polyline(ln, ROAD_LINE[kind])
+          .bindTooltip(tip, { direction: 'top', sticky: true }));
+      });
+    });
+    // ── 도로 이름표 — 항상 보이게 ────────────────────────────────────
+    // 툴팁은 마우스를 올려야 뜬다. 보고서 캡처는 화면을 정지 이미지로
+    // 뜨므로, 호버 없이도 "무슨 도로가 몇 m 이격인가"가 찍혀 있어야
+    // 지도만 보고도 원인을 알 수 있다. 다 달면 글자가 겹치므로 침범
+    // 면적이 큰 도로부터 몇 개만 단다.
+    [...(roadDetail || [])]
+      .sort((a, b) => b.area_m2 - a.area_m2)
+      .slice(0, ROAD_LABEL_MAX)
+      .forEach((d) => {
+        const pt = roadLabelPoint(d);
+        if (!pt) return;
+        const c = d.blocked ? ROAD_COLOR.blocked : ROAD_COLOR.uncertain;
+        g.addLayer(L.marker(pt, {
+          icon: L.divIcon({
+            className: 'ws-road-label',
+            html: `<span style="border-color:${c};color:${c}">`
+                + `${d.name} 이격 ${d.distance_m.toLocaleString()}m</span>`,
+          }),
+          interactive: false,
+          keyboard: false,
+        }));
+      });
+
+    // ── 사업구역 경계(필지 기반) — 맨 위에 ─────────────────────────
+    // 판정·보고서가 실제로 쓰는 도형이다. 그린 폴리곤과 어디가 다른지
+    // (도로·구거가 빠진 자리) 화면에서 보여야, 보고서의 190.5ha와 화면의
+    // 216.9ha가 서로 다른 문서처럼 읽히지 않는다.
+    (siteRings || []).forEach((r) => {
+      if (r.length < 4) return;
+      g.addLayer(L.polygon(r, {
+        color: '#d0021b', weight: 2, dashArray: '6 4',
+        fill: false, interactive: false,
+      }));
+    });
+
+    // 이 이펙트가 필지 채색(screening) 이펙트보다 나중에 실행되면 도로 이격
+    // 등 이 레이어들이 다시 위로 올라와 필지의 종합 사유를 가릴 수 있다.
+    // 실행 순서와 무관하게 필지 채색이 항상 위에 오도록 다시 끌어올린다.
+    screenRef.current?.eachLayer((l) => { if (l instanceof L.Polygon) l.bringToFront(); });
     overlayRef.current = g;
-  }, [overlays]);
+  }, [overlays, roadDetail, activeEnvLayer, siteRings]);
+
+  // ── 환경성 항목 지도(용도지역 구성·개별 항목) ────────────────────────
+  // 평소 제약도 대신 **그 항목 하나만** 단독으로 그린다. 보고서의
+  // 항목별 지도가 이 화면을 그대로 캡처한 것이라, 여기서 다른 색이
+  // 섞이면 협의 자료로 못 쓴다.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    envLayerRef.current?.remove();
+    envLayerRef.current = null;
+    if (!activeEnvLayer || !envLayers?.length) return;
+
+    const g = L.layerGroup().addTo(map);
+    const draw = (name: string, rings: LatLng[][], color: string, ha: number) => {
+      rings.forEach((r) => {
+        if (r.length < 4) return;
+        g.addLayer(L.polygon(r, { color, weight: 1.5, fillColor: color, fillOpacity: 0.5 })
+          .bindTooltip(`<b>${name}</b> · ${ha.toLocaleString()} ha`,
+            { direction: 'top', sticky: true }));
+      });
+    };
+    if (activeEnvLayer === ENV_ZONING_KEY) {
+      envLayers.filter(e => e.kind === 'zoning')
+        .forEach(e => draw(e.name, e.rings, ZONING_COLORS[e.name] || ZONING_DEFAULT, e.ha));
+    } else {
+      const item = envLayers.find(e => e.kind === 'item' && e.name === activeEnvLayer);
+      if (item) draw(item.name, item.rings, ENV_ITEM_COLOR[item.status ?? ''] || '#e8a33d', item.ha);
+    }
+    envLayerRef.current = g;
+  }, [envLayers, activeEnvLayer]);
 
   // ── 마커·반경원 갱신 ────────────────────────────────────────────────
   useEffect(() => {
@@ -439,6 +912,17 @@ export default function SitePicker({
   const n = ring?.length ?? 0;
   return (
     <div className="ws-picker">
+      {/* 빗금 패턴 정의 — '미확인' 필지에 쓴다. 색만으로는 범례를 봐야 뜻이
+          통하지만 빗금은 보자마자 다른 것으로 읽힌다(기획서 §3.4). */}
+      <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
+        <defs>
+          <pattern id="ws-hatch" width="7" height="7" patternUnits="userSpaceOnUse"
+            patternTransform="rotate(45)">
+            <rect width="7" height="7" fill="rgba(64,169,255,.18)" />
+            <line x1="0" y1="0" x2="0" y2="7" stroke="#1677d2" strokeWidth="2.4" />
+          </pattern>
+        </defs>
+      </svg>
       <div ref={hostRef} className="ws-leaflet" />
       <div className="ws-pickfoot">
         <span>
@@ -447,6 +931,12 @@ export default function SitePicker({
               지도를 클릭해 <b>발전기 위치</b>를 1호기부터 순서대로 찍으세요
               (현재 {n}기 · 반경 {turbineRadiusM.toLocaleString()}m)
               {n > 0 && <> · <b>Esc</b> 마지막 취소 · 번호 클릭 시 해당 기 삭제</>}
+            </>
+          ) : mode === 'parcel' ? (
+            <>
+              지도를 클릭해 <b>필지</b>를 고르세요 (현재 {n}필지 · 인접 필지를
+              여러 개 고르면 하나의 사업지로 묶입니다)
+              {n > 0 && <> · <b>Esc</b> 마지막 취소 · 지점 클릭 시 제외</>}
             </>
           ) : mode === 'area' ? (
             <>

@@ -376,3 +376,27 @@ def representative_latlng(geom_metric) -> tuple[float, float] | None:
         return None
     lng, lat = to_geographic_xy(p.x, p.y)
     return lat, lng
+
+
+def lines_4326(geom_metric: Any, precision: int = 6) -> list:
+    """
+    UTM-K 선형 도형 → 화면에 그릴 [[ [lat,lng], … ], …] 선 목록.
+
+    `rings_4326`의 선 판이다. 도로처럼 **면이 아니라 선으로 그려야 하는**
+    것에 쓴다 — 도로를 면으로 그리면 이격 범위와 구분되지 않는다.
+    """
+    if geom_metric is None or geom_metric.is_empty:
+        return []
+    _require()
+    out: list = []
+    for part in getattr(geom_metric, 'geoms', [geom_metric]):
+        coords = getattr(part, 'coords', None)
+        if coords is None:
+            continue
+        line = [
+            [round(lat, precision), round(lng, precision)]
+            for lng, lat in (to_geographic_xy(x, y) for x, y in coords)
+        ]
+        if len(line) >= 2:
+            out.append(line)
+    return out

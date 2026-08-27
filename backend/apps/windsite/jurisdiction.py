@@ -186,7 +186,7 @@ def split(area_geom) -> tuple[list[dict], dict]:
     }
 
 
-def with_ordinances(area_geom) -> tuple[list[dict], dict]:
+def with_ordinances(area_geom, energy: str = None) -> tuple[list[dict], dict]:
     """
     split() 결과에 지자체별 이격거리 조례를 붙인다.
 
@@ -211,7 +211,7 @@ def with_ordinances(area_geom) -> tuple[list[dict], dict]:
     no_rule: list[str] = []
     for s in slices:
         try:
-            rules, state = ordinances.ordinance_state(s['sido'], s['sigungu'])
+            rules, state = ordinances.ordinance_state(s['sido'], s['sigungu'], energy)
         except Exception as e:                                  # noqa: BLE001
             logger.warning('조례 조회 실패 %s %s: %s', s['sido'], s['sigungu'], e)
             rules, state = [], ordinances.UNVERIFIED

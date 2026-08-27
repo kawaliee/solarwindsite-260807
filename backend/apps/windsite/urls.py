@@ -8,6 +8,10 @@ urlpatterns = [
     path('projects/<uuid:pk>/', projects.project_detail, name='windsite-project'),
     path('plans/', projects.plan_create, name='windsite-plan-create'),
     path('plans/<uuid:pk>/', projects.plan_detail, name='windsite-plan'),
+    # 클릭 좌표 → 필지(PNU) — 태양광 필지 검토의 입구
+    path('parcel/', views.parcel_lookup, name='windsite-parcel'),
+    # 화면 범위 필지 4등급 채색 — 태양광 발굴 모드의 입구
+    path('screen/', views.screen_parcels, name='windsite-screen'),
     path('evaluate-area/', views.evaluate_area, name='windsite-evaluate-area'),
     path('area-report/', views.area_report_download, name='windsite-area-report'),
     path('area-report/cancel/', views.area_report_cancel, name='windsite-area-report-cancel'),

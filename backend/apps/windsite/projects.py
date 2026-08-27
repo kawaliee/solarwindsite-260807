@@ -26,6 +26,7 @@ from rest_framework import status as http
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from . import energy as energy_mod
 from .models import SitePlan, SiteProject
 
 logger = logging.getLogger(__name__)
@@ -41,14 +42,26 @@ def _user(request):
 def project_dict(p: SiteProject, with_plans: bool = False) -> dict:
     d = {
         'id': str(p.id), 'name': p.name, 'description': p.description,
+        'energy_type': p.energy_type,
         'sido': p.sido, 'sigungu': p.sigungu,
         'plan_count': p.plans.count(),
-        'created_at': p.created_at.isoformat(timespec='seconds'),
-        'updated_at': p.updated_at.isoformat(timespec='seconds'),
+        'created_at': _stamp(p.created_at),
+        'updated_at': _stamp(p.updated_at),
     }
     if with_plans:
         d['plans'] = [plan_dict(x) for x in p.plans.all()]
     return d
+
+
+def _stamp(dt) -> str:
+    """
+    화면·보고서에 쓸 시각. **한국시간으로 낸다.**
+
+    USE_TZ=True라 DB에는 UTC로 담기고 `isoformat()`도 UTC를 돌려준다. 그대로
+    보내면 화면에 오후 1시 검토가 오전 4시로 찍힌다 — 같은 날 여러 번 검토한
+    것을 시각으로 가리려는 것인데 그 시각이 9시간 어긋나면 쓸모가 없다.
+    """
+    return timezone.localtime(dt).isoformat(timespec='seconds') if dt else ''
 
 
 def plan_dict(x: SitePlan) -> dict:
@@ -56,6 +69,9 @@ def plan_dict(x: SitePlan) -> dict:
         'id': str(x.id),
         'project_id': str(x.project_id), 'project_name': x.project.name,
         'name': x.name, 'note': x.note,
+        # 검토자 — 로그인 계정과 다를 수 있어 따로 남긴다
+        'reviewer': x.reviewer,
+        'mode': x.mode,
         'turbines': x.turbines, 'turbine_count': len(x.turbines or []),
         'turbine_radius_m': x.turbine_radius_m,
         'corridor_radius_m': x.corridor_radius_m,
@@ -63,10 +79,9 @@ def plan_dict(x: SitePlan) -> dict:
         'sido': x.sido, 'sigungu': x.sigungu,
         'summary': x.summary or {},
         # 요약이 언제 것인지 반드시 함께 낸다 — 규제는 개정된다.
-        'evaluated_at': (x.evaluated_at.isoformat(timespec='seconds')
-                         if x.evaluated_at else ''),
-        'created_at': x.created_at.isoformat(timespec='seconds'),
-        'updated_at': x.updated_at.isoformat(timespec='seconds'),
+        'evaluated_at': _stamp(x.evaluated_at),
+        'created_at': _stamp(x.created_at),
+        'updated_at': _stamp(x.updated_at),
     }
 
 
@@ -74,7 +89,11 @@ def plan_dict(x: SitePlan) -> dict:
 @api_view(['GET', 'POST'])
 def project_list(request):
     if request.method == 'GET':
+        # 에너지원별로 가른다. 풍력 배치안과 태양광 후보가 한 목록에 섞이면
+        # 무엇을 견주는 것인지 알 수 없다.
         qs = SiteProject.objects.prefetch_related('plans').all()
+        if e := request.query_params.get('energy'):
+            qs = qs.filter(energy_type=energy_mod.normalize(e))
         return Response({'count': qs.count(),
                          'results': [project_dict(p, with_plans=True) for p in qs]})
 
@@ -86,6 +105,7 @@ def project_list(request):
     try:
         p = SiteProject.objects.create(
             name=name, description=(d.get('description') or '').strip(),
+            energy_type=energy_mod.normalize(d.get('energy')),
             sido=(d.get('sido') or '')[:50], sigungu=(d.get('sigungu') or '')[:50],
             created_by=_user(request))
     except IntegrityError:
@@ -133,21 +153,23 @@ def plan_create(request):
     d = request.data or {}
     turbines = _clean_turbines(d.get('turbines'))
     if not turbines:
-        return Response({'detail': '저장할 호기 좌표가 없습니다.'},
+        return Response({'detail': '저장할 좌표가 없습니다.'},
                         status=http.HTTP_400_BAD_REQUEST)
 
     project, err = _resolve_project(d, request)
     if err:
         return err
 
-    name = (d.get('name') or '').strip()[:MAX_NAME] or _next_plan_name(project)
+    mode = d.get('mode') if d.get('mode') in dict(SitePlan.MODE_CHOICES) else 'layout'
+    name = (d.get('name') or '').strip()[:MAX_NAME] or _next_plan_name(project, mode)
     if project.plans.filter(name=name).exists():
         return Response({'detail': f'"{project.name}"에 "{name}"이 이미 있습니다.'},
                         status=http.HTTP_409_CONFLICT)
 
     x = SitePlan.objects.create(
         project=project, name=name, note=(d.get('note') or '').strip(),
-        turbines=turbines,
+        reviewer=(d.get('reviewer') or '').strip()[:60],
+        mode=mode, turbines=turbines,
         turbine_radius_m=_int(d.get('turbine_radius_m'), 500),
         corridor_radius_m=_int(d.get('corridor_radius_m'), 100),
         capacity_mw=_float(d.get('capacity_mw')),
@@ -182,6 +204,8 @@ def plan_detail(request, pk):
         x.name = new
     if 'note' in d:
         x.note = (d.get('note') or '').strip()
+    if 'reviewer' in d:
+        x.reviewer = (d.get('reviewer') or '').strip()[:60]
     if 'turbines' in d:
         t = _clean_turbines(d.get('turbines'))
         if not t:
@@ -221,17 +245,20 @@ def _resolve_project(d: dict, request):
                               status=http.HTTP_400_BAD_REQUEST)
     p, _ = SiteProject.objects.get_or_create(
         name=pname,
-        defaults={'sido': (d.get('sido') or '')[:50],
+        defaults={'energy_type': energy_mod.normalize(d.get('energy')),
+                  'sido': (d.get('sido') or '')[:50],
                   'sigungu': (d.get('sigungu') or '')[:50],
                   'created_by': _user(request)})
     return p, None
 
 
-def _next_plan_name(project: SiteProject) -> str:
-    """'배치안 1', '배치안 2'… 이미 쓴 번호는 건너뛴다."""
+def _next_plan_name(project: SiteProject, mode: str = 'layout') -> str:
+    """'배치안 1' / '후보 1'… 이미 쓴 번호는 건너뛴다."""
+    # 태양광 후보 필지를 '배치안'이라 부르면 무엇을 저장한 것인지 어긋난다.
+    stem = '후보' if mode == 'parcel' else '배치안'
     used = set(project.plans.values_list('name', flat=True))
     for i in range(1, 999):
-        cand = f'배치안 {i}'
+        cand = f'{stem} {i}'
         if cand not in used:
             return cand
     return '배치안'

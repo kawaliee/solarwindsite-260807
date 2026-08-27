@@ -234,3 +234,38 @@ def clusters(points: list, distance_m: int = CLUSTER_DISTANCE_M) -> list[list]:
     for i in range(n):
         groups.setdefault(find(i), []).append(points[i])
     return list(groups.values())
+
+
+def dense_split(points: list, radius_m: int, min_count: int) -> tuple[list, list]:
+    """
+    호수 산정을 **반경 방식**으로 한다. → (밀집 주택, 산재 주택)
+
+    조례마다 '몇 호 이상 주거지역'을 세는 방법이 다르다.
+
+        삼척시   주택 간 직선거리 50m 이내로 이어지는 주택의 합  → clusters()
+        장흥군   가장 가까운 가구를 기점으로 **반경 500m 안에** 10호 이상
+
+    뒤엣것을 앞엣것으로 세면 결과가 통째로 달라진다. 실측(장흥 후보지):
+    50m 연쇄로 묶으면 마을이 1호·6호·2호짜리 조각으로 쪼개져 **10호 이상
+    군집이 부지 근처에 하나도 없게** 되고, 주거 이격이 9.1ha → 0.2ha로
+    무너졌다. 조례대로 반경 500m로 세면 그 조각들이 한 주거지역이 된다.
+
+    반환은 점 목록 둘이다. 밀집은 '10호 이상' 거리를, 산재는 '10호 미만'
+    거리를 쓴다 — 조문이 두 구간에 다른 이격을 준다.
+    """
+    if not points or radius_m <= 0 or min_count <= 1:
+        return list(points), []
+    try:
+        from shapely.strtree import STRtree
+
+        tree = STRtree(points)
+        dense, sparse = [], []
+        for p in points:
+            n = len(tree.query(p.buffer(radius_m)))
+            (dense if n >= min_count else sparse).append(p)
+        return dense, sparse
+    except Exception:                                           # noqa: BLE001
+        logger.exception('반경 호수 산정 실패 — 전부 밀집으로 둔다')
+        # 실패하면 **엄한 쪽**으로 둔다. 산재로 두면 이격이 줄어 사업에
+        # 유리하게 틀리는데, 이 시스템이 가장 경계하는 방향이다.
+        return list(points), []

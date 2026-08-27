@@ -97,6 +97,15 @@ REST_FRAMEWORK = {
     ],
 }
 
+# ───── 요청 본문 상한 ─────
+# 입지검토 보고서는 화면 지도를 캡처한 이미지를 함께 올린다(제약도 1장 +
+# 항목별 지도 최대 4장). Django 기본 2.5MB로는 그 요청이 통째로 거부돼
+# RequestDataTooBig(400)이 난다.
+#
+# 이 값은 '요청 전체'의 상한이고, 이미지 개수·개별 크기는 서버가 따로
+# 검증한다(windsite/views.py의 MAX_MAP_IMAGE_BYTES · MAX_ENV_IMAGES).
+DATA_UPLOAD_MAX_MEMORY_SIZE = 32 * 1024 * 1024
+
 # ───── CORS ─────
 CORS_ALLOW_ALL_ORIGINS = True  # 개발 환경
 
@@ -280,3 +289,27 @@ USE_I18N = True
 USE_TZ = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ── 로깅 ────────────────────────────────────────────────────────────
+# windsite의 계측 로그(도형지문·지도지문·캐시 HIT/MISS)를 콘솔에 낸다.
+# Django 기본 설정은 앱 로거의 INFO를 버리므로, 산출물 정합을 다투는
+# 계측 기록이 남지 않는다 — 문제가 재발했을 때 원인을 특정할 근거가
+# 로그에 있어야 한다.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler'},
+    },
+    'loggers': {
+        'apps.windsite': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+    },
+}

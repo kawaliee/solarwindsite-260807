@@ -260,6 +260,99 @@ export interface Grandfathering {
   ordinance_area_m2?: number;
 }
 
+/**
+ * 필지 한 필. 클릭 좌표를 연속지적으로 되돌린 결과다.
+ *
+ * `exact`가 false면 경계선을 눌러 **인접 필지로 대신 고른** 것이다.
+ * 화면이 이 사실을 숨기면 남의 땅 판정을 이 사업지 것으로 읽게 된다.
+ */
+export interface ParcelInfo {
+  pnu: string;
+  addr: string;
+  jibun: string;
+  jimok: string;
+  jiga: string;
+  area_m2: number;
+  rings: LatLng[][];
+  lat: number;
+  lng: number;
+  exact: boolean;
+}
+
+/** 필지를 찾지 못한 좌표 — 이유를 구분해 받는다 */
+export interface ParcelMiss {
+  lat: number;
+  lng: number;
+  /** NO_PARCEL 필지가 없다 · FETCH 조회하지 못했다 */
+  reason: 'NO_PARCEL' | 'FETCH';
+  detail: string;
+}
+
+/** 필지 검토 결과 블록 — parcels 모드일 때만 채워진다 */
+export interface AreaParcel {
+  count: number;
+  total_area_m2: number;
+  by_jimok: Record<string, { count: number; area_m2: number }>;
+  parcels: Omit<ParcelInfo, 'rings'>[];
+  /** 경계 근처를 눌러 인접 필지로 대신한 PNU */
+  inexact: string[];
+  misses?: ParcelMiss[];
+}
+
+/** 스크리닝 채색 등급 — 판정 4단계를 그대로 따른다 (기획서 §3.4) */
+/**
+ * 앞의 넷은 **규제 축**, NOT_APPLICABLE은 **후보 적성 축**이다.
+ * 배제는 '규제 때문에 안 됨', 대상 아님은 '애초에 후보가 아님'이라
+ * 성격이 다르다. 뭉치면 왜 빠졌는지 알 수 없다.
+ */
+export type ScreenGrade = 'POSSIBLE' | 'CONDITIONAL' | 'IMPOSSIBLE'
+  | 'UNKNOWN' | 'NOT_APPLICABLE';
+
+/** 스크리닝으로 등급이 매겨진 필지 하나 */
+export interface ScreenParcel {
+  pnu: string;
+  jibun: string;
+  jimok: string;
+  area_m2: number;
+  grade: ScreenGrade;
+  /** 그 등급이 된 이유. 비어 있으면 아무 제약에도 걸리지 않은 것 */
+  reasons: string[];
+  rings: LatLng[][];
+  /** 폴리곤 내부가 보장된 대표점 — 정밀판정으로 넘길 좌표 */
+  lat: number | null;
+  lng: number | null;
+}
+
+export interface ScreenResult {
+  /** 화면이 넓어 칠하지 못한 경우. 오류가 아니라 '더 확대하라'는 상태다 */
+  too_wide?: boolean;
+  detail?: string;
+  parcels: ScreenParcel[];
+  counts: Record<ScreenGrade, number>;
+  area_km2: number;
+  /** 후보 적성 판정에 쓴 최소 면적(m²) */
+  min_area_m2: number;
+  /** 후보 적성 판정에 쓴 건축물 수 */
+  building_count: number;
+  /** 상한에 걸려 일부 필지가 빠졌다 — '이게 전부'로 읽히면 안 된다 */
+  truncated: boolean;
+  fetch_failures: string[];
+  notes: string[];
+  jurisdictions: { sido: string; sigungu: string;
+                   ordinance_state: AreaJurisdiction['ordinance_state'];
+                   rule_count: number }[];
+  /** 조례를 확인하지 못한 지자체 — 그 관할은 '가능'으로 칠하지 않는다 */
+  unverified: string[];
+}
+
+export const SCREEN_GRADE_LABEL: Record<ScreenGrade, string> = {
+  POSSIBLE: '가능',
+  CONDITIONAL: '조건부',
+  IMPOSSIBLE: '배제',
+  UNKNOWN: '미확인',
+  NOT_APPLICABLE: '대상 아님',
+};
+
 export interface AreaResult {
   ring: LatLng[];
   total: AreaBlock;
@@ -276,15 +369,50 @@ export interface AreaResult {
   blanket: AreaReason[];
   /** 배치선 검토일 때만 채워진다 */
   layout: AreaLayout | null;
+  /** 필지 검토일 때만 채워진다 */
+  parcel: AreaParcel | null;
   grandfathering: Grandfathering | null;
   /** with_items 요청 시에만 채워진다 */
   items?: AreaItems;
+  /** 발전시간·이용률 — 태양광 검토에서만 채워진다 */
+  yield: AreaYield | null;
+  /**
+   * 구역 안 필지별 채색 — 태양광 구역 검토에서만 채워진다.
+   *
+   * 제약도(overlays)는 규제 레이어를 **면적**으로 칠하므로 필지 경계와
+   * 무관하다. '이 구역의 30%가 조건부'는 알려 주지만 '이 필지가 되는가'는
+   * 답하지 못해, 같은 구역을 필지 단위로 한 번 더 가른 결과를 함께 받는다.
+   */
+  screening: ScreenResult | null;
   jurisdictions: AreaJurisdiction[];
   jurisdiction_meta: Record<string, unknown>;
   /** 조회하지 못한 레이어 — 있으면 못 본 제약이 있다는 뜻이다 */
   fetch_failures: string[];
   notes: string[];
-  overlays: { blocked: LatLng[][]; conditional: LatLng[][]; free: LatLng[][] };
+  /** 사업구역 경계(필지 기반) — 그린 폴리곤에서 도로·구거 등 대상 아님
+   *  필지를 뺀, 판정·면적·보고서 지도가 실제로 쓰는 도형이다. */
+  site_rings?: LatLng[][];
+  /** 그린 구역에서 무엇이 얼마나 빠졌는가 */
+  site_refine?: { parcel_count?: number; na_count?: number; na_m2?: number;
+                  drawn_m2?: number; site_m2?: number; fallback?: string };
+  overlays: { blocked: LatLng[][]; conditional: LatLng[][]; free: LatLng[][];
+              /** 조례 이격 범위 — blocked·conditional에 이미 포함. 윤곽 표시용 */
+              ordinance_house?: LatLng[][];
+              ordinance_road?: LatLng[][];
+              ordinance_road_uncertain?: LatLng[][] };
+  /** 조례 이격을 조건부로 셌는가 — 발전사업허가일이 조례 시행일보다 앞선 경우 */
+  ordinance_grandfathered?: boolean;
+  /** 겹침 면에 커서를 올렸을 때 보여 줄 문구 — {overlay 열쇠: 한 줄} */
+  overlay_labels?: Record<string, string>;
+  /** 도로별 선·이격 범위 — 어느 도로로부터 얼마만큼 침범되는지 */
+  road_detail?: RoadDetail[];
+  /**
+   * 환경성 평가 항목별 지도 미리보기(용도지역 구성·농업진흥지역도 등).
+   *
+   * 화면의 "지도 보기" 선택지를 이 목록으로 채운다. 보고서 캡처도 같은
+   * 목록·같은 도형을 쓰므로, 화면에서 고른 항목이 그대로 보고서에 실린다.
+   */
+  env_layers?: EnvLayer[];
   evaluated_at: string;
 }
 
@@ -326,6 +454,21 @@ export interface AreaItemPoint {
   summary: string;
 }
 
+/** 발전량 산정 결과 — 후보 비교에서 그대로 꺼내 쓴다 */
+export interface AreaYield {
+  hours_per_day: number;
+  capacity_factor: number;
+  yield_kwh_kwp: number;
+  gti_kwh: number;
+  tilt_deg: number;
+  pr: number;
+  optimal_tilt_deg: number;
+  annual_mwh?: number;
+  inhouse_cf: number;
+  inhouse_hours: number;
+  basis: string;
+}
+
 export interface AreaItems {
   merged: AreaItem[];
   points: AreaItemPoint[];
@@ -346,11 +489,15 @@ export interface PlanSummary {
 
 /** 배치안 — 호기 좌표 한 벌과 그때의 검토 조건 */
 export interface SitePlan {
+  /** 검토 방식 — 불러올 때 어느 모드로 되돌릴지가 갈린다 */
+  mode: 'layout' | 'area' | 'parcel';
   id: string;
   project_id: string;
   project_name: string;
   name: string;
   note: string;
+  /** 검토자(담당자). 로그인 계정과 다를 수 있어 따로 남긴다 */
+  reviewer: string;
   turbines: LatLng[];
   turbine_count: number;
   turbine_radius_m: number;
@@ -368,6 +515,8 @@ export interface SitePlan {
 
 /** 검토 프로젝트 — 배치안을 묶는 단위 */
 export interface SiteProject {
+  /** 에너지원 — 풍력 배치안과 태양광 후보가 한 목록에 섞이지 않게 한다 */
+  energy_type: 'WIND' | 'SOLAR' | 'ALL';
   id: string;
   name: string;
   description: string;
@@ -377,4 +526,42 @@ export interface SiteProject {
   plans: SitePlan[];
   created_at: string;
   updated_at: string;
+}
+
+
+/**
+ * 조례 도로 이격의 **도로 한 개** 몫.
+ *
+ * 합친 붉은 면 하나로는 "어느 도로가 원인인가"에 답할 수 없다. 도로는
+ * 옮길 수 없으니, 원인을 알아야 배치를 어디로 물릴지 정해진다.
+ */
+export interface RoadDetail {
+  name: string;
+  /** 국가교통DB 도로등급 — 일반국도 · 지방도 · 시·군도 */
+  rank: string;
+  distance_m: number;
+  /** 배제인가(국도·지방도) 조건부인가(시·군도 — 군도 여부 미확인) */
+  blocked: boolean;
+  /** 이 도로 때문에 구역에서 빠지는 면적 */
+  area_m2: number;
+  rings: LatLng[][];
+  line: LatLng[][];
+}
+
+/**
+ * 환경성 평가 항목 하나 — 지도로 낼 수 있는 구역 단위 규제 레이어.
+ *
+ * kind='zoning'은 국토계획법 4종 분류(도시·관리·농림·자연환경보전) 중
+ * 하나다. 화면·보고서 모두 이 종류는 **한데 모아 한 장**("용도지역
+ * 구성")으로 낸다. kind='item'은 실제로 저촉된 개별 규제(농업진흥지역
+ * 등)이며, 항목마다 **따로** 한 장씩 낸다.
+ */
+export interface EnvLayer {
+  kind: 'zoning' | 'item';
+  name: string;
+  /** kind='item'일 때만 있다 — IMPOSSIBLE·CONDITIONAL 등 */
+  status: string | null;
+  area_m2: number;
+  ha: number;
+  rings: LatLng[][];
 }

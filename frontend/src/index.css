@@ -1116,6 +1116,9 @@ svg.krmap .site-mk circle { transition: r .15s; }
 .ws-coordrow input:focus, .ws-fld input:focus { outline: 1px solid var(--brand); border-color: var(--brand); }
 
 .ws-fld { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+/* 보고서 영역의 사업명 — 내려받기 버튼 바로 위에 둔다. 파일명과 표지에
+   들어가는 값이라, 버튼을 누르기 전에 눈에 들어와야 한다. */
+.ws-report-name { margin: 10px 0 8px; }
 .ws-fld > span { font-size: 12px; color: var(--ink-soft); font-weight: 600; }
 .ws-fld > span em { font-style: normal; color: var(--ink-faint); font-weight: 400; }
 .ws-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -1879,3 +1882,118 @@ select.fs-input { cursor: pointer; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-catcount { font-style: normal; color: #6b7f94; font-weight: 400; }
 .ws-item-ft .hit { color: #e8c37a; }
+
+/* ──────────────────────────────────────────────────────────────────
+   필지 스크리닝 채색 (태양광 발굴 모드)
+
+   '미확인'은 색만 다르게 두지 않고 **빗금**을 넣는다. 색은 범례를 봐야
+   뜻이 통하지만 빗금은 보자마자 '이건 다른 것'으로 읽힌다. 조회하지 못한
+   필지가 '가능'으로 오독되는 것을 막는 마지막 장치다 (기획서 §3.4).
+   ────────────────────────────────────────────────────────────────── */
+.ws-screen-unknown {
+  fill: url(#ws-hatch) !important;
+  fill-opacity: 0.85 !important;
+}
+
+/* 범례 */
+.ws-legend { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center;
+             padding: 8px 10px; font-size: 12px; }
+.ws-legend i { display: inline-block; width: 14px; height: 14px; border-radius: 3px;
+               margin-right: 5px; vertical-align: -2px; border: 1px solid rgba(0,0,0,.25); }
+.ws-legend .g-POSSIBLE    { background: rgba(82,196,26,.55); }
+.ws-legend .g-CONDITIONAL { background: rgba(250,173,20,.5); }
+/* 배제는 붉은색이다. 지도에서 제약도 겹침(#ff4d4f)과 필지 채색이 모두
+   붉은데 범례만 검정이면, 지도의 빨간 면이 무엇인지 알 수 없다. */
+.ws-legend .g-IMPOSSIBLE  { background: rgba(255,77,79,.55); }
+.ws-legend .g-UNKNOWN     { background: repeating-linear-gradient(45deg,
+                              rgba(64,169,255,.5) 0 3px, transparent 3px 6px); }
+
+/* 예비 스크리닝 고지 — 상시 노출 (기획서 R-09) */
+.ws-screen-notice { margin: 6px 0 0; padding: 8px 10px; border-radius: 6px;
+                    background: rgba(64,169,255,.10); border: 1px solid rgba(64,169,255,.35);
+                    font-size: 12px; line-height: 1.5; }
+.ws-legend-sum { margin-left: auto; opacity: .75; }
+.ws-screen-toggle { display: inline-flex; align-items: center; gap: 4px;
+                    margin-left: 10px; font-size: 12.5px; cursor: pointer;
+                    user-select: none; }
+.ws-legend .g-NOT_APPLICABLE { background: transparent; border-style: dashed;
+                               border-color: rgba(140,140,140,.8); }
+
+/* ── 후보 필지 담기·비교 ──────────────────────────────────────────── */
+.ws-cands { padding: 4px 2px 12px; }
+.ws-cand-table tr.on { background: rgba(57,211,230,.08); }
+.ws-cand-note { font-size: 11.5px; opacity: .75; margin-top: 2px; }
+.ws-cand-loc { font-size: 11.5px; opacity: .6; }
+.ws-cand-sub { font-weight: 400; font-size: 11.5px; opacity: .75; }
+.ws-cand-when { font-size: 11.5px; white-space: nowrap; }
+.ws-cand-noeval { opacity: .6; }
+.ws-cand-compare { margin-top: 14px; }
+.ws-best { font-weight: 700; }
+.ws-danger { color: #ff7875; }
+
+/* ── 지도 툴팁 — 다크 테마 ─────────────────────────────────
+   Leaflet 기본 툴팁은 흰 바탕에 검은 글씨라, 위성영상 위 다크 UI에서
+   혼자 튄다. 화면의 패널(--surface)과 같은 톤으로 맞춘다.
+   글이 길어질 수 있어(조례 이격은 도로 이름까지 붙는다) 폭을 넉넉히 두고
+   줄바꿈을 허용한다 — 한 줄로 흐르면 지도를 가로로 덮는다. */
+.leaflet-tooltip {
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .45);
+  padding: 9px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  /* ⚠️ width가 없으면 **글자 한 자 폭으로 줄어든다.**
+     툴팁은 .leaflet-tooltip-pane 안에 절대배치되는데 그 pane은 폭이 0이다.
+     white-space: normal을 주는 순간 shrink-to-fit이 '쓸 수 있는 폭 = 0'을
+     기준으로 잡아 가장 긴 낱말 폭까지 접힌다. max-width만으로는 못 막는다.
+     max-content로 내용만큼 벌린 뒤 max-width로 상한을 씌운다. */
+  width: max-content;
+  max-width: 420px;
+  min-width: 200px;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.leaflet-tooltip b { color: var(--brand); font-weight: 600; }
+/* 화살표도 배경색을 따라가야 한다. 네 방향을 모두 맞춘다. */
+.leaflet-tooltip-top::before    { border-top-color: var(--surface-2); }
+.leaflet-tooltip-bottom::before { border-bottom-color: var(--surface-2); }
+.leaflet-tooltip-left::before   { border-left-color: var(--surface-2); }
+.leaflet-tooltip-right::before  { border-right-color: var(--surface-2); }
+
+/* ── 도로 이름표 (지도에 항상 표시) ──────────────────────────────
+   툴팁과 달리 마우스를 올리지 않아도 보인다. 보고서가 이 화면을 그대로
+   캡처하므로, 캡처했을 때도 "어느 도로가 몇 m 이격인가"가 찍혀 있어야
+   한다. 배경은 흰 바탕(위성영상 위에서도 읽히게)에 도로 색으로 글자와
+   테두리를 준다 — SitePicker의 ROAD_COLOR와 같은 값이어야 한다. */
+.ws-road-label {
+  white-space: nowrap;
+  pointer-events: none;
+}
+.ws-road-label span {
+  display: inline-block;
+  background: rgba(255, 255, 255, .92);
+  border: 1.5px solid;
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .35);
+  transform: translate(-50%, -50%);
+}
+
+/* ── 범례: 도로 이격 ────────────────────────────────────
+   채움이 아니라 선이라 네모로는 알 수 없다. 지도에 그리는 선 그대로 보여
+   준다. 색은 SitePicker의 ROAD_COLOR와 같아야 한다 —
+   배제 시안(#00e5ff) · 조건부 자홍(#ff5cf0). 면 색(초록·주황·빨강)과
+   겹치지 않는 찬 색으로 골랐다. */
+.ws-legend-road { display: inline-flex; align-items: center; gap: 5px; }
+.ws-legend-road i { display: inline-block; width: 20px; height: 0;
+                    border-radius: 0; border: 0; margin: 0 2px 0 8px;
+                    vertical-align: middle; }
+.ws-legend-road .road-blocked   { border-top: 3px solid #00e5ff; }
+.ws-legend-road .road-uncertain { border-top: 3px dashed #ff5cf0; }

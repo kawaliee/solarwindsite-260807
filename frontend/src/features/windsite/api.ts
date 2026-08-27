@@ -1,4 +1,8 @@
-/** 풍력 입지·인허가 검토 API 클라이언트 */
+/** 입지·인허가 검토 API 클라이언트 — 풍력·태양광 공용
+ *
+ * 엔드포인트는 하나다. 에너지원은 요청 본문(구역 검토·보고서)이나
+ * 질의문자열(법령·인허가)의 energy 로 넘긴다. 값을 넣지 않으면 풍력이다.
+ */
 import type {
   AreaResult,
   CompareCandidate,
@@ -6,6 +10,8 @@ import type {
   GeocodeResult,
   LatLng,
   LawRef,
+  ParcelInfo,
+  ScreenResult,
   PermitStep,
   ProviderConfigRow,
   SitePlan,
@@ -40,11 +46,39 @@ export const windsiteApi = {
       body: JSON.stringify(body),
     }),
 
-  laws: () => req<{ count: number; results: LawRef[] }>('/laws/'),
+  /**
+   * 클릭 좌표 → 그 좌표가 놓인 필지.
+   *
+   * found=false와 예외를 구분해 다룬다. 앞은 '여기엔 필지가 없다'(도로·하천
+   * 등)이고 뒤는 '물어보지 못했다'이다. 뭉뚱그리면 화면이 없는 사실을
+   * 단정하게 된다.
+   */
+  parcel: (p: { lat: number; lng: number }) =>
+    req<{ found: boolean; parcel?: ParcelInfo; reason?: string; detail?: string }>(
+      '/parcel/', { method: 'POST', body: JSON.stringify(p) }),
 
-  permits: (capacityMw?: number | null) =>
+  /**
+   * 화면 범위 필지 스크리닝 — 4등급 채색.
+   *
+   * 화면이 넓으면 too_wide=true가 온다. 오류가 아니라 '더 확대하라'는
+   * 상태라, 화면에서 빨간 문구로 띄우지 않는다.
+   */
+  screen: (bounds: [number, number, number, number], energy: string = 'SOLAR',
+           opts: { shapes?: 'candidates' | 'all'; signal?: AbortSignal } = {}) =>
+    req<ScreenResult>('/screen/', {
+      method: 'POST',
+      // shapes='candidates'면 후보가 아닌 필지의 도형을 서버가 빼고 보낸다.
+      // 실측상 좌표의 54%라, 같은 대역폭으로 두 배 넓은 화면을 볼 수 있다.
+      body: JSON.stringify({ bounds, energy, shapes: opts.shapes ?? 'candidates' }),
+      signal: opts.signal,
+    }),
+
+  laws: (energy: string = 'WIND') =>
+    req<{ count: number; results: LawRef[] }>(`/laws/?energy=${energy}`),
+
+  permits: (capacityMw?: number | null, energy: string = 'WIND') =>
     req<{ count: number; results: PermitStep[] }>(
-      `/permits/${capacityMw ? `?capacity_mw=${capacityMw}` : ''}`,
+      `/permits/?energy=${energy}${capacityMw ? `&capacity_mw=${capacityMw}` : ''}`,
     ),
 
   config: () => req<{ results: ProviderConfigRow[]; note: string }>('/config/'),
@@ -74,7 +108,14 @@ export const windsiteApi = {
    * signal로 화면을 즉시 풀고, cancelAreaReport로 서버 작업까지 멈춘다.
    */
   downloadAreaReport(body: Record<string, unknown>, signal?: AbortSignal): Promise<void> {
-    return download('/windsite/area-report/', body, '풍력구역검토', signal);
+    // 파일명은 서버가 Content-Disposition으로 준다. 아래는 그마저 없을 때의
+    // 대비값이라, 사내 표기와 같은 모양으로 맞춘다.
+    //   태양광 입지타당성 검토 보고서_장흥 염해농지 태양광_260825
+    const label = body.energy === 'SOLAR' ? '태양광' : '풍력';
+    const project = String(body.project_name || '').trim();
+    const prefix = [`${label} 입지타당성 검토 보고서`, project]
+      .filter(Boolean).join('_');
+    return download('/windsite/area-report/', body, prefix, signal);
   },
 
   /**
@@ -100,7 +141,9 @@ export const windsiteApi = {
   /* ── 검토 프로젝트·배치안 ─────────────────────────────────────── */
 
   /** 사업 목록 — 배치안까지 함께 온다 */
-  projects: () => req<{ count: number; results: SiteProject[] }>('/projects/'),
+  projects: (energy?: string) =>
+    req<{ count: number; results: SiteProject[] }>(
+      `/projects/${energy ? `?energy=${energy}` : ''}`),
 
   patchProject: (id: string, body: Partial<Pick<SiteProject, 'name' | 'description'>>) =>
     req<SiteProject>(`/projects/${id}/`, { method: 'PATCH', body: JSON.stringify(body) }),
@@ -142,9 +185,13 @@ async function download(path: string, body: unknown, fallbackName: string,
     // 파일명은 Content-Disposition의 RFC 5987 형식(filename*=UTF-8''…)에 담겨 온다
     const disp = res.headers.get('Content-Disposition') || '';
     const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disp)?.[1];
+    // 대비 파일명의 날짜도 서버(`_report_filename`)와 같은 YYMMDD로 맞춘다.
+    const d = new Date();
+    const stamp = [d.getFullYear() % 100, d.getMonth() + 1, d.getDate()]
+      .map(n => String(n).padStart(2, '0')).join('');
     const filename = encoded
       ? decodeURIComponent(encoded)
-      : `${fallbackName}_${new Date().toISOString().slice(0, 10)}.docx`;
+      : `${fallbackName}_${stamp}.docx`;
 
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);

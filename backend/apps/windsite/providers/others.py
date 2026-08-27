@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from django.conf import settings
 
+from .. import energy as energy_mod
 from ..schemas import AnalysisItem, Confidence, Difficulty, Status
 from .base import LayerProvider, SiteQuery
 
@@ -45,12 +46,16 @@ class LocalOrdinanceProvider(LayerProvider):
     required_settings = ()
     default_law = '지자체 도시·군계획 조례'
 
-    def __init__(self, sido: str = '', sigungu: str = ''):
+    def __init__(self, sido: str = '', sigungu: str = '',
+                 energy: str = energy_mod.DEFAULT):
         self.sido = sido
         self.sigungu = sigungu
+        self.energy = energy_mod.normalize(energy)
 
     def analyze(self, q: SiteQuery) -> AnalysisItem:
         from .. import ordinances                # 지연 import (앱 로딩 순서)
+
+        prof = energy_mod.profile(self.energy)
 
         if not self.sigungu:
             return self.unknown(
@@ -61,7 +66,7 @@ class LocalOrdinanceProvider(LayerProvider):
         # DB에 없으면 자치법규 OPEN API로 그 자리에서 수집한다.
         # 빈손인 이유를 함께 받는다 — '규정이 없다'와 '물어보지 못했다'는
         # 전혀 다른 사실인데 한 문장으로 뭉치면 없는 줄로 읽힌다.
-        rules, state = ordinances.ordinance_state(self.sido, self.sigungu)
+        rules, state = ordinances.ordinance_state(self.sido, self.sigungu, self.energy)
 
         if not rules and state == ordinances.UNVERIFIED:
             err = ordinances.auth_failure()
@@ -91,17 +96,21 @@ class LocalOrdinanceProvider(LayerProvider):
                 status=Status.UNKNOWN,
                 reason=(
                     f'{self.sido} {self.sigungu}의 조례를 자치법규 OPEN API로 조회했으나 '
-                    + ('조문·별표를 모두 판독한 결과 풍력 이격거리 조항이 없었습니다. '
-                       '다만 조례 외 지침·행정예고에 있을 수 있어 확정으로 보지 않습니다.'
+                    + (f'조문·별표를 모두 판독한 결과 {prof.label} 이격거리 조항이 '
+                       '없었습니다. 다만 조례 외 지침·행정예고에 있을 수 있어 '
+                       '확정으로 보지 않습니다.'
                        if confirmed else
                        '해당 지자체의 조례를 찾지 못했습니다. 도시·군계획 조례와 '
-                       '별도 제정 조례(풍력·재생에너지·이격거리)를 모두 검색한 결과입니다.')
+                       f'별도 제정 조례({prof.label}·재생에너지·이격거리)를 모두 '
+                       '검색한 결과입니다.')
                 ),
                 difficulty=Difficulty.HIGH,
                 confidence=Confidence.LOW,
                 source_url='https://www.elis.go.kr',
-                action_required='자치법규정보시스템(elis.go.kr)에서 해당 지자체 조례를 직접 확인하고, '
-                                'python manage.py sync_ordinances --sigungu <시군구> --apply 로 등록하십시오.',
+                action_required=('자치법규정보시스템(elis.go.kr)에서 해당 지자체 조례를 '
+                                 '직접 확인하고, python manage.py sync_ordinances '
+                                 f'--sigungu <시군구> --energy {prof.code} --apply '
+                                 '로 등록하십시오.'),
                 unknown_reason='NO_RULE' if confirmed else 'NO_DATA',
             )
 
@@ -125,7 +134,8 @@ class LocalOrdinanceProvider(LayerProvider):
         return self.item(
             status=Status.CONDITIONAL,
             reason=(
-                f'{self.sido} {self.sigungu} 이격거리 기준 — ' + ' / '.join(lines) +
+                f'{self.sido} {self.sigungu} {prof.label} 이격거리 기준 — '
+                + ' / '.join(lines) +
                 '. 실제 저촉 여부는 대상 정온시설·주거지의 실측 거리 확인이 필요합니다.'
                 + (f' (원문 대조 {max(verified)})' if verified else '')
             ),

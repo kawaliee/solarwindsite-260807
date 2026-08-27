@@ -40,13 +40,24 @@ class SiteQuery:
 
     def __init__(self, lat: float, lng: float, radius_m: int = 500,
                  address: str = '', capacity_mw: float | None = None,
-                 area_ring: list | None = None):
+                 area_ring: list | None = None,
+                 area_geom=None):
         self.address = address
         self.capacity_mw = capacity_mw
         self.area_ring = area_ring or None
 
         self._geom = None
-        if self.area_ring:
+        if area_geom is not None:
+            # 도형을 그대로 받는다 — **링 왕복을 거치지 않는다.**
+            #
+            # 사업구역이 필지들의 합이면 멀티폴리곤에 홀까지 있을 수 있는데,
+            # 이를 링 목록으로 풀었다 되감으면 첫 조각의 바깥 링만 남는다
+            # (rings_4326이 구멍을 버리고, 호출부가 첫 링만 집던 실측 손실).
+            # 판정 도형은 원본 그대로 들어와야 한다.
+            self._geom = area_geom
+            from .. import geo
+            self.lat, self.lng, self.radius_m = geo.circumscribed(self._geom)
+        elif self.area_ring:
             from .. import geo
             self._geom = geo.polygon_metric(self.area_ring)
             if self._geom is None:
@@ -81,6 +92,18 @@ class SiteQuery:
         if self._geom is not None:
             return float(self._geom.area)
         return math.pi * (self.radius_m ** 2)
+
+    @property
+    def scope_label(self) -> str:
+        """
+        판정 문구에 쓸 **검토 범위의 이름**.
+
+        ⚠️ 구역 모드에서 '검토 반경 N m'라고 적으면 안 된다. 그 N은 사업구역을
+        감싸는 **외접원 반지름**이라, 216ha 부지가 '검토 반경 1,472m'(= 6.8km²)로
+        읽힌다. 실제 판정은 폴리곤으로 하는데 문구만 원으로 말하면, 보고서를
+        받은 사람이 부지 밖 사정을 부지 안 사정으로 오해한다.
+        """
+        return '사업구역' if self.is_area else f'검토 반경 {self.radius_m:,}m'
 
     def __repr__(self) -> str:
         if self.is_area:

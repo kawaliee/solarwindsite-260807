@@ -51,8 +51,13 @@ def get_or_set(namespace: str, payload: dict[str, Any],
         return producer()
 
     if hit is not None:
+        # §계측 — 어느 캐시가 옛 산출물을 돌려주는지 추적할 수 있게 남긴다.
+        # HTTP 응답 캐시(Redis) 한 계층뿐이며, **이미지·판정·보고서는 캐시하지
+        # 않는다** — 여기 잡히는 것은 외부 API 원자료(지적·규제·배경지도)다.
+        logger.info('캐시 HIT  | %s | %s', namespace, key[-12:])
         return hit
 
+    logger.info('캐시 MISS | %s | %s', namespace, key[-12:])
     value = producer()
     try:
         cache.set(key, value, ttl if ttl is not None else _ttl())

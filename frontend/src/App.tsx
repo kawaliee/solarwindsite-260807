@@ -10,7 +10,8 @@ import PlaceholderView from './components/PlaceholderView'
 import ViewBoundary from './components/ViewBoundary'
 import Login from './components/Login'
 
-type ViewType = 'chat' | 'contract' | 'finance' | 'ops' | 'windsite' | 'factsheet';
+type ViewType = 'chat' | 'contract' | 'finance' | 'ops' | 'windsite' | 'solarsite'
+  | 'factsheet';
 
 interface UserProfile {
   id?: string;
@@ -26,6 +27,7 @@ const VIEW_META: Record<ViewType, { title: string; sub: string }> = {
   finance: { title: '재무모델', sub: '재무모델 생성 및 검토 (준비 중)' },
   ops: { title: '운영관리 Dashboard', sub: '전국 사업장 분포 · 발전 자산 통합 모니터링' },
   windsite: { title: '풍력 입지타당성 검토', sub: '입지 규제 자동 스크리닝 · 인허가 로드맵 · 관련 법령' },
+  solarsite: { title: '태양광 입지타당성 검토', sub: '필지 단위 정밀판정 · 태양광 이격거리 조례 · 가용면적 산출' },
   factsheet: { title: '사업 정보 입력', sub: 'PJT별 사업 Fact-sheet 작성 · RAG 코퍼스 발행' },
 };
 
@@ -100,7 +102,12 @@ export default function App() {
 
         {activeView === 'ops' && <OpsView />}
 
-        {activeView === 'windsite' && <WindSiteView />}
+        {/* 두 카테고리는 완전히 분리된 화면이다. ViewBoundary의 key가
+            화면 이름이라 메뉴를 옮기면 상태가 초기화되고, 한쪽에서 찍은
+            좌표·검토 조건이 다른 쪽으로 새지 않는다. */}
+        {activeView === 'windsite' && <WindSiteView energy="WIND" />}
+
+        {activeView === 'solarsite' && <WindSiteView energy="SOLAR" />}
 
         {activeView === 'factsheet' && <FactSheetView />}
         </ViewBoundary>

@@ -346,7 +346,10 @@ class VworldLayerProvider(LayerProvider):
     required_settings = ('VWORLD_API_KEY',)
     data_source = 'V-World 데이터 API'
 
-    def __init__(self, layer):
+    def __init__(self, layer, facility_height_m: float | None = None):
+        # 발전설비 최고높이. 공역 하한고도와 비교해 저촉 여부를 가른다.
+        # 주지 않으면 종전처럼 설정값(풍력 기준)을 쓴다.
+        self.facility_height_m = facility_height_m
         self.layer = layer
         self.category = layer.category or '규제/법령'
         self.item_name = layer.title or layer.code
@@ -399,7 +402,9 @@ class VworldLayerProvider(LayerProvider):
         return self.item(
             status=Status.POSSIBLE,
             reason=(
-                f'대상 지점 반경 {radius:,}m {margin}내에서 {self.item_name} 구역이 '
+                # 구역 모드에서 radius는 외접원 반지름이라 실제 부지보다
+                # 훨씬 넓게 읽힌다. 무엇을 조회했는지 그대로 말한다.
+                f'{q.scope_label} {margin}내에서 {self.item_name} 구역이 '
                 f'조회되지 않았습니다.'
             ),
             difficulty=Difficulty.LOW,
@@ -417,7 +422,11 @@ class VworldLayerProvider(LayerProvider):
         site = None
         geo_error = ''
         try:
-            site = geo.point_metric(q.lat, q.lng)
+            # 거리는 **사업구역 경계 기준**이다. 구역 모드에서 중심점으로
+            # 재면 216ha 부지의 중심~경계 1km가 거리에 더해져, 경계 바로
+            # 밖 보호구역이 '1.77km 지점'처럼 멀리 읽힌다. 이격 임계
+            # (proximity_m) 판정도 같은 이유로 경계에서 재야 한다.
+            site = q.geom if q.is_area else geo.point_metric(q.lat, q.lng)
         except geo.GeoUnavailable as e:
             geo_error = str(e)
 
@@ -496,8 +505,9 @@ class VworldLayerProvider(LayerProvider):
         elif overlapping:
             head = f'대상 지점이 {self.item_name} 구역과 중첩됩니다 — {names}.'
         elif nearest:
-            head = (f'{self.item_name} 경계로부터 '
-                    f'{geo.format_distance(nearest["distance_m"])} 지점입니다 — {names}.')
+            basis = '사업구역 경계에서' if q.is_area else '검토 지점에서'
+            head = (f'{self.item_name} 경계까지 {basis} '
+                    f'{geo.format_distance(nearest["distance_m"])}입니다 — {names}.')
         else:
             head = f'검토 반경 내 {self.item_name}이(가) 조회되었습니다 — {names}.'
             if geo_error:
@@ -529,8 +539,10 @@ class VworldLayerProvider(LayerProvider):
         모든 검출 공역의 하한고도가 발전기 최고높이보다 높으면 '저촉 없음'으로 본다.
         하나라도 하한을 판별하지 못하거나 낮으면 None을 돌려 정상 판정으로 넘긴다.
         """
-        tip_m = float(getattr(settings, 'WINDSITE_TURBINE_TIP_HEIGHT_M',
-                              DEFAULT_TIP_HEIGHT_M))
+        tip_m = float(self.facility_height_m
+                      if self.facility_height_m is not None
+                      else getattr(settings, 'WINDSITE_TURBINE_TIP_HEIGHT_M',
+                                   DEFAULT_TIP_HEIGHT_M))
         tip_ft = tip_m * _FT_PER_M
 
         floors = [h.get('altitude_floor_ft') for h in hits]
@@ -545,7 +557,7 @@ class VworldLayerProvider(LayerProvider):
             status=Status.POSSIBLE,
             reason=(
                 f'{self.item_name}({names})과 평면상 겹치지만, 해당 공역의 하한고도는 '
-                f'{lowest:,.0f}ft({lowest / _FT_PER_M:,.0f}m)로 발전기 최고높이 '
+                f'{lowest:,.0f}ft({lowest / _FT_PER_M:,.0f}m)로 발전설비 최고높이 '
                 f'{tip_m:,.0f}m보다 높아 저촉되지 않습니다.'
             ),
             difficulty=Difficulty.LOW,
@@ -584,12 +596,17 @@ class VworldLayerProvider(LayerProvider):
 
 
 # ======================================================================
-def build_vworld_providers() -> list[VworldLayerProvider]:
-    """활성화된 규제 레이어 전체에 대한 어댑터 목록 (지적·이격 기초는 제외)."""
+def build_vworld_providers(facility_height_m: float | None = None
+                           ) -> list[VworldLayerProvider]:
+    """
+    활성화된 규제 레이어 전체에 대한 어댑터 목록 (지적·이격 기초는 제외).
+
+    facility_height_m은 공역 하한고도와의 비교에 쓴다 — 에너지원마다 다르다.
+    """
     from ..models import RegulationLayer                        # 지연 import
 
     qs = (RegulationLayer.objects
           .filter(is_active=True, provider='VWORLD')
           .exclude(role__in=['PARCEL', 'DISTANCE'])
           .order_by('display_order'))
-    return [VworldLayerProvider(l) for l in qs]
+    return [VworldLayerProvider(l, facility_height_m) for l in qs]

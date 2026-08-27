@@ -111,7 +111,7 @@ class LandslideProvider(LayerProvider):
         if not counts:
             return self.item(
                 status=Status.UNKNOWN,
-                reason=('검토 반경에서 산사태위험등급이 판별되지 않았습니다. '
+                reason=(f'{q.scope_label}에서 산사태위험등급이 판별되지 않았습니다. '
                         '산림이 아닌 지역이거나 등급도 미구축 구간일 수 있습니다.'),
                 difficulty=Difficulty.MEDIUM,
                 confidence=Confidence.LOW,
@@ -126,7 +126,9 @@ class LandslideProvider(LayerProvider):
         graded_px = sum(counts.values())
         px_area = SOURCE_PIXEL_M ** 2
         approx_area = {g: n * px_area for g, n in counts.items()}
-        circle_area = 3.141592653589793 * (q.radius_m ** 2)
+        # 구역 모드면 사업구역 폴리곤 면적. 외접원 면적으로 나누면 216ha
+        # 부지가 6.8km²로 잡혀 비율이 실제의 1/3로 축소된다.
+        target_area = q.area_m2
 
         dist = ' · '.join(
             f'{g}등급 {counts[g] / graded_px * 100:.0f}%'
@@ -135,21 +137,21 @@ class LandslideProvider(LayerProvider):
         # 10m 격자라 최악등급이 몇 픽셀만 있어도 검출된다. 판정은 안전측으로 최악등급을
         # 따르되, **실면적을 함께 제시**해 과대 해석을 막는다.
         worst_area = approx_area[worst]
-        share = worst_area / circle_area * 100
+        share = worst_area / (target_area or 1.0) * 100
         scale = (f'{worst}등급 면적은 약 {worst_area:,.0f}㎡'
-                 f'(검토 반경 면적의 {share:.1f}%)입니다.')
+                 f'({q.scope_label} 면적의 {share:.1f}%)입니다.')
         if share < 1.0:
             scale += (' 면적이 작아 배치 조정으로 회피 가능한지 우선 검토하십시오.')
 
         coverage = ''
         if graded_px and graded_px / max(total_px, 1) < 0.5:
-            coverage = (f' ※ 검토 반경 중 등급이 부여된 구간은 '
+            coverage = (f' ※ {q.scope_label} 중 등급이 부여된 구간은 '
                         f'{graded_px / max(total_px, 1) * 100:.0f}%입니다 '
                         f'(나머지는 산림이 아니거나 등급 미구축 구간).')
 
         return self.item(
             status=status,
-            reason=(f'검토 반경 {q.radius_m:,}m 내 최고 위험등급은 {worst}등급입니다. '
+            reason=(f'{q.scope_label} 내 최고 위험등급은 {worst}등급입니다. '
                     f'등급 분포 — {dist}. {scale} {note}{coverage}'),
             difficulty=difficulty,
             confidence=Confidence.MEDIUM,
@@ -208,10 +210,30 @@ class LandslideProvider(LayerProvider):
         cx = cy = (size - 1) / 2.0
         r_px = size / 2.0
         inside = 0
+        # 검토 대상 밖 픽셀은 세지 않는다.
+        #
+        # ⚠️ 구역 모드에서 원으로 거르면 안 된다. 그 원은 사업구역의
+        #    **외접원**이라 부지 밖 산지까지 통째로 들어온다 — 216ha
+        #    간척 농지가 '산사태위험 1등급'으로 잡히던 원인이다.
+        #    면 모드에서는 사업구역 폴리곤으로 직접 거른다.
+        prep = None
+        if q.is_area:
+            try:
+                from shapely.prepared import prep as _prep
+                prep = _prep(q.geom)
+            except Exception:                               # noqa: BLE001
+                prep = None
+        mpp = (half * 2) / size          # 픽셀 한 변의 실제 거리(m)
+        from shapely.geometry import Point as _Pt
         for yy in range(h):
             for xx in range(w):
-                # 검토 원 밖은 제외 — 사각형 그대로 세면 모서리가 과대 반영된다
-                if (xx - cx) ** 2 + (yy - cy) ** 2 > r_px ** 2:
+                if prep is not None:
+                    # 픽셀 중심의 실제 좌표 — 이미지 첫 행이 북쪽이다.
+                    mx = site.x - half + (xx + 0.5) * mpp
+                    my = site.y + half - (yy + 0.5) * mpp
+                    if not prep.contains(_Pt(mx, my)):
+                        continue
+                elif (xx - cx) ** 2 + (yy - cy) ** 2 > r_px ** 2:
                     continue
                 inside += 1
                 r, g, b, a = px[xx, yy]

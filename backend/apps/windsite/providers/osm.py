@@ -269,6 +269,16 @@ class OsmGridProvider(LayerProvider):
             hv_txt = (f' 154kV 이상 변전소 중 최근접은 {nearest_hv["name"]}'
                       f'({nearest_hv["voltage"] // 1000}kV, '
                       f'{geo.format_distance(nearest_hv["distance_m"])})입니다.')
+        # 직선거리만 내면 선로 길이를 과소평가한다. 실제 포설은 도로를 따라
+        # 가므로 도로망 경로 거리를 나란히 낸다 — 다만 이것도 확정 경로가
+        # 아니라(한전 협의로 정해진다) 둘을 함께 보여 준다.
+        road_txt = ''
+        rd = road_distance_m(q.lat, q.lng, nearest['lat'], nearest['lng'])             if nearest.get('lat') and nearest.get('lng') else None
+        if rd:
+            road_txt = (f' 도로망 경로로는 {geo.format_distance(rd)}입니다'
+                        f'(직선 대비 {rd / max(nearest["distance_m"], 1):.1f}배) — '
+                        '선로 포설 길이 산정에는 이 값을 참고하되, 실제 경로는 '
+                        '한전 협의로 정해집니다.')
         line_txt = ''
         if lines:
             line_txt = (f' 반경 {self.LINE_SEARCH_M / 1000:.0f}km 내 송전선로 {len(lines)}건, '
@@ -280,7 +290,7 @@ class OsmGridProvider(LayerProvider):
             reason=(
                 f'최근접 변전소는 {nearest["name"]}'
                 f'({(nearest.get("voltage") or 0) // 1000 or "?"}kV)로 직선거리 '
-                f'{geo.format_distance(nearest["distance_m"])}입니다.{hv_txt}{line_txt} {msg}'
+                f'{geo.format_distance(nearest["distance_m"])}입니다.{road_txt}{hv_txt}{line_txt} {msg}'
                 f'{cap_note}'
             ),
             difficulty=df,
@@ -292,7 +302,12 @@ class OsmGridProvider(LayerProvider):
                 '② 여유용량 부족 시 상위 전압 연계 또는 계통보강 일정 확인 '
                 '③ 선로 경과지의 별도 인허가(선하지 보상·산지전용 등) 검토'
             ),
+            # ⚠️ 도로망 경로 거리를 raw에도 남긴다. 종전에는 reason
+            #    문자열에만 있어 보고서가 숫자로 쓸 수 없었다 —
+            #    실무에서 선로 포설비를 가르는 것은 직선거리가 아니라
+            #    이 값이다.
             raw={'substations': subs[:10], 'lines': lines[:10],
+                 'road_distance_m': rd,
                  'search_radius_m': self.SUBSTATION_SEARCH_M,
                  'capacity_source': 'KEPCO 분산전원 연계정보' if capacity else '',
                  'capacity_error': cap_err},
@@ -319,8 +334,25 @@ class OsmGridProvider(LayerProvider):
         except Exception:                                       # noqa: BLE001
             logger.debug('중심 필지 PNU 확인 실패', exc_info=True)
 
-        metro = pnu[:2] if len(pnu) >= 5 else ''
-        city = pnu[2:5] if len(pnu) >= 5 else ''
+        # ⚠️ 한전 API는 **행정구역 개편 전 코드**를 쓴다. 지적에서 받은 PNU는
+        #    개편된 코드라 그대로 넘기면 404가 난다(실측: 장흥 12770 → 404,
+        #    46880 → 27건). 확인된 대응표를 거쳐야 한다.
+        #
+        #    종전에는 이 404를 '호출 간격 제한'으로 안내했는데, 원인이 전혀
+        #    달라 재시도만 되풀이하게 만들었다. 코드 불일치는 기다린다고
+        #    풀리지 않는다.
+        from .. import pnu as pnu_mod
+
+        mapped = pnu_mod.for_ned(pnu)
+        metro = mapped[:2] if len(mapped) >= 5 else ''
+        city = mapped[2:5] if len(mapped) >= 5 else ''
+        gap = pnu_mod.unmapped_reason(pnu, '한전 분산전원 연계정보')
+        if gap:
+            # 대응표가 없으면 **조회하지 않는다.** 개편 코드로 물으면 404가
+            # 나고, 앞 5자리를 추측해 물으면 남의 지역 여유용량을 이 사업지
+            # 것으로 싣게 된다.
+            logger.info('한전 계통 조회 생략 — 코드 체계 불일치 (%s)', pnu[:5])
+            return {}, gap
         try:
             rows = KepcoGridClient.fetch(metro_cd=metro, city_cd=city)
         except KepcoGridError as e:
@@ -506,9 +538,14 @@ class QuietFacilityProvider(LayerProvider):
                              'semidetached_house', 'terrace', 'dormitory',
                              'bungalow', 'farm')
 
-    def __init__(self, sido: str = '', sigungu: str = ''):
+    def __init__(self, sido: str = '', sigungu: str = '',
+                 energy: str = None):
+        from .. import energy as energy_mod       # 지연 import (앱 로딩 순서)
         self.sido = sido
         self.sigungu = sigungu
+        # 동심원 반지름이 곧 조례 이격거리다. 에너지원을 넘기지 않으면
+        # 태양광 검토에 풍력 거리(예: 주거 2,000m)로 원이 그려진다.
+        self.energy = energy_mod.normalize(energy)
 
     # ------------------------------------------------------------------
     def analyze(self, q: SiteQuery) -> AnalysisItem:
@@ -522,7 +559,8 @@ class QuietFacilityProvider(LayerProvider):
 
         # DB에 없으면 자치법규 OPEN API로 그 자리에서 수집한다.
         # LocalOrdinanceProvider와 동시에 실행되므로 서비스 쪽에서 직렬화한다.
-        rules = sorted(ordinances.ensure_ordinances(self.sido, self.sigungu),
+        rules = sorted(ordinances.ensure_ordinances(self.sido, self.sigungu,
+                                                   self.energy),
                        key=lambda r: r.distance_m, reverse=True)
 
         search_m = max([r.distance_m for r in rules] + [self.FALLBACK_SEARCH_M])
@@ -800,3 +838,40 @@ def _max_voltage(raw: str | None) -> int:
         except ValueError:
             continue
     return best
+
+
+# ======================================================================
+# 도로 기준 거리
+# ======================================================================
+#
+# 계통 연계 선로는 **도로를 따라** 포설한다. 직선거리만 보면 선로 길이를
+# 30~40% 과소평가하고, 그 차이가 공사비에 그대로 실린다(실측: 홍성 구역 →
+# 인근 지점 직선 6.6km 대비 도로 9.4km).
+#
+# 다만 도로거리도 **확정 경로가 아니다.** 실제 포설 경로는 한전 협의로
+# 정해지므로 직선거리와 나란히 내고, 조회에 실패하면 직선거리만 낸다.
+
+ROUTE_URL = 'https://router.project-osrm.org/route/v1/driving/{}'
+
+
+def road_distance_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float | None:
+    """
+    두 지점 사이의 **도로망 경로 거리**(m). 실패하면 None.
+
+    실패를 예외로 올리지 않는다 — 계통 항목 전체를 죽일 이유가 없다.
+    """
+    coords = f'{lng1:.5f},{lat1:.5f};{lng2:.5f},{lat2:.5f}'
+    params = {'overview': 'false'}
+
+    def call() -> dict:
+        res = httpx.get(ROUTE_URL.format(coords), params=params, timeout=30.0)
+        res.raise_for_status()
+        return res.json()
+
+    try:
+        d = httpcache.get_or_set('osrm_route', {'c': coords}, call)
+        routes = (d or {}).get('routes') or []
+        return float(routes[0]['distance']) if routes else None
+    except Exception:                                           # noqa: BLE001
+        logger.info('도로 경로 조회 실패 %s', coords)
+        return None

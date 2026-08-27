@@ -73,7 +73,7 @@ class EcoAreaProvider(LayerProvider):
         if not areas:
             return self.item(
                 status=Status.POSSIBLE,
-                reason=(f'검토 반경 {q.radius_m:,}m와 그 주변 '
+                reason=(f'{q.scope_label} 및 주변 '
                         f'{SEARCH_MARGIN_M / 1000:.0f}km 내에서 생태·경관보전지역이 '
                         '조회되지 않았습니다.'),
                 difficulty=Difficulty.LOW,
@@ -113,7 +113,7 @@ class EcoAreaProvider(LayerProvider):
             return self.item(
                 status=Status.CONDITIONAL,
                 reason=(
-                    f'검토 반경 내에 생태·경관보전지역이 있습니다 — {names}. '
+                    f'{q.scope_label} 내에 생태·경관보전지역이 있습니다 — {names}. '
                     '중첩되지는 않으나 인접 개발은 환경영향평가에서 '
                     '경관·생태 연결성 훼손 여부가 중점 검토됩니다.'
                 ),
@@ -126,7 +126,7 @@ class EcoAreaProvider(LayerProvider):
 
         return self.item(
             status=Status.POSSIBLE,
-            reason=(f'검토 반경 내에는 생태·경관보전지역이 없습니다. '
+            reason=(f'{q.scope_label} 내에는 생태·경관보전지역이 없습니다. '
                     f'가장 가까운 구역은 {nearest["name"]}로 '
                     f'{geo.format_distance(nearest["distance_m"])} 떨어져 있습니다.'),
             difficulty=Difficulty.LOW,

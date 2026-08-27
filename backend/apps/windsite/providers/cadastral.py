@@ -105,7 +105,9 @@ class CadastralProvider(LayerProvider):
         except geo.GeoUnavailable:
             return None
 
-        circle = site.buffer(q.radius_m)
+        # 검토 도형으로 자른다 — 구역 모드면 사업구역 폴리곤이다.
+        # 원으로 자르면 부지 밖 필지가 '검토 면적'에 섞인다.
+        target = q.geom
         by_jimok: dict[str, dict] = {}
         parcels: list[dict] = []
         unknown_jimok = 0
@@ -121,7 +123,7 @@ class CadastralProvider(LayerProvider):
                 continue
             try:
                 gm = geo.to_metric(g)
-                inter = gm.intersection(circle)
+                inter = gm.intersection(target)
             except Exception:                                    # noqa: BLE001
                 logger.debug('필지 교차 연산 실패', exc_info=True)
                 continue
@@ -158,7 +160,7 @@ class CadastralProvider(LayerProvider):
             'usable_area_m2': round(usable, 1),
             'excluded_area_m2': round(excluded, 1),
             'conversion_needed': {k: round(v['area_m2'], 1) for k, v in conversion.items()},
-            'circle_area_m2': round(geo.area_m2(circle), 1),
+            'circle_area_m2': round(q.area_m2, 1),   # 검토 도형 면적
             'top_parcels': parcels[:15],
         }
 
@@ -170,7 +172,7 @@ class CadastralProvider(LayerProvider):
                           for k, v in list(s['by_jimok'].items())[:6])
 
         head = (
-            f'검토 반경 {q.radius_m:,}m 내 {s["parcel_count"]:,}개 필지, '
+            f'{q.scope_label} 내 {s["parcel_count"]:,}개 필지, '
             f'지적 면적 합계 {s["total_parcel_area_m2"]:,.0f}㎡. 지목 구성 — {compo}.'
         )
         if s.get('truncated'):

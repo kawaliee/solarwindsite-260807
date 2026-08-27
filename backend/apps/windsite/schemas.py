@@ -156,11 +156,30 @@ class PermitStepResult:
     confidence: Confidence
     source_url: str = ''
     note: str = ''
+    #: 처리기간을 어디까지 확인했는가 — 'NONE' | 'UNKNOWN' | ''
+    #: (PermitStep.statutory_basis 참조)
+    statutory_basis: str = ''
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d['confidence'] = self.confidence.value
+        d['statutory_label'] = self.statutory_label
         return d
+
+    @property
+    def statutory_label(self) -> str:
+        """
+        표에 그대로 찍는 처리기간 문구.
+
+        `-` 하나로 뭉뚱그리지 않는다. 기한이 없는 절차와 아직 확인하지 못한
+        절차는 일정 계획에서 전혀 다르게 다뤄야 한다 — 앞은 협의 소요를
+        따로 잡아야 하고, 뒤는 먼저 조문을 찾아봐야 한다.
+        """
+        if self.statutory_days:
+            return f'{self.statutory_days}일'
+        if self.statutory_basis == 'NONE':
+            return '법정기간 없음 (협의 소요)'
+        return '◇ 확인 필요'
 
 
 @dataclass

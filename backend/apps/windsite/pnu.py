@@ -119,12 +119,17 @@ def for_ned(pnu: str) -> str:
     return (old + p[5:]) if old else p
 
 
-def unmapped_reason(pnu: str) -> str:
+def unmapped_reason(pnu: str, service: str = '국가공간정보 연계(NED)') -> str:
     """
     조회가 0건일 때 붙일 사유. 코드 체계 문제가 아니면 빈 문자열.
 
     빈 문자열이면 호출부가 기존 문구(자료 없음)를 그대로 쓴다 — 원인을
     모르는데 아는 척하지 않기 위해서다.
+
+    `service`로 어느 쪽과 어긋났는지 밝힌다. NED뿐 아니라 **한전 분산전원
+    연계정보**도 개편 전 코드를 쓰기 때문이다(실측: 장흥 12770 → 404,
+    46880 → 27건). 어느 자료가 안 나온 것인지 적지 않으면 사용자가
+    엉뚱한 곳을 들여다본다.
     """
     p = (pnu or '').strip()
     if len(p) < 5 or p[:5] in _alias():
@@ -132,8 +137,8 @@ def unmapped_reason(pnu: str) -> str:
     why = UNMAPPED_SIDO.get(p[:2])
     if not why:
         return ''
-    return (f'{why}으로 지적 자료의 필지고유번호({p[:5]}…)와 국가공간정보 '
-            f'연계(NED)에 적재된 법정동코드가 서로 달라 조회되지 않았습니다. '
+    return (f'{why}으로 지적 자료의 필지고유번호({p[:5]}…)와 {service}에 '
+            f'적재된 법정동코드가 서로 달라 조회되지 않았습니다. '
             f'자료가 없는 것이 아니라 코드 체계가 어긋난 것이며, 재검토해도 '
             f'같습니다.')
 

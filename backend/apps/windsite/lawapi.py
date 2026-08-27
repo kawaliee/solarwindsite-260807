@@ -404,18 +404,35 @@ def ordinance_article_key(no: str) -> tuple[str, str]:
 
 
 def find_article(articles: list[dict], label: str, *, ordinance: bool = False) -> dict | None:
-    """조문 목록에서 '제61조' / '제20조의2' 형태의 표기에 해당하는 조문을 찾는다."""
+    """
+    조문 목록에서 '제61조' / '제20조의2' 표기에 해당하는 조문을 찾는다.
+
+    ⚠️ 같은 조번호로 **장(章)·절(節) 머리글이 함께 온다.** 전기사업법 제7조를
+       찾으면 '제2장 전기사업'(제목 없음, 본문 8자)이 먼저 걸린다. 그것을
+       그대로 쓰면 근거 조문 자리에 장 제목이 박히고, 조문 전문을 보관하는
+       LawArticle에도 8자짜리가 저장돼 **판정 근거를 되짚을 수 없게 된다.**
+
+       실제로 이 버그로 전기사업법 제7조(전기사업의 허가)가 '제2장 전기사업'
+       으로 잡혔다. 그래서 후보를 모두 모은 뒤 **조제목이 있는 것**을 고르고,
+       그것도 없으면 본문이 가장 긴 것을 쓴다.
+    """
     want_no, want_sub = parse_article_label(label)
     if not want_no:
         return None
+
+    matched = []
     for a in articles:
         if ordinance:
             no, sub = ordinance_article_key(a['no'])
         else:
             no, sub = a['no'].lstrip('0') or a['no'], a.get('sub_no', '')
         if no == want_no and (sub or '') == (want_sub or ''):
-            return a
-    return None
+            matched.append(a)
+    if not matched:
+        return None
+    titled = [a for a in matched if (a.get('title') or '').strip()]
+    pool = titled or matched
+    return max(pool, key=lambda a: len(a.get('text') or ''))
 
 
 # ======================================================================
@@ -461,10 +478,59 @@ def fetch_appendix_text(file_url: str, timeout: float = 90.0) -> str:
     return extract_hwp_text(res.content)
 
 
+def extract_hwpx_text(blob: bytes) -> str:
+    """
+    HWPX(OWPML) 바이트에서 문단 텍스트만 추출한다.
+
+    HWPX는 HWP5(OLE 복합문서)와 **파일 구조가 다르다** — ZIP에 XML을 담는다.
+    같은 조례의 별표가 hwp와 hwpx로 섞여 오는 일이 흔한데(홍성군 군계획
+    조례는 별표 16·27만 hwpx), OLE 파서로 읽으려다 실패하면 그 별표는
+    본문이 빈 채로 넘어간다. 그 결과가 **'이격 규정 없음'** 이다 —
+    읽지 못한 것을 없는 것으로 말하게 된다. 그래서 따로 읽는다.
+    """
+    import io
+    import zipfile
+    from xml.etree import ElementTree as ET
+
+    try:
+        z = zipfile.ZipFile(io.BytesIO(blob))
+    except Exception:                                           # noqa: BLE001
+        logger.warning('HWPX ZIP 판독 실패')
+        return ''
+
+    parts: list[str] = []
+    # 본문은 Contents/section0.xml, section1.xml … 에 순서대로 들어 있다.
+    names = sorted(n for n in z.namelist()
+                   if re.fullmatch(r'Contents/section\d+\.xml', n))
+    for name in names:
+        try:
+            root = ET.fromstring(z.read(name))
+        except Exception:                                       # noqa: BLE001
+            logger.warning('HWPX 섹션 판독 실패 %s', name)
+            continue
+        # 네임스페이스가 붙어 오므로(hp:t) 지역명만 보고 고른다
+        for el in root.iter():
+            if el.tag.rsplit('}', 1)[-1] == 't' and el.text:
+                parts.append(el.text)
+    return ' '.join(parts)
+
+
+#: ZIP 매직 넘버. HWPX는 ZIP이고 HWP5는 OLE라 첫 바이트로 갈린다.
+_ZIP_MAGIC = b'PK\x03\x04'
+
+
 def extract_hwp_text(blob: bytes) -> str:
-    """HWP5(OLE) 바이트에서 문단 텍스트만 추출한다."""
+    """
+    별표 첨부에서 문단 텍스트만 추출한다.
+
+    확장자 표기(file_type)를 믿지 않고 **내용의 매직 넘버**로 형식을 가른다.
+    자치법규 API가 hwpx 파일을 'hwp'로 표기해 보내는 경우가 있다.
+    """
     import struct
     import zlib
+
+    if blob[:4] == _ZIP_MAGIC:
+        return extract_hwpx_text(blob)
 
     try:
         import olefile

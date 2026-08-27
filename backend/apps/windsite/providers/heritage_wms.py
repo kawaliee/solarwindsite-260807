@@ -85,7 +85,7 @@ class HeritageWmsProvider(LayerProvider):
         if not hit_px:
             return self.item(
                 status=Status.POSSIBLE,
-                reason=f'검토 반경 {q.radius_m:,}m 내에서 {self.item_name}이(가) '
+                reason=f'{q.scope_label} 내에서 {self.item_name}이(가) '
                        f'조회되지 않았습니다.',
                 difficulty=Difficulty.LOW,
                 confidence=Confidence.MEDIUM,
@@ -94,14 +94,15 @@ class HeritageWmsProvider(LayerProvider):
             )
 
         area = hit_px * (px_m ** 2)
-        circle_area = 3.141592653589793 * (q.radius_m ** 2)
-        share = area / circle_area * 100
+        # 구역 모드면 사업구역 폴리곤 면적 — 외접원으로 나누면 비율이
+        # 실제보다 작게 나와 저촉이 사소해 보인다.
+        share = area / (q.area_m2 or 1.0) * 100
 
         return self.item(
             status=self.hit_status,
             reason=(
-                f'검토 반경 {q.radius_m:,}m 내에 {self.item_name}이(가) 있습니다. '
-                f'중첩 면적 약 {area:,.0f}㎡(검토 반경 면적의 {share:.1f}%). '
+                f'{q.scope_label} 내에 {self.item_name}이(가) 있습니다. '
+                f'중첩 면적 약 {area:,.0f}㎡({q.scope_label} 면적의 {share:.1f}%). '
                 f'{self.hit_note} '
                 f'※ WMS 이미지({px_m:.0f}m/픽셀) 기반 판정이라 면적은 개략값이며 '
                 '**경계까지의 정확한 거리는 산출되지 않습니다.**'

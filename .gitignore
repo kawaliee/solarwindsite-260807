@@ -16,10 +16,21 @@ db.sqlite3
 #   heritage : 국가유산청 https://www.khs.go.kr 공간정보 다운로드
 #   forest   : 산림공간정보서비스 https://map.forest.go.kr 산림공간자료 다운로드
 #   ecoapi   : 국립생태원 생태자연도 API 프로브 산출물
-# (vworld 프로브 결과는 시드 근거라 예외적으로 추적한다)
+#   dem      : 국토지리정보원 공개DEM(*.zip은 아래 전역 규칙에 이미 걸림)·
+#              Copernicus GLO-30 원본 — 받는 법은 backend/data/dem/README.md
+#   solar    : 기상청 태양기상자원지도 netCDF(연평균, 재수급 가능) ·
+#              쓰지 않는 원본 확인용 프로브 덤프(_permits_raw.json, 코드
+#              어디서도 참조하지 않음) — 받는 법은 backend/data/solar/README.md
+# (vworld 프로브 결과·korec 판독 엑셀은 시드 근거라 예외적으로 추적한다)
 /backend/data/heritage/
 /backend/data/forest/
 /backend/data/ecoapi/
+/backend/data/dem/ngii_90m/
+/backend/data/dem/ngii_5m/
+/backend/data/dem/copernicus/
+/backend/data/solar/kma_resource_map/
+/backend/data/solar/gsa/
+/backend/data/solar/_permits_raw.json
 
 # 파이썬 캐시 및 가상환경 배제
 __pycache__/
@@ -58,3 +69,7 @@ Thumbs.db
 *.tar
 *.zip
 260618_backup/
+
+# 전기위원회 원본 첨부 배제 — 공개 자료이나 용량이 크고(회차마다 수백KB)
+# sync_korec 으로 언제든 다시 받는다. 판독 결과인 엑셀은 남긴다.
+/backend/data/korec/pdf/

@@ -31,6 +31,10 @@ from .base import LayerProvider, SiteQuery
 logger = logging.getLogger(__name__)
 
 ASOS_URL = 'https://apis.data.go.kr/1360000/AsosDalyInfoService/getWthrDataList'
+
+#: 일별 자료의 합계 일사량 항목(MJ/m²). 태양광 일사량 판정이 쓴다.
+#: 일사를 관측하는 ASOS 지점은 전국 30여 곳뿐이라 값이 비는 지점이 많다.
+GSR_KEY = 'sumGsr'
 STATIONS_PATH = Path(settings.BASE_DIR) / 'data' / 'kma' / 'stations.json'
 
 #: 후보 관측소 수 — 최근접만 보면 표고가 크게 다른 곳이 뽑힐 수 있다
@@ -174,12 +178,18 @@ class WindResourceProvider(LayerProvider):
 
         avg = [float(i['avgWs']) for i in items if _has(i, 'avgWs')]
         mx = [float(i['maxWs']) for i in items if _has(i, 'maxWs')]
+        # 같은 응답에 **합계 일사량(sumGsr, MJ/m²)** 이 함께 온다. 태양광
+        # 일사량 판정이 이 값을 쓰므로 여기서 함께 집계한다 — 같은 요청을
+        # 두 번 보내지 않기 위함이다. 일사를 관측하지 않는 지점은 빈 값이 온다.
+        gsr = [float(i[GSR_KEY]) for i in items if _has(i, GSR_KEY)]
         if not avg:
             return None
         return {
             'days': len(avg),
             'mean_ws': sum(avg) / len(avg),
             'max_ws': max(mx) if mx else None,
+            'sum_gsr_mj': sum(gsr) if gsr else None,
+            'gsr_days': len(gsr),
             'period': f"{params['startDt']}~{params['endDt']}",
         }
 

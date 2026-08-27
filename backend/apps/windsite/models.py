@@ -24,13 +24,23 @@ STATUS_CHOICES = [
     ('IMPOSSIBLE', '불가'), ('UNKNOWN', '확인 필요'),
 ]
 
+#: 에너지원. 규제 레이어·필지·환경 데이터는 무엇을 짓든 같은 규정으로
+#: 판정되므로 공유하고, **에너지원마다 실제로 달라지는 것만** 이 값으로
+#: 가른다 — 이격거리 조례, 인허가 절차, 적용 법령, 검토 이력.
+#: 'ALL'은 양쪽에 공통으로 적용되는 레코드다.
+ENERGY_CHOICES = [('WIND', '풍력'), ('SOLAR', '태양광'), ('ALL', '공통')]
+
 
 class LawReference(models.Model):
-    """풍력 사업에 적용되는 법령 목록"""
+    """에너지원별로 사업에 적용되는 법령 목록"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField('법령명', max_length=200)
     category = models.CharField('분류', max_length=50)          # 전기/국토/환경/산림/문화재/군사/지자체
-    purpose = models.CharField('풍력 사업에서의 역할', max_length=300, blank=True)
+    #: 기존 레코드는 전부 육상풍력 기준으로 등록돼 있어 기본값을 WIND로 둔다.
+    #: 태양광 법령을 등록할 때 SOLAR로, 양쪽 공통이면 ALL로 넣는다.
+    energy_type = models.CharField('에너지원', max_length=10,
+                                   choices=ENERGY_CHOICES, default='WIND')
+    purpose = models.CharField('사업에서의 역할', max_length=300, blank=True)
     key_articles = models.TextField('주요 조문', blank=True)
     confidence = models.CharField(max_length=10, choices=CONFIDENCE_CHOICES, default='LOW')
     source_url = models.URLField(blank=True)
@@ -203,7 +213,6 @@ class LocalOrdinance(models.Model):
         ('RAILWAY', '철도'),
         ('OTHER', '기타'),
     ]
-    ENERGY_CHOICES = [('WIND', '풍력'), ('SOLAR', '태양광'), ('ALL', '공통')]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     sido = models.CharField('시·도', max_length=50, db_index=True)
@@ -247,12 +256,16 @@ class LocalOrdinance(models.Model):
 
 
 class PermitStep(models.Model):
-    """육상풍력 인허가 단계 마스터"""
+    """에너지원별 인허가 단계 마스터"""
     PHASE_CHOICES = [
         ('DEV', '개발'), ('PERMIT', '인허가'), ('BUILD', '건설'), ('OPS', '운영'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    #: 기존 시드는 전부 육상풍력 절차다. 발전사업허가 소관만 해도 풍력과
+    #: 태양광이 갈리므로(용량 경계·소관 기관), 섞어 쓰면 로드맵이 틀린다.
+    energy_type = models.CharField('에너지원', max_length=10,
+                                   choices=ENERGY_CHOICES, default='WIND')
     order = models.PositiveIntegerField('순서', db_index=True)
     phase = models.CharField('단계', max_length=10, choices=PHASE_CHOICES)
     name = models.CharField('절차명', max_length=200)
@@ -260,6 +273,16 @@ class PermitStep(models.Model):
     law = models.CharField('근거 법령', max_length=200, blank=True)
     article = models.CharField('조문', max_length=200, blank=True)
     statutory_days = models.PositiveIntegerField('법정 처리기간(일)', null=True, blank=True)
+    #: 처리기간을 **어디까지 확인했는가.** `statutory_days`가 비어 있는 까닭이
+    #: 두 가지라 값 하나로는 가릴 수 없다 —
+    #:
+    #:   'NONE'    원문을 찾아봤고, 처리기간 규정이 없다 (협의·심의)
+    #:   'UNKNOWN' 아직 원문에서 확인하지 못했다
+    #:   ''        `statutory_days`에 값이 있어 따질 것이 없다
+    #:
+    #: 종전에는 태양광 16개 절차가 전부 None이라 표에 `-`만 찍혔고, 읽는
+    #: 사람은 기한이 없는 것인지 조사를 안 한 것인지 알 수 없었다.
+    statutory_basis = models.CharField('처리기간 확인 상태', max_length=10, blank=True)
     depends_on = models.JSONField('선행 절차', default=list, blank=True)
     capacity_rule = models.TextField('용량별 소관 구분', blank=True)
     #: 조건부 절차 여부 — 부지 조건에 따라 발생 (예: 농지 포함 시 농지전용)
@@ -356,6 +379,8 @@ class SpatialFeature(models.Model):
 class SiteEvaluation(models.Model):
     """입지 검토 실행 이력"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    energy_type = models.CharField('에너지원', max_length=10,
+                                   choices=ENERGY_CHOICES, default='WIND')
     address = models.CharField(max_length=300, blank=True)
     lat = models.FloatField()
     lng = models.FloatField()
@@ -399,8 +424,12 @@ class SiteEvaluation(models.Model):
 # 다시 낸다. 저장된 요약은 '그때는 이랬다'는 기록으로만 쓴다.
 # ======================================================================
 class SiteProject(models.Model):
-    """검토 프로젝트 — 배치안을 묶는 단위 (예: '삼척 천봉풍력')"""
+    """검토 프로젝트 — 배치안·후보 필지를 묶는 단위 (예: '삼척 천봉풍력')"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    #: 풍력 배치안과 태양광 후보 필지가 한 목록에 섞이면 무엇을 견주는지
+    #: 알 수 없다. 저장 화면도 카테고리별로 갈라져 있으므로 목록도 가른다.
+    energy_type = models.CharField('에너지원', max_length=10,
+                                   choices=ENERGY_CHOICES, default='WIND')
     name = models.CharField('사업명', max_length=120, unique=True)
     description = models.TextField('설명', blank=True)
     sido = models.CharField('시·도', max_length=50, blank=True)
@@ -422,12 +451,26 @@ class SiteProject(models.Model):
 
 
 class SitePlan(models.Model):
-    """배치안 — 호기 좌표 한 벌과 그때의 검토 조건"""
+    """
+    배치안·후보 — 좌표 한 벌과 그때의 검토 조건.
+
+    풍력은 호기 좌표, 태양광은 후보 필지를 고른 좌표가 들어간다. 같은 표를
+    쓰되 `mode`로 무엇인지 밝힌다 — 불러올 때 어느 모드로 되돌릴지가 갈린다.
+    """
+    MODE_CHOICES = [('layout', '배치선'), ('area', '구역'), ('parcel', '필지')]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    mode = models.CharField('검토 방식', max_length=10,
+                            choices=MODE_CHOICES, default='layout')
     project = models.ForeignKey(SiteProject, on_delete=models.CASCADE,
                                 related_name='plans')
     name = models.CharField('배치안명', max_length=120)
     note = models.TextField('메모', blank=True)
+
+    #: 검토를 수행한 사람. 계정(`created_by`)과 따로 두는 까닭은 **실제 검토자와
+    #: 로그인 계정이 다른 경우가 흔하기** 때문이다 — 대리 입력, 공용 계정,
+    #: 외주 검토가 그렇다. 보고서와 이력에 남는 것은 계정이 아니라 이 이름이다.
+    reviewer = models.CharField('검토자', max_length=60, blank=True)
 
     #: [[위도, 경도], …] — 1호기부터의 순서가 곧 연결선 순서다
     turbines = models.JSONField('호기 좌표', default=list)

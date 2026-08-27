@@ -21,7 +21,14 @@ type Props = {
 }
 
 /** '2026-08-13T14:23:08' → '2026-08-13' */
-const day = (s: string) => (s || '').slice(0, 10)
+/**
+ * 검토 시각. **분까지 보인다.**
+ *
+ * 날짜만 적으면 같은 날 여러 번 검토한 것이 구분되지 않는다. 규제·조례는
+ * 개정되고 조회 자료도 바뀌므로, 같은 부지를 오전과 오후에 검토하면 결과가
+ * 다를 수 있다 — 어느 것이 최신인지 가리려면 시각이 있어야 한다.
+ */
+const stamp = (s: string) => (s || '').replace('T', ' ').slice(0, 16);
 
 export default function SavedPlans({ onLoad, refreshKey }: Props) {
   const [projects, setProjects] = useState<SiteProject[]>([])
@@ -31,12 +38,14 @@ export default function SavedPlans({ onLoad, refreshKey }: Props) {
   const [picked, setPicked] = useState<string[]>([])
   /** 메모를 편집 중인 배치안 */
   const [editing, setEditing] = useState<SitePlan | null>(null)
-  const [draft, setDraft] = useState({ name: '', note: '' })
+  const [draft, setDraft] = useState({ name: '', note: '', reviewer: '' })
 
   const reload = async () => {
     setLoading(true)
     try {
-      setProjects((await windsiteApi.projects()).results)
+      // 에너지원으로 가른다. 종전에는 전체를 받아 태양광 후보가 풍력
+      // 배치안 목록에 섞여 나왔다.
+      setProjects((await windsiteApi.projects('WIND')).results)
       setError('')
     } catch (e) {
       setError(e instanceof Error ? e.message : '저장된 배치안을 불러오지 못했습니다.')
@@ -57,7 +66,8 @@ export default function SavedPlans({ onLoad, refreshKey }: Props) {
     if (!editing) return
     try {
       await windsiteApi.patchPlan(editing.id,
-        { name: draft.name.trim(), note: draft.note })
+        { name: draft.name.trim(), note: draft.note,
+          reviewer: draft.reviewer.trim() })
       setEditing(null)
       await reload()
     } catch (e) {
@@ -113,7 +123,7 @@ export default function SavedPlans({ onLoad, refreshKey }: Props) {
             </div>
 
             <div className="ws-planlist">
-              {p.plans.map(x => (
+              {p.plans.filter(x => x.mode !== 'parcel' && x.mode !== 'area').map(x => (
                 <div key={x.id} className={`ws-plan${picked.includes(x.id) ? ' on' : ''}`}>
                   <label className="pick">
                     <input type="checkbox" checked={picked.includes(x.id)}
@@ -134,18 +144,19 @@ export default function SavedPlans({ onLoad, refreshKey }: Props) {
                     {x.note && <p className="note">{x.note}</p>}
                     <p className="meta">
                       {x.sigungu && <>{x.sido} {x.sigungu} · </>}
-                      저장 {day(x.created_at)}
+                      저장 {stamp(x.created_at)}
                       {/* 판정은 그 시점 규제 기준이다. 날짜를 반드시 붙인다. */}
                       {x.evaluated_at
-                        ? ` · 판정 ${day(x.evaluated_at)} 기준`
+                        ? ` · 판정 ${stamp(x.evaluated_at)} 기준`
                         : ' · 판정 없이 좌표만 저장'}
-                      {x.permit_date && ` · 허가일 ${x.permit_date}`}
+                      {x.reviewer && <> · 검토자 <b>{x.reviewer}</b></>}
+                        {x.permit_date && ` · 허가일 ${x.permit_date}`}
                     </p>
                   </div>
                   <div className="acts">
                     <button className="ws-btn2" onClick={() => onLoad(x)}>불러오기</button>
                     <button className="ws-link" onClick={() => {
-                      setEditing(x); setDraft({ name: x.name, note: x.note })
+                      setEditing(x); setDraft({ name: x.name, note: x.note, reviewer: x.reviewer || '' })
                     }}>이름·메모</button>
                     <button className="ws-link danger"
                       onClick={() => void removePlan(x)}>삭제</button>
@@ -186,7 +197,7 @@ export default function SavedPlans({ onLoad, refreshKey }: Props) {
                     </td>
                     <td>{x.summary?.free_ha != null ? `${x.summary.free_ha.toLocaleString()} ha` : '-'}</td>
                     <td>{x.summary?.total_ha != null ? `${x.summary.total_ha.toLocaleString()} ha` : '-'}</td>
-                    <td>{x.evaluated_at ? day(x.evaluated_at) : '판정 없음'}</td>
+                    <td>{x.evaluated_at ? stamp(x.evaluated_at) : '판정 없음'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -203,6 +214,11 @@ export default function SavedPlans({ onLoad, refreshKey }: Props) {
               <span>배치안명</span>
               <input value={draft.name} maxLength={120}
                 onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} />
+            </label>
+            <label className="ws-fld">
+              <span>검토자 <em>(담당자명)</em></span>
+              <input value={draft.reviewer} maxLength={60} placeholder="예) 홍길동"
+                onChange={e => setDraft(d => ({ ...d, reviewer: e.target.value }))} />
             </label>
             <label className="ws-fld">
               <span>메모 <em>(무엇을 바꿨는지 적어두면 나중에 알아봅니다)</em></span>

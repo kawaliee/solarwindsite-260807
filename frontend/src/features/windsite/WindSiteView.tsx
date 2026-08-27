@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type L from 'leaflet'
+import html2canvas from 'html2canvas'
 import DateInput from '../../components/DateInput'
-import SitePicker, { type PickMode } from './SitePicker'
+import SitePicker, { ENV_ZONING_KEY, type PickMode } from './SitePicker'
 import SavedPlans from './SavedPlans'
+import SolarCandidates from './SolarCandidates'
 import { windsiteApi } from './api'
+import { energyProfile, type EnergyType } from './energy'
 import {
   CONFIDENCE_HINT,
   CONFIDENCE_LABEL,
@@ -18,18 +22,40 @@ import {
   type LatLng,
   type LawRef,
   ORDINANCE_STATE_LABEL,
+  type ParcelInfo,
+  type ParcelMiss,
+  type ScreenResult,
+  SCREEN_GRADE_LABEL,
   type ProviderConfigRow,
   type SitePlan,
 } from './types'
 
-type Tab = 'result' | 'saved' | 'compare' | 'permits' | 'laws' | 'config';
+type Tab = 'result' | 'saved' | 'cands' | 'compare' | 'permits' | 'laws' | 'config';
 
 /** 검토 반경 기본값·허용범위 — 백엔드 engine.py의 같은 이름 상수와 맞춘다 */
 const DEFAULT_RADIUS_M = 100;
 const MIN_RADIUS_M = 50;
 const MAX_RADIUS_M = 20000;
 
-export default function WindSiteView() {
+/**
+ * 보고서에 넣을 지도 캡처의 배율과 품질.
+ *
+ * 배율을 2로 두면 화면(약 1,100×1,240)이 2,200×2,480이 되어 한 장이 5~8MB다.
+ * 보고서 한 번에 최대 5장(제약도 + 항목별 4장)이라 요청 본문이 수십 MB로
+ * 불어나 서버가 400을 돌려줬다. 1.5면 인쇄 해상도로 충분하다.
+ */
+const CAPTURE_SCALE = 1.5;
+const CAPTURE_QUALITY = 0.85;
+
+/**
+ * 입지타당성 검토 화면 — 풍력·태양광 공용.
+ *
+ * 두 카테고리는 사이드바에서 완전히 갈라져 있고, 화면 상태도 서로 섞이지
+ * 않는다(App.tsx가 view 이름을 key로 줘 화면을 새로 만든다). 여기서는
+ * 프로파일이 정한 만큼만 달라진다 — 입력 모드, 저장·비교 기능, 안내 문구.
+ */
+export default function WindSiteView({ energy = 'WIND' }: { energy?: EnergyType }) {
+  const P = energyProfile(energy);
   const [address, setAddress] = useState('');
   const [sido, setSido] = useState('');
   const [sigungu, setSigungu] = useState('');
@@ -51,7 +77,16 @@ export default function WindSiteView() {
 
   // 사업구역(폴리곤) 검토 — 점 검토와 별도 상태로 둔다. 둘을 한 변수에
   // 합치면 모드를 오갈 때 서로의 입력을 지우게 된다.
-  const [pickMode, setPickMode] = useState<PickMode>('layout');
+  const [pickMode, setPickModeRaw] = useState<PickMode>(P.modes[0]);
+  /**
+   * 프로파일이 허용하지 않는 모드로 들어가지 못하게 막는다.
+   *
+   * 태양광에서 필지 모드를 걷어냈는데도 후보 불러오기가 'parcel'을 넣어,
+   * 모드바에는 '구역 검토'만 켜져 있으면서 내부는 필지 모드로 도는 상태가
+   * 됐다. 실행 버튼이 '필지 검토 실행'으로 뜨고 구역 꼭짓점이 필지로 잡혔다.
+   */
+  const setPickMode = (m: PickMode) =>
+    setPickModeRaw(P.modes.includes(m) ? m : P.modes[0]);
   const [ring, setRing] = useState<LatLng[]>([]);
   const [turbineR, setTurbineR] = useState(500);
   /**
@@ -61,21 +96,66 @@ export default function WindSiteView() {
    */
   const [turbineAddrs, setTurbineAddrs] = useState<(string | null)[]>([]);
   const [corridorR, setCorridorR] = useState(100);
+  /**
+   * 필지 모드 — 클릭 좌표(ring)를 연속지적으로 되돌린 결과.
+   * ring과 인덱스를 맞추지 않는다. 같은 필지를 두 번 눌러 합쳐지기도 하고,
+   * 필지가 없는 자리를 눌러 빠지기도 해서 개수가 어긋나기 때문이다.
+   */
+  const [parcelList, setParcelList] = useState<ParcelInfo[]>([]);
+  const [parcelMisses, setParcelMisses] = useState<ParcelMiss[]>([]);
+  const [parcelBusy, setParcelBusy] = useState(false);
+  /**
+   * 후보만 보기 — '대상 아님'과 '배제'를 지도에서 감춘다.
+   * 지우는 것이 아니라 접는 것이다. 집계에는 그대로 남고 언제든 펼 수 있다.
+   *
+   * 필지 채색 자체는 **구역 검토 실행 결과에 실려 온다**. 종전에는 지도를
+   * 옮길 때마다 따로 조회했는데, 관심 밖 필지까지 훑느라 조회량의 절반을
+   * 버렸다(실측 55%). 이제 사용자가 그린 구역 안만 본다.
+   */
+  const [candidatesOnly, setCandidatesOnly] = useState(true);
+  /**
+   * 지금 지도에 낼 것 — null이면 평소 제약도, 그 외에는 환경성 항목
+   * 하나만 단독으로 그린다('zoning'은 용도지역 구성).
+   *
+   * 화면에서 직접 골라 볼 수 있게 하는 것과, 보고서 캡처가 항목마다
+   * 이 값을 순서대로 바꿔가며 찍는 것, 두 가지 용도로 같이 쓴다.
+   */
+  const [activeEnvLayer, setActiveEnvLayer] = useState<string | null>(null);
+  /**
+   * 지도 시점 맞추기 신호. 저장한 사업지를 불러올 때만 올린다.
+   * 좌표가 바뀔 때마다 맞추면 지도를 찍는 도중에 시점이 튄다.
+   */
+  const [fitToken, setFitToken] = useState(0);
   /** 발전사업허가일 — 조례 시행일보다 앞서면 부칙 경과조치 검토 대상이 된다 */
   const [permitDate, setPermitDate] = useState('');
   const [areaResult, setAreaResult] = useState<AreaResult | null>(null);
+  // 새 검토 결과가 오면 이전 결과의 항목 지도 선택은 더 이상 유효하지
+  // 않다 — 항목 이름이나 개수가 달라질 수 있어 평소 제약도로 되돌린다.
+  useEffect(() => { setActiveEnvLayer(null); }, [areaResult]);
   const [areaLoading, setAreaLoading] = useState(false);
   const [areaReporting, setAreaReporting] = useState(false);
   /** 진행 중인 보고서 작업 — 중단할 때 서버에 알릴 id와 fetch 취소 핸들 */
   const reportJob = useRef<{ id: string; abort: AbortController } | null>(null);
+  /** 보고서 제약도를 캡처할 지도. SitePicker가 만들어지면 채워진다. */
+  const mapInstanceRef = useRef<L.Map | null>(null);
   const [reportProgress, setReportProgress] = useState<{ percent: number; stage: string } | null>(null);
 
   /** 검토와 보고서가 같은 입력을 쓰도록 한 곳에서 만든다 */
   function areaBody(extra: Record<string, unknown> = {}) {
     const base = pickMode === 'layout'
       ? { turbines: ring, turbine_radius_m: turbineR, corridor_radius_m: corridorR }
-      : { ring };
-    return { ...base, permit_date: permitDate, capacity_mw: capacity || null, ...extra };
+      // 필지는 좌표만 보낸다. 화면이 받아 둔 경계를 되돌려 보내지 않고
+      // 서버가 연속지적에서 다시 받는다 — 판정 근거의 출처는 하나여야 한다.
+      : pickMode === 'parcel'
+        ? { parcels: ring }
+        : { ring };
+    // energy를 반드시 함께 보낸다. 빠지면 서버가 풍력으로 보고 조례 이격거리를
+    // 풍력 기준(예: 주거 2,000m)으로 잡아, 태양광 가용면적이 통째로 틀어진다.
+    // 사업명은 보고서 파일명과 표지에 그대로 들어간다. 저장 양식이 쓰는
+    // 값과 같은 것을 보내야 저장된 배치안과 문서가 같은 이름으로 묶인다.
+    return { ...base, energy: P.code, permit_date: permitDate,
+             capacity_mw: capacity || null,
+             project_name: saveForm.project.trim(), ...extra };
   }
 
   /**
@@ -90,12 +170,21 @@ export default function WindSiteView() {
   const [saving, setSaving] = useState(false);
   const [savedKey, setSavedKey] = useState(0);
   const [savedMsg, setSavedMsg] = useState('');
-  const [saveForm, setSaveForm] = useState({ project: '', name: '', note: '' });
+  /**
+   * 검토자 이름은 **브라우저에 기억해 둔다.** 같은 사람이 하루에 여러 후보를
+   * 저장하는데 매번 다시 치게 하면 빈칸으로 남기게 된다 — 비어 있으면 이력이
+   * 쓸모없어진다.
+   */
+  const REVIEWER_KEY = 'windsite:reviewer';
+  const [saveForm, setSaveForm] = useState({
+    project: '', name: '', note: '',
+    reviewer: localStorage.getItem(REVIEWER_KEY) || '',
+  });
   /** 이미 있는 사업명 — 새 사업을 만들 셈으로 오타를 내면 목록이 갈라진다 */
   const [projectNames, setProjectNames] = useState<string[]>([]);
   useEffect(() => {
     if (!saveOpen) return;
-    windsiteApi.projects()
+    windsiteApi.projects(P.code)
       .then(d => setProjectNames(d.results.map(p => p.name)))
       .catch(() => setProjectNames([]));
   }, [saveOpen]);
@@ -113,14 +202,21 @@ export default function WindSiteView() {
     setSaving(true); setError('');
     const s = areaResult;
     try {
+      // 발전시간·이용률은 후보를 견줄 때 매번 재검토할 수 없으므로 요약에
+      // 함께 남긴다 — 산출 시점과 함께.
       const plan = await windsiteApi.savePlan({
         project, name: saveForm.name.trim(), note: saveForm.note,
+        reviewer: saveForm.reviewer.trim(),
+        energy: P.code, mode: pickMode,
         turbines: ring,
         turbine_radius_m: turbineR, corridor_radius_m: corridorR,
         capacity_mw: capacity || null, permit_date: permitDate,
         sido, sigungu,
         summary: s ? {
           points: ring.length,
+          parcels: s.parcel?.count ?? s.screening?.counts?.POSSIBLE ?? undefined,
+          hours_per_day: s.yield?.hours_per_day,
+          capacity_factor: s.yield?.capacity_factor,
           total_ha: s.total.ha, free_ha: s.free.ha,
           blocked_ha: s.blocked.ha, conditional_ha: s.conditional.ha,
           // 여러 호기면 가장 나쁜 지점이 그 배치의 성적이다.
@@ -133,8 +229,14 @@ export default function WindSiteView() {
         } : {},
       });
       setSaveOpen(false);
-      setSaveForm({ project, name: '', note: '' });
+      // 사업명과 검토자는 남긴다 — 같은 사람이 같은 사업의 후보를 잇달아
+      // 저장하는 것이 보통이라, 지우면 매번 다시 치게 된다.
+      setSaveForm(f => ({ project, name: '', note: '', reviewer: f.reviewer }));
       setSavedKey(k => k + 1);
+      // 다음 저장 때 다시 치지 않도록 이름을 기억한다.
+      if (saveForm.reviewer.trim()) {
+        localStorage.setItem(REVIEWER_KEY, saveForm.reviewer.trim());
+      }
       setSavedMsg(`${plan.project_name} · ${plan.name} 저장됨`);
       window.setTimeout(() => setSavedMsg(''), 4000);
     } catch (e) {
@@ -159,15 +261,92 @@ export default function WindSiteView() {
     setAreaResult(null);
     setSaveForm(f => ({ ...f, project: x.project_name, name: '', note: '' }));
     setTab('result');
+    if (x.turbines.length) setFitToken(t => t + 1);
     setSavedMsg(`${x.project_name} · ${x.name} 불러옴 — 검토를 다시 실행하십시오.`);
     window.setTimeout(() => setSavedMsg(''), 6000);
+  }
+
+  /**
+   * 지금 지도 화면을 PNG로 캡처한다 — 서버가 규제 레이어를 다시 그린 지도는
+   * 정부 원본 데이터의 단순화나 필지 경계 처리 방식 차이로 화면과 미세하게
+   * 달라 보일 수 있다(좁은 물길 근처 등). 화면을 그대로 캡처하면 그 문제
+   * 자체가 성립하지 않는다 — 사용자가 실제로 본 그림이 그대로 보고서에
+   * 들어간다.
+   *
+   * 실패해도(보안 정책으로 캔버스가 오염되는 등) 조용히 넘어간다 — 보고서는
+   * 서버 렌더링으로 대체돼 계속 나온다. 지도 하나 때문에 보고서 전체를
+   * 막을 이유가 없다.
+   */
+  async function captureMapImage(): Promise<string | null> {
+    const map = mapInstanceRef.current;
+    if (!map) return null;
+    try {
+      // 줌·레이어 선택 컨트롤은 사용자 UI지 지도 내용이 아니다. 축척
+      // 막대(leaflet-control-scale)는 남긴다 — 보고서에서도 뜻이 있다.
+      const canvas = await html2canvas(map.getContainer(), {
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        scale: CAPTURE_SCALE,
+        ignoreElements: (el) =>
+          el.classList.contains('leaflet-control-zoom')
+          || el.classList.contains('leaflet-control-layers')
+          || el.classList.contains('leaflet-control-attribution'),
+      });
+      // ⚠️ JPEG로 보낸다. 배경이 위성영상(사진)이라 PNG 무손실로 뜨면 한 장이
+      //    5~8MB고, 보고서 한 번에 최대 5장이라 요청 본문이 수십 MB가 된다 —
+      //    실제로 그 때문에 서버가 400(RequestDataTooBig)을 돌려줬다.
+      //    품질 0.85면 지도 판독에는 차이가 없고 크기는 1/5~1/10이다.
+      return canvas.toDataURL('image/jpeg', CAPTURE_QUALITY);
+    } catch (e) {
+      console.warn('지도 캡처 실패 — 서버 렌더링으로 대체합니다.', e);
+      return null;
+    }
+  }
+
+  /** state 갱신 → SitePicker의 지도 갱신 useEffect가 실제로 반영될 때까지 */
+  async function waitFrame(ms = 300) {
+    await new Promise(r => window.setTimeout(r, ms));
+  }
+
+  /**
+   * 요약지도 + 환경성 항목 지도(용도지역 구성·개별 항목)를 화면 그대로
+   * **순서대로** 캡처한다.
+   *
+   * "지도 보기"를 하나씩 바꿔가며 매번 찍는다 — 화면에 있는 선택 기능을
+   * 그대로 자동화한 것이라, 사용자가 손으로 눌러 볼 수 있는 것과 보고서에
+   * 실리는 것이 항상 같은 그림이다. 끝나면 원래 보던 화면(전체 제약도)으로
+   * 되돌린다.
+   */
+  async function captureAllMaps(): Promise<{ mapImage: string | null; envImages: Record<string, string> }> {
+    const mapImage = await captureMapImage();
+    const layers = areaResult?.env_layers ?? [];
+    const envImages: Record<string, string> = {};
+    if (!layers.length) return { mapImage, envImages };
+
+    const targets = [
+      ...(layers.some(l => l.kind === 'zoning') ? [ENV_ZONING_KEY] : []),
+      ...layers.filter(l => l.kind === 'item').map(l => l.name),
+    ];
+    for (const key of targets) {
+      setActiveEnvLayer(key);
+      await waitFrame();
+      const img = await captureMapImage();
+      if (img) envImages[key] = img;
+    }
+    setActiveEnvLayer(null);
+    await waitFrame(100);
+    return { mapImage, envImages };
   }
 
   async function downloadAreaReport() {
     const id = (crypto.randomUUID?.() ?? String(Date.now()));
     const abort = new AbortController();
     reportJob.current = { id, abort };
-    setAreaReporting(true); setError(''); setReportProgress({ percent: 0, stage: '시작' });
+    setAreaReporting(true); setError('');
+    setReportProgress({ percent: 0, stage: '지도 캡처' });
+
+    const { mapImage, envImages } = await captureAllMaps();
+    setReportProgress({ percent: 0, stage: '시작' });
 
     // 동기 응답이라 진행률을 흘려보낼 수 없다. 서버가 Redis에 남긴 값을
     // 따로 물어본다. 작업이 끝나면 finally에서 멈춘다.
@@ -179,7 +358,14 @@ export default function WindSiteView() {
     }, 3000);
 
     try {
-      await windsiteApi.downloadAreaReport({ ...areaBody(), job_id: id }, abort.signal);
+      // 화면이 알고 있는 사업구역 경계를 함께 보낸다. 서버 재계산과
+      // 다르면(그 사이 코드·데이터가 바뀐 경우) 서버가 캡처를 버리고
+      // 모든 지도를 서버 렌더로 통일한다 — 문서 안에서 지도마다 다른
+      // 경계가 나가는 일을 서버 쪽에서 차단한다.
+      await windsiteApi.downloadAreaReport(
+        { ...areaBody(), job_id: id, map_image: mapImage, env_images: envImages,
+          site_rings: areaResult?.site_rings ?? null },
+        abort.signal);
     } catch (e) {
       // 사용자가 끊은 것은 오류가 아니다
       if (!(e instanceof DOMException && e.name === 'AbortError')) {
@@ -214,10 +400,15 @@ export default function WindSiteView() {
   }
 
   async function runArea() {
-    const layout = pickMode === 'layout';
-    if (layout ? ring.length < 1 : ring.length < 3) {
-      setError(layout ? '발전기 위치를 1기 이상 찍어주세요.'
-                      : '사업구역 꼭짓점을 3개 이상 찍어주세요.');
+    if (pickMode === 'parcel') {
+      if (!parcelList.length) {
+        setError('지도에서 필지를 한 곳 이상 선택해 주세요.');
+        return;
+      }
+    } else if (pickMode === 'layout' ? ring.length < 1 : ring.length < 3) {
+      setError(pickMode === 'layout'
+        ? '발전기 위치를 1기 이상 찍어주세요.'
+        : '사업구역 꼭짓점을 3개 이상 찍어주세요.');
       return;
     }
     setAreaLoading(true); setError('');
@@ -230,6 +421,74 @@ export default function WindSiteView() {
       setAreaLoading(false);
     }
   }
+
+  /**
+   * 클릭한 좌표를 필지로 되돌린다.
+   *
+   * 좌표가 늘 때마다 **새로 찍은 것만** 조회한다. 전체를 다시 돌리면
+   * 필지를 하나 추가할 때마다 호출이 제곱으로 는다.
+   *
+   * 필지를 못 찾은 좌표는 지우지 않고 사유와 함께 남긴다 — '여기엔 필지가
+   * 없다'(도로·하천)와 '조회하지 못했다'는 전혀 다른 사실이고, 화면이
+   * 그것을 구분해 말해야 다음 행동을 정할 수 있다.
+   */
+  useEffect(() => {
+    if (pickMode !== 'parcel') return;
+    if (!ring.length) { setParcelList([]); setParcelMisses([]); return; }
+
+    let alive = true;
+    (async () => {
+      // 지운 좌표에 딸린 필지·실패기록을 먼저 떨어낸다
+      const key = (a: number, o: number) => `${a.toFixed(5)},${o.toFixed(5)}`;
+      const live = new Set(ring.map(([a, o]) => key(a, o)));
+      let list = parcelList.filter(p => live.has(key(p.lat, p.lng)));
+      let misses = parcelMisses.filter(m => live.has(key(m.lat, m.lng)));
+      const known = new Set([...list.map(p => key(p.lat, p.lng)),
+                             ...misses.map(m => key(m.lat, m.lng))]);
+      const todo = ring.filter(([a, o]) => !known.has(key(a, o)));
+      if (!todo.length) {
+        if (list.length !== parcelList.length) setParcelList(list);
+        if (misses.length !== parcelMisses.length) setParcelMisses(misses);
+        return;
+      }
+
+      setParcelBusy(true);
+      for (const [a, o] of todo) {
+        try {
+          const r = await windsiteApi.parcel({ lat: a, lng: o });
+          if (!alive) return;
+          if (r.found && r.parcel) {
+            // 같은 필지를 두 번 눌렀으면 합친다 — 면적이 두 배로 잡히지 않도록
+            if (!list.some(p => p.pnu && p.pnu === r.parcel!.pnu)) {
+              list = [...list, r.parcel];
+            }
+          } else {
+            misses = [...misses, { lat: a, lng: o,
+                                   reason: 'NO_PARCEL',
+                                   detail: r.detail || '해당 좌표에 필지가 없습니다.' }];
+          }
+        } catch (e) {
+          if (!alive) return;
+          misses = [...misses, { lat: a, lng: o, reason: 'FETCH',
+                                 detail: e instanceof Error ? e.message : '조회 실패' }];
+        }
+        setParcelList(list); setParcelMisses(misses);
+      }
+      if (alive) setParcelBusy(false);
+
+      // 시·도/시·군·구는 첫 필지 기준으로 채운다(조례 조회 기준값).
+      const head = list[0];
+      if (alive && head && !sigungu) {
+        try {
+          const g = await windsiteApi.geocode({ lat: head.lat, lng: head.lng });
+          if (alive) { setSido(g.sido || ''); setSigungu(g.sigungu || ''); }
+        } catch { /* 주소를 못 받아도 좌표 지정은 유효하다 */ }
+      }
+    })();
+    return () => { alive = false; };
+    // parcelList/parcelMisses를 의존성에 넣으면 갱신마다 다시 돌아 무한루프가 된다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickMode, ring]);
 
   /**
    * 지도에서 지점을 찍으면 주소·행정구역을 자동으로 채운다.
@@ -284,9 +543,9 @@ export default function WindSiteView() {
   }, [pickMode, ring]);
 
   useEffect(() => {
-    windsiteApi.laws().then(d => setLaws(d.results)).catch(() => setLaws([]));
+    windsiteApi.laws(P.code).then(d => setLaws(d.results)).catch(() => setLaws([]));
     windsiteApi.config().then(d => setConfig(d.results)).catch(() => setConfig([]));
-  }, []);
+  }, [P.code]);
 
   /**
    * 후보지로 담기 — 지점 1곳을 찍었을 때만 담는다.
@@ -350,10 +609,10 @@ export default function WindSiteView() {
   const [permits, setPermits] = useState<PermitStep[]>([]);
   useEffect(() => {
     if (tab !== 'permits') return;
-    windsiteApi.permits(capacity ? Number(capacity) : null)
+    windsiteApi.permits(capacity ? Number(capacity) : null, P.code)
       .then(d => setPermits(d.results))
       .catch(() => setPermits([]));
-  }, [tab, capacity]);
+  }, [tab, capacity, P.code]);
 
   const notConfigured = config.filter(c => c.configured === false);
 
@@ -365,13 +624,15 @@ export default function WindSiteView() {
           <div className="ops-card-hd"><span className="tag">SITE</span> 사업지 지정</div>
           <div className="ops-card-bd">
             <div className="ws-modebar">
-              {(['layout', 'area'] as const).map(m => (
+              {P.modes.map(m => (
                 <button key={m} type="button"
                   className={pickMode === m ? 'on' : ''}
                   onClick={() => {
-                    setPickMode(m); setRing([]); setAreaResult(null); setTurbineAddrs([]);
+                    setPickMode(m); setRing([]); setAreaResult(null);
+                    setTurbineAddrs([]); setParcelList([]); setParcelMisses([]);
                   }}>
-                  {m === 'layout' ? '지점·배치선 검토' : '구역 검토'}
+                  {m === 'layout' ? '지점·배치선 검토'
+                    : m === 'parcel' ? '필지 검토' : '구역 검토'}
                 </button>
               ))}
               {(
@@ -381,6 +642,7 @@ export default function WindSiteView() {
                   <button type="button" disabled={!ring.length}
                     onClick={() => {
                       setRing([]); setAreaResult(null); setTurbineAddrs([]);
+                      setParcelList([]); setParcelMisses([]);
                     }}>지우기</button>
 
                 </span>
@@ -404,6 +666,21 @@ export default function WindSiteView() {
                 <em>조례 시행일보다 앞서면 부칙 경과조치 검토 대상으로 표시합니다</em>
               </div>
             )}
+            {!!areaResult?.env_layers?.length && (
+              <label className="ws-fld" style={{ marginBottom: 6 }}>
+                <span>지도 보기</span>
+                <select value={activeEnvLayer ?? ''}
+                  onChange={e => setActiveEnvLayer(e.target.value || null)}>
+                  <option value="">전체 제약도</option>
+                  {areaResult.env_layers.some(l => l.kind === 'zoning') && (
+                    <option value={ENV_ZONING_KEY}>용도지역 구성</option>
+                  )}
+                  {areaResult.env_layers.filter(l => l.kind === 'item').map(l => (
+                    <option key={l.name} value={l.name}>{l.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <SitePicker
               lat={null} lng={null} radiusM={0}
               onPick={() => {}}
@@ -412,8 +689,26 @@ export default function WindSiteView() {
               onRingChange={setRing}
               turbineRadiusM={turbineR}
               corridorRadiusM={corridorR}
+              parcels={parcelList}
+              screening={!areaResult?.screening?.too_wide
+                ? (areaResult?.screening?.parcels ?? []).filter(
+                    p => !candidatesOnly
+                      || (p.grade !== 'NOT_APPLICABLE' && p.grade !== 'IMPOSSIBLE'))
+                : null}
+              fitToken={fitToken}
               overlays={areaResult?.overlays ?? null}
+              siteRings={areaResult?.site_rings ?? null}
+              overlayLabels={areaResult?.overlay_labels}
+              roadDetail={areaResult?.road_detail ?? null}
+              onMapReady={(map) => { mapInstanceRef.current = map; }}
+              envLayers={areaResult?.env_layers}
+              activeEnvLayer={activeEnvLayer}
             />
+            {areaResult?.screening && (
+              <ScreenPanel r={areaResult.screening} busy={areaLoading}
+                onlyCandidates={candidatesOnly}
+                onToggleOnly={setCandidatesOnly} />
+            )}
             {areaResult && (
               <AreaSummary r={areaResult} />
             )}
@@ -429,10 +724,15 @@ export default function WindSiteView() {
                 <em>
                   {pickMode === 'layout'
                     ? `(지점 ${ring.length}곳 · 클릭 시 자동 입력)`
-                    : '(구역 검토 — 지도에서 꼭짓점을 찍으십시오)'}
+                    : pickMode === 'parcel'
+                      ? `(필지 ${parcelList.length}개${parcelBusy ? ' · 조회 중…' : ''})`
+                      : '(구역 검토 — 지도에서 꼭짓점을 찍으십시오)'}
                 </em>
               </span>
-              {pickMode === 'layout' ? (
+              {pickMode === 'parcel' ? (
+                <ParcelPanel list={parcelList} misses={parcelMisses}
+                             busy={parcelBusy} />
+              ) : pickMode === 'layout' ? (
                 ring.length === 0 ? (
                   <p className="ws-addr-empty">지도에서 지점을 찍으면 주소가 표시됩니다. 한 곳이면 지점 검토, 여러 곳이면 배치선 검토입니다.</p>
                 ) : (
@@ -477,10 +777,26 @@ export default function WindSiteView() {
                 배치선 모드에서도 그대로 두면, 위·경도가 비어 있어 '사업지를
                 지정하십시오'만 반복된다. */}
             <button className="btn-primary ws-run" onClick={runArea}
-              disabled={areaLoading || ring.length < (pickMode === 'layout' ? 1 : 3)}>
+              disabled={areaLoading || parcelBusy
+                || (pickMode === 'parcel'
+                    ? parcelList.length < 1
+                    : ring.length < (pickMode === 'layout' ? 1 : 3))}>
               {areaLoading ? '검토 중…'
-                : pickMode === 'layout' ? '입지타당성 검토 실행' : '구역 검토 실행'}
+                : pickMode === 'layout' ? '입지타당성 검토 실행'
+                : pickMode === 'parcel' ? '필지 검토 실행' : '구역 검토 실행'}
             </button>
+            {/* 사업명은 보고서 **파일명과 표지**에 그대로 들어간다.
+                종전에는 「배치안 저장」 패널 안에만 있어, 접혀 있는 동안에는
+                보고서를 받는 사람 눈에 보이지 않았다. 같은 상태를 쓰므로
+                어느 쪽에서 채워도 다른 쪽에 그대로 반영된다. */}
+            {areaResult && !areaReporting && (
+              <label className="ws-fld ws-report-name">
+                <span>사업명 <em>(보고서 파일명·표지에 들어갑니다)</em></span>
+                <input value={saveForm.project} maxLength={120} list="ws-projects"
+                  placeholder="예) 장흥 염해농지 태양광"
+                  onChange={e => setSaveForm(f => ({ ...f, project: e.target.value }))} />
+              </label>
+            )}
             <div className="ws-actions">
               {areaReporting ? (
                 <span className="ws-progress">
@@ -497,17 +813,25 @@ export default function WindSiteView() {
                 </span>
               ) : (
                 <>
-                  <button className="ws-btn2" onClick={downloadAreaReport}
+                  <button className="ws-btn2"
+                    onClick={downloadAreaReport}
                     disabled={!areaResult || areaLoading}>
                     보고서 내려받기 (docx)
                   </button>
-                  {pickMode === 'layout' && (
+                  {P.allowPlans && pickMode === 'layout' && (
                     <button className="ws-btn2" disabled={!ring.length || areaLoading}
                       onClick={() => { setSaveOpen(true); setError(''); }}>
                       배치안 저장
                     </button>
                   )}
-                  {pickMode === 'layout' && ring.length === 1 && (
+                  {P.hasCandidates && pickMode === 'area' && (
+                    <button className="ws-btn2"
+                      disabled={ring.length < 3 || areaLoading}
+                      onClick={() => { setSaveOpen(true); setError(''); }}>
+                      후보로 담기
+                    </button>
+                  )}
+                  {P.allowCompare && pickMode === 'layout' && ring.length === 1 && (
                     <button className="ws-btn2" onClick={addCandidate}
                       disabled={areaLoading}>
                       후보지로 담기 {candidates.length > 0 && `(${candidates.length})`}
@@ -520,12 +844,17 @@ export default function WindSiteView() {
               {ring.length === 0
                 ? (pickMode === 'layout'
                     ? '지도를 클릭해 지점을 찍으십시오. 한 곳이면 지점 검토, 여러 곳이면 배치선 검토가 됩니다.'
-                    : '지도를 클릭해 사업구역 꼭짓점을 3개 이상 찍으십시오.')
+                    : pickMode === 'parcel'
+                      ? '지도를 확대해 필지를 클릭하십시오. 인접 필지를 여러 개 고르면 하나의 사업지로 묶어 검토합니다.'
+                      : '지도를 클릭해 사업구역 꼭짓점을 3개 이상 찍으십시오.')
                 : !areaResult
                   ? '검토를 실행하면 규제 항목과 면적 분포, 제약도가 표시됩니다.'
-                  : '보고서에는 종합판정·규제 62개 항목·제약도·풍황·계통·조례 경과규정이 '
-                    + '포함됩니다. 지점마다 규제를 조회하므로 같은 배치의 첫 생성은 '
-                    + '5~10분 걸리고, 이후 재생성은 10초 내로 끝납니다.'}
+                  : '보고서에는 종합판정·규제 62개 항목·제약도·'
+                    + (P.hasWindResource ? '풍황·' : '')
+                    + '계통·조례 경과규정이 포함됩니다. 지점마다 규제를 조회하므로 '
+                    + '같은 부지의 첫 생성은 5~10분 걸리고, 이후 재생성은 10초 내로 '
+                    + '끝납니다. 파일명에는 위 「사업명」이 들어가므로 먼저 채워 '
+                    + '두십시오.'}
             </p>
 
             {savedMsg && <p className="ws-ok">{savedMsg}</p>}
@@ -545,8 +874,11 @@ export default function WindSiteView() {
       <div className="ws-tabs">
         {([
           ['result', '입지 검토 결과'],
-          ['saved', '저장한 배치안'],
-          ['compare', `후보지 비교${candidates.length ? ` (${candidates.length})` : ''}`],
+          ...(P.allowPlans ? [['saved', '저장한 배치안']] : []),
+          ...(P.hasCandidates ? [['cands', '후보 필지']] : []),
+          ...(P.allowCompare
+            ? [['compare', `후보지 비교${candidates.length ? ` (${candidates.length})` : ''}`]]
+            : []),
           ['permits', '인허가 로드맵'],
           ['laws', `관련 법령 (${laws.length})`],
           ['config', '데이터 연동 현황'],
@@ -626,6 +958,41 @@ export default function WindSiteView() {
       )}
 
       {/* ── 후보지 비교 ── */}
+      {tab === 'cands' && (
+        <SolarCandidates refreshKey={savedKey} onLoad={(x) => {
+          // 좌표와 조건만 되돌린다. 저장된 요약은 그때의 규제 기준이므로
+          // 결과 칸에 남겨 두면 지금 판정으로 오인한다.
+          //
+          // ⚠️ 모드를 **저장된 그대로** 되돌려야 한다. 종전에는 무조건
+          //    'parcel'로 두어, 구역으로 담은 후보를 불러오면 **폴리곤
+          //    꼭짓점이 필지 클릭 좌표로 해석**됐다. 꼭짓점마다 필지가
+          //    하나씩 잡혀 22개 구역이 22필지로 둔갑했다.
+          const mode: PickMode = P.modes.includes(x.mode as PickMode)
+            ? (x.mode as PickMode) : P.modes[0];
+          setPickMode(mode);
+          // 모드가 달라지면 좌표의 뜻도 달라진다(꼭짓점 vs 필지 클릭점).
+          // 그대로 밀어 넣으면 22개 꼭짓점이 22필지로 읽힌다.
+          setRing(mode === x.mode ? x.turbines : []);
+          setParcelList([]); setParcelMisses([]);
+          setCapacity(x.capacity_mw != null ? String(x.capacity_mw) : '');
+          setPermitDate(x.permit_date || '');
+          setSido(x.sido); setSigungu(x.sigungu);
+          setAreaResult(null);
+          setTab('result');
+          // 좌표를 되살렸으면 그 사업지가 보이도록 지도를 맞춘다 —
+          // 전국 시점에 점만 찍혀 있으면 매번 손으로 찾아 들어가야 한다.
+          if (mode === x.mode && x.turbines.length) setFitToken(t => t + 1);
+          // 지금 화면에 없는 모드로 담아 둔 옛 후보는 좌표의 뜻이 달라
+          // 그대로 되살릴 수 없다. 조용히 다른 모드로 밀어 넣지 않고 알린다.
+          setSavedMsg(mode === x.mode
+            ? `${x.project_name} · ${x.name} 불러옴 — 검토를 다시 실행하십시오.`
+            : `${x.project_name} · ${x.name}은(는) 지금은 쓰지 않는 '${x.mode}' 방식으로 `
+              + '담긴 후보라 좌표를 그대로 되살릴 수 없습니다. 지도에서 구역을 다시 '
+              + '지정해 주십시오.');
+          window.setTimeout(() => setSavedMsg(''), 8000);
+        }} />
+      )}
+
       {tab === 'compare' && (
         <>
           <div className="ops-card ws-cmp-head">
@@ -705,7 +1072,13 @@ export default function WindSiteView() {
       {/* ── 인허가 로드맵 ── */}
       {tab === 'permits' && (
         permits.length === 0 ? (
-          <p className="ops-empty">인허가 로드맵을 불러오는 중입니다.</p>
+          <p className="ops-empty">
+            {P.hasPermitSeed
+              ? '인허가 로드맵을 불러오는 중입니다.'
+              : `${P.label} 인허가 절차는 아직 등록되지 않았습니다. 절차가 없다는 뜻이 `
+                + '아니라 데이터가 없다는 뜻이며, 풍력 절차를 대신 보여 주지 '
+                + '않습니다(발전사업허가 소관·용량 경계가 다릅니다).'}
+          </p>
         ) : (
           <div className="ws-roadmap">
             {permits.map(s => (
@@ -737,7 +1110,12 @@ export default function WindSiteView() {
       {/* ── 법령 ── */}
       {tab === 'laws' && (
         <div className="ws-laws">
-          {laws.length === 0 && <p className="ops-empty">법령 데이터가 없습니다. 시드 명령을 실행하십시오.</p>}
+          {laws.length === 0 && (
+            <p className="ops-empty">
+              {P.label} 관련 법령이 등록되지 않았습니다. 시드 등록 전까지는
+              목록을 비워 둡니다 — 다른 에너지원의 법령을 대신 싣지 않습니다.
+            </p>
+          )}
           {laws.map(l => (
             <div key={l.name} className="ws-law">
               <div className="ws-law-hd">
@@ -799,7 +1177,19 @@ export default function WindSiteView() {
       {saveOpen && (
         <div className="ws-modal-bg" onClick={() => setSaveOpen(false)}>
           <div className="ws-modal" onClick={e => e.stopPropagation()}>
-            <b>배치안 저장</b>
+            <b>{P.hasCandidates && pickMode === 'area' ? '후보로 담기' : '배치안 저장'}</b>
+            {P.hasCandidates && pickMode === 'area' ? (
+              <p className="ws-modal-note">
+                구역 꼭짓점 {ring.length}개와 검토 조건을 남깁니다.
+                {areaResult?.screening
+                  && ` 구역 안 필지 ${areaResult.screening.counts.POSSIBLE ?? 0}개가 '가능'입니다.`}
+                {areaResult
+                  ? ' 지금 검토 결과의 면적·발전시간 요약도 산출 시점과 함께 저장됩니다.'
+                  : ' 아직 검토를 실행하지 않아 좌표만 저장됩니다.'}
+                {' '}판정 전문은 담지 않습니다 — 규제·조례는 개정되므로 불러올 때
+                그 시점 기준으로 다시 검토합니다.
+              </p>
+            ) : (
             <p className="ws-modal-note">
               지점 {ring.length}곳과 검토 조건(반경 {turbineR}/{corridorR}m
               {permitDate && ` · 허가일 ${permitDate}`})을 남깁니다.
@@ -807,6 +1197,7 @@ export default function WindSiteView() {
                 ? ' 지금 검토 결과의 요약도 산출 시점과 함께 저장됩니다.'
                 : ' 아직 검토를 실행하지 않아 좌표만 저장됩니다.'}
             </p>
+            )}
             <label className="ws-fld">
               <span>사업명 <em>(없으면 새로 만듭니다)</em></span>
               <input value={saveForm.project} maxLength={120} list="ws-projects"
@@ -817,9 +1208,15 @@ export default function WindSiteView() {
               </datalist>
             </label>
             <label className="ws-fld">
-              <span>배치안명 <em>(비우면 배치안 1, 2… 로 붙습니다)</em></span>
+              <span>{P.hasCandidates ? '후보명' : '배치안명'}{' '}
+                <em>(비우면 {P.hasCandidates ? '후보' : '배치안'} 1, 2… 로 붙습니다)</em></span>
               <input value={saveForm.name} maxLength={120} placeholder="배치안 1"
                 onChange={e => setSaveForm(f => ({ ...f, name: e.target.value }))} />
+            </label>
+            <label className="ws-fld">
+              <span>검토자 <em>(담당자명 — 이력에 남습니다)</em></span>
+              <input value={saveForm.reviewer} maxLength={60} placeholder="예) 홍길동"
+                onChange={e => setSaveForm(f => ({ ...f, reviewer: e.target.value }))} />
             </label>
             <label className="ws-fld">
               <span>메모 <em>(무엇을 바꿨는지 적어두면 나중에 알아봅니다)</em></span>
@@ -845,6 +1242,191 @@ export default function WindSiteView() {
 // ----------------------------------------------------------------------
 function StatusBadge({ s }: { s: keyof typeof STATUS_LABEL }) {
   return <span className={`ws-status s-${s}`}>{STATUS_LABEL[s]}</span>;
+}
+
+/**
+ * 부지로 쓸 수 없는 공공용지 성격 지목.
+ * 백엔드 `providers/cadastral.py`의 EXCLUDED와 같은 목록이다.
+ */
+const PUBLIC_JIMOK = new Set(['도로', '하천', '구거', '제방', '철도용지', '수도용지']);
+
+/**
+ * 스크리닝 현황 — 범례·집계·고지.
+ *
+ * 기획서 R-09가 요구하는 **예비 스크리닝 고지를 상시 노출**한다. 채색된
+ * 지도는 그럴듯해서 그것만으로 판단하기 쉬운데, 이 채색과 필지 클릭
+ * 정밀판정은 신뢰도가 다른 두 층이다. UI가 그 차이를 숨기면 안 된다(§3.4).
+ */
+function ScreenPanel({ r, busy, onlyCandidates, onToggleOnly }: {
+  r: ScreenResult | null; busy: boolean;
+  onlyCandidates: boolean; onToggleOnly: (v: boolean) => void;
+}) {
+  if (!r) {
+    return <p className="ws-screen-notice">{busy ? '필지를 조회하는 중입니다…'
+      : '지도를 움직이면 화면 범위의 필지를 등급별로 칠합니다.'}</p>;
+  }
+  if (r.too_wide) {
+    // 오류가 아니라 '더 확대하라'는 상태다. 붉게 띄우지 않는다.
+    return <p className="ws-screen-notice">{r.detail}</p>;
+  }
+
+  const total = Object.values(r.counts).reduce((a, b) => a + b, 0);
+  const na = r.counts.NOT_APPLICABLE ?? 0;
+  return (
+    <>
+      <div className="ws-legend">
+        {(['POSSIBLE', 'CONDITIONAL', 'IMPOSSIBLE', 'UNKNOWN',
+           'NOT_APPLICABLE'] as const).map(g => (
+          <span key={g}>
+            <i className={`g-${g}`} />
+            {SCREEN_GRADE_LABEL[g]} <b>{(r.counts[g] ?? 0).toLocaleString()}</b>
+          </span>
+        ))}
+        {/* 도로 이격은 채움이 아니라 선·파선이라 네모 범례로는 알 수 없다.
+            선 모양 그대로 보여 준다 — 지도의 무엇을 가리키는지가 바로 보인다. */}
+        <span className="ws-legend-road" title="조례가 정한 도로 이격 — 선은 기준 도로, 파선은 이격 범위">
+          <i className="road-blocked" />배제 도로
+          <i className="road-uncertain" />조건부 도로
+        </span>
+        <label className="ws-screen-toggle" title="대상 아님·배제 필지를 지도에서 감춥니다">
+          <input type="checkbox" checked={onlyCandidates}
+            onChange={e => onToggleOnly(e.target.checked)} />
+          {' '}후보만 보기
+        </label>
+        <span className="ws-legend-sum">
+          화면 {r.area_km2} km² · 필지 {total.toLocaleString()}개{busy && ' · 갱신 중…'}
+        </span>
+      </div>
+
+      {na > 0 && (
+        <p className="ws-screen-notice">
+          <b>대상 아님 {na.toLocaleString()}필지</b>를 후보에서 뺐습니다 —
+          면적 {r.min_area_m2.toLocaleString()}㎡ 미만, 발전부지가 될 수 없는
+          지목(도로·하천·학교·묘지 등), 그리고 <b>건축물이 필지를 덮고 있는
+          경우</b>(마을·축사·공장, 건축물 {r.building_count.toLocaleString()}동 대조)
+          입니다. <b>규제 때문에 배제된 것이 아니라 애초에 후보가 아닌</b>
+          땅이며, '후보만 보기'를 끄면 경계선으로 확인할 수 있습니다.
+        </p>
+      )}
+
+      <p className="ws-screen-notice">
+        <b>본 채색은 1차 스크리닝이며 인허가 판단을 대신하지 않습니다.</b>
+        {' '}<b>미확인(빗금)</b>은 제약이 없다는 뜻이 아니라 <b>조회하지 못했다</b>는
+        뜻입니다. 조건부는 색이 하나이므로, <b>필지에 커서를 올리면 무엇 때문에
+        조건부인지</b>(조례 이격·농업진흥지역 등) 확인할 수 있습니다.
+        {' '}필지를 눌러 그 필지만 따로 정밀판정할 수도 있습니다.
+      </p>
+
+      {r.unverified.length > 0 && (
+        <p className="ws-warn">
+          {r.unverified.join(' · ')} 은(는) <b>이격거리 조례를 확인하지 못했습니다.</b>
+          {' '}해당 관할 필지는 '가능'으로 칠하지 않고 미확인으로 남겼습니다.
+        </p>
+      )}
+      {r.truncated && (
+        <p className="ws-warn">
+          필지 수가 상한에 걸려 <b>일부가 표시되지 않았습니다.</b> 이 화면에 보이는
+          것이 전부가 아니므로, 더 확대해 나눠 보십시오.
+        </p>
+      )}
+      {r.fetch_failures.length > 0 && (
+        <p className="ws-warn">
+          조회하지 못한 레이어 {r.fetch_failures.length}건 —{' '}
+          {r.fetch_failures.slice(0, 2).join(' / ')}
+          {r.fetch_failures.length > 2 && ' 외'}. <b>보지 못한 제약이 있을 수
+          있어</b> 이 화면의 필지를 미확인으로 처리했습니다.
+        </p>
+      )}
+    </>
+  );
+}
+
+/**
+ * 선택한 필지 목록.
+ *
+ * 지번·지목·면적을 함께 보여준다. 태양광은 **면적이 곧 사업 규모**라
+ * 지번만 나열하면 무엇을 고른 것인지 알 수 없다.
+ *
+ * 못 찾은 좌표도 함께 싣는다. 조용히 빼면 필지 하나가 빠진 채 면적이 나오고,
+ * 그 숫자로 부지 계약과 설계가 진행된다. 그리고 그 둘 — '여기엔 필지가
+ * 없다'와 '조회하지 못했다' — 을 구분해 적는다. 앞은 확정 정보이고
+ * 뒤는 재시도로 풀릴 수 있는 문제다.
+ */
+function ParcelPanel({ list, misses, busy }: {
+  list: ParcelInfo[]; misses: ParcelMiss[]; busy: boolean;
+}) {
+  if (!list.length && !misses.length) {
+    return (
+      <p className="ws-addr-empty">
+        지도를 확대해 필지를 클릭하면 지번·지목·면적이 표시됩니다.
+        {busy && ' 조회 중…'}
+      </p>
+    );
+  }
+
+  const total = list.reduce((s, p) => s + p.area_m2, 0);
+  const inexact = list.filter(p => !p.exact);
+  // 공공용지 성격 지목은 부지로 쓸 수 없다. 지도만 보고 클릭하면 구거·하천을
+  // 밭으로 착각하기 쉬운데(폭이 좁고 초지로 보인다), 그대로 넣으면 면적이
+  // 부풀려진 채 사업 규모가 잡힌다. 빼지는 않는다 — 고른 것은 사용자다.
+  const publicUse = list.filter(p => PUBLIC_JIMOK.has(p.jimok));
+
+  return (
+    <>
+      <ol className="ws-addrlist">
+        {list.map((p, i) => (
+          <li key={p.pnu || i}>
+            <span className="no">{i + 1}</span>
+            <span className="addr">
+              {p.addr || p.jibun || p.pnu}
+              <em>
+                {' '}· {p.jimok} · {p.area_m2.toLocaleString()}㎡
+                ({(p.area_m2 / 3.305785).toFixed(0)}평)
+              </em>
+            </span>
+            {!p.exact && <span className="ws-badge na" title="경계 근처를 클릭해 인접 필지를 골랐습니다">확인 필요</span>}
+          </li>
+        ))}
+      </ol>
+
+      <p className="ws-hint">
+        선택 {list.length}필지 · 합계 {(total / 10_000).toFixed(2)} ha
+        ({total.toLocaleString()}㎡ · {(total / 3.305785).toFixed(0)}평)
+        {busy && ' · 조회 중…'}
+      </p>
+
+      {inexact.length > 0 && (
+        <p className="ws-warn">
+          {inexact.length}필지는 클릭 지점이 어느 필지에도 들지 않아 <b>가장 가까운
+          필지</b>를 골랐습니다. 의도한 필지가 맞는지 지번을 확인하십시오.
+        </p>
+      )}
+
+      {publicUse.length > 0 && (
+        <p className="ws-warn">
+          <b>{publicUse.map(p => p.jimok).filter((v, i, a) => a.indexOf(v) === i).join('·')}</b>
+          {' '}지목이 포함돼 있습니다({publicUse.length}필지 ·{' '}
+          {(publicUse.reduce((s, p) => s + p.area_m2, 0) / 10_000).toFixed(2)} ha).
+          공공용지 성격이라 발전부지로 쓸 수 없는 것이 일반적이며, 합계 면적에
+          그대로 들어가 있으니 사업 규모를 잡을 때 빼고 보십시오.
+        </p>
+      )}
+
+      {misses.length > 0 && (
+        <p className="ws-warn">
+          {misses.filter(m => m.reason === 'NO_PARCEL').length > 0 && (
+            <>클릭한 지점 {misses.filter(m => m.reason === 'NO_PARCEL').length}곳은
+              연속지적에 <b>필지가 없습니다</b>(도로·하천 등). 검토에서 제외됩니다. </>
+          )}
+          {misses.filter(m => m.reason === 'FETCH').length > 0 && (
+            <>{misses.filter(m => m.reason === 'FETCH').length}곳은 <b>조회에
+              실패</b>했습니다 — 필지가 없는 것이 아니라 물어보지 못한 것입니다.
+              해당 지점을 다시 클릭해 주십시오.</>
+          )}
+        </p>
+      )}
+    </>
+  );
 }
 
 /**
@@ -924,6 +1506,15 @@ function AreaSummary({ r }: { r: AreaResult }) {
             ))}
           </ul>
           <p>{r.grandfathering.note}</p>
+          {/* 판정을 어떻게 셌는지 그 자리에서 밝힌다. 면적 표만 보면
+              조례 이격이 왜 조건부인지 알 수 없고, 지도 색도 설명되지 않는다. */}
+          {r.ordinance_grandfathered && (
+            <p className="scenario">
+              이 검토에서는 <b>조례 이격을 배제가 아니라 조건부로 집계</b>했습니다 —
+              허가일이 조례 시행일보다 앞서 부칙 경과조치가 적용될 수 있기 때문입니다.
+              <em> 면제가 확정된 것은 아니며, 적용 여부는 관할 지자체가 판단합니다.</em>
+            </p>
+          )}
           {r.grandfathering.review_required &&
             r.grandfathering.free_if_exempt_m2 != null && (
             <p className="scenario">
