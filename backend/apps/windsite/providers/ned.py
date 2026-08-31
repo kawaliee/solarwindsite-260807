@@ -72,9 +72,10 @@ class NedClient:
 
 
 # ----------------------------------------------------------------------
-def select_parcels(q: SiteQuery, limit: int = MAX_PARCELS) -> tuple[list[dict], int]:
+def site_parcels(q: SiteQuery) -> list[dict]:
     """
-    검토 대상 필지 중 **면적이 큰 순서로** 조사 대상을 고른다.
+    검토 도형과 겹치는 필지 **전부**를 (중심 필지 → 면적 순)으로 돌려준다.
+
     연속지적 응답은 캐시되므로 CadastralProvider와 중복 호출이 발생하지 않는다.
 
     ⚠️ **구역 모드에서는 실제 사업구역과 겹치는 필지만 후보로 삼는다.**
@@ -97,7 +98,7 @@ def select_parcels(q: SiteQuery, limit: int = MAX_PARCELS) -> tuple[list[dict], 
 
     feats, _ = VworldClient.fetch_all(layer_id, q.lat, q.lng, q.radius_m)
     if not feats:
-        return [], 0
+        return []
 
     site = None
     if geo.GEO_AVAILABLE:
@@ -138,6 +139,27 @@ def select_parcels(q: SiteQuery, limit: int = MAX_PARCELS) -> tuple[list[dict], 
 
     # 중심 필지를 먼저, 그다음 면적 큰 순
     rows.sort(key=lambda r: (not r['is_center'], -r['area_m2']))
+    return rows
+
+
+def select_parcels(q: SiteQuery, limit: int = MAX_PARCELS,
+                   prefer_jimok: tuple = ()) -> tuple[list[dict], int]:
+    """
+    NED API로 조사할 필지를 고른다. → (고른 필지, 검토 도형과 겹치는 전체 수)
+
+    NED는 필지당 1회 호출이라 수백 필지를 다 볼 수 없다(MAX_PARCELS 참고).
+    무엇을 표본으로 삼을지는 항목마다 다르다.
+
+    `prefer_jimok`을 주면 그 지목을 **먼저** 고르고(그 안에서는 면적 순),
+    남은 자리를 나머지 필지로 채운다 — 소유구분은 국공유지가 몰려 있는
+    도로·구거·제방을 봐야 하고, 산지구분·토지특성은 부지를 대표하는 큰
+    필지를 봐야 한다.
+    """
+    rows = site_parcels(q)
+    if prefer_jimok:
+        # 우선 지목을 앞으로 당긴다. 정렬이 안정적이라 각 무리 안에서는
+        # site_parcels가 정한 차례(중심 필지 → 면적 순)가 그대로 유지된다.
+        rows = sorted(rows, key=lambda r: r['jimok'] not in prefer_jimok)
     return rows[:limit], len(rows)
 
 
@@ -161,15 +183,18 @@ class ParcelBasedProvider(LayerProvider):
         return ''
 
     @staticmethod
-    def _coverage_note(parcels: list[dict], total: int, q: SiteQuery | None = None) -> str:
+    def _coverage_note(parcels: list[dict], total: int, q: SiteQuery | None = None,
+                       how: str = '중심 필지와 면적 상위') -> str:
         if total <= len(parcels):
             return ''
         # 구역 모드에서는 total이 **사업구역과 겹치는** 필지 수다(외접원 안
         # 전체가 아니다 — select_parcels 참고). '반경 내'라고 하면 사업구역
         # 밖 필지까지 센 것처럼 읽힌다.
         scope = '사업구역 내' if (q is not None and q.is_area) else '반경 내'
-        return (f' ※ {scope} {total:,}개 필지 중 중심 필지와 면적 상위 '
-                f'{len(parcels)}개만 조회했습니다. 나머지 필지는 확인되지 않았습니다.')
+        # 무엇을 기준으로 골랐는지 밝힌다. 항목마다 고르는 기준이 다른데
+        # (select_parcels의 prefer_jimok) 문구가 하나면 표본의 뜻이 달라진다.
+        return (f' ※ {scope} {total:,}개 필지 중 {how} {len(parcels)}개만 '
+                f'조회했습니다. 나머지 필지는 확인되지 않았습니다.')
 
 
 # ======================================================================
@@ -397,6 +422,41 @@ class LandUseZoneProvider(ParcelBasedProvider):
         return Status(worst['status']), Difficulty(worst['difficulty']), hits
 
 
+#: 국유재산법·공유재산법상 **사용허가(대부)를 받아야 하는** 소유구분.
+#:
+#: ⚠️ '공유지'라는 값만 보면 안 된다. NED가 실제로 돌려주는 값은 지방자치단체
+#:    종류별로 갈린다 — 실측(2026-08, 장흥 회진면 도로 8필지)에서 5필지가
+#:    **'군유지'**로 왔는데, 종전 코드는 ('국유지','공유지')만 공유재산으로
+#:    보아 이 5필지를 사유지로 분류하고 "조회 필지는 모두 사유지"라고까지
+#:    적었다. 군유지는 공유재산 및 물품 관리법상 공유재산이라 사용허가·대부
+#:    절차가 국유지와 똑같이 필요하다.
+PUBLIC_OWNERS = frozenset({'국유지', '공유지', '시유지', '도유지', '군유지', '구유지'})
+
+#: 사용허가 대상이 아닌 소유구분(개인·법인 등). 여기에도 위에도 없는 값은
+#: **사유지로 단정하지 않고** 확인 대상으로 남긴다 — 모르는 값을 '문제 없음'
+#: 쪽으로 넘기는 것이 이 시스템에서 가장 위험한 실패다.
+PRIVATE_OWNERS = frozenset({'개인', '법인', '종중', '종교단체', '외국인', '기타'})
+
+#: 소유구분 표본을 **먼저 쓸 지목.**
+#:
+#: 실측(장흥 염해농지 태양광, 사업구역 925필지 표본조사)에서 지목과 소유구분의
+#: 상관이 거의 1:1로 나왔다.
+#:
+#:     답    12필지 표본 → 국공유 0%   (전부 '개인')
+#:     도로   8필지 표본 → 국공유 100% (국유지 3 · 군유지 5)
+#:     구거   8필지 표본 → 국공유 100%
+#:     제방   4필지 표본 → 국공유 100%
+#:
+#: NED는 필지당 1회 호출이라 925필지를 다 볼 수 없다(MAX_PARCELS 참고).
+#: 면적 큰 순으로만 고르면 표본이 통째로 '답'에 몰려 국공유지를 못 찾는다.
+#: 같은 호출 수로 검출률을 올리려면 이 지목부터 봐야 한다.
+PUBLIC_LIKELY_JIMOK = ('구거', '제방', '도로', '하천', '유지', '잡종지')
+
+#: 표본을 무엇으로 골랐는지 밝히는 문구. 「면적 상위」라고만 적으면 표본의
+#: 뜻이 달라진다 — 이 항목은 면적이 아니라 지목으로 고른다.
+SAMPLE_HOW = '국·공유지가 많은 지목(도로·구거·제방 등)을 우선해'
+
+
 # ======================================================================
 class LandOwnershipProvider(ParcelBasedProvider):
     """토지 소유구분 — 국유지·공유지 여부 (토지사용승낙 확보 경로가 달라진다)"""
@@ -406,10 +466,43 @@ class LandOwnershipProvider(ParcelBasedProvider):
     default_law = '국유재산법 · 공유재산 및 물품 관리법'
     default_article = '국유재산법 제30조(사용허가) · 공유재산법 제20조'
 
+    def _parcels(self, q: SiteQuery):
+        # 소유구분만은 **국공유지일 가능성이 높은 지목부터** 본다
+        # (PUBLIC_LIKELY_JIMOK 참고). 다른 항목(산지구분·토지특성)은 부지를
+        # 대표하는 큰 필지를 봐야 하므로 기존 선정을 그대로 쓴다.
+        return select_parcels(q, prefer_jimok=PUBLIC_LIKELY_JIMOK)
+
+    @staticmethod
+    def _unsampled_scope(q: SiteQuery, sampled: list[dict]) -> str:
+        """
+        표본 밖에 **같은 성격의 필지가 얼마나 더 있는지** 밝힌다.
+
+        표본 6필지만 열거하면 그 목록이 전수 조사 결과처럼 읽힌다. 국유재산
+        사용허가는 인허가 일정을 좌우하는 절차라, 실제로는 수십 필지인데 몇
+        곳으로 알고 일정을 짜면 어긋난다. 지목별 필지 수는 연속지적만으로
+        세므로 NED 추가 호출이 없다(같은 응답을 캐시에서 다시 쓴다).
+        """
+        try:
+            rows = site_parcels(q)
+        except Exception:                                       # noqa: BLE001
+            logger.exception('지목 구성 집계 실패')
+            return ''
+        seen = {r['pnu'] for r in sampled}
+        rest = [r for r in rows
+                if r['jimok'] in PUBLIC_LIKELY_JIMOK and r['pnu'] not in seen]
+        if not rest:
+            return ''
+        from collections import Counter
+        c = Counter(r['jimok'] for r in rest)
+        compo = ' · '.join(f'{j} {n}필지' for j, n in c.most_common())
+        ha = sum(r['area_m2'] for r in rest) / 1e4
+        return (f' 표본 외에도 사업구역 안에 {compo}({ha:,.1f}ha)가 남아 있습니다 — '
+                '이들 지목은 통상 국·공유지이므로 **전수 확인이 필요합니다.**')
+
     def analyze(self, q: SiteQuery) -> AnalysisItem:
         parcels, total = self._parcels(q)
         if not parcels:
-            return self.unknown(reason='검토 반경 내 필지를 특정하지 못했습니다.')
+            return self.unknown(reason='검토 대상 필지를 특정하지 못했습니다.')
 
         rows: list[dict] = []
         for p in parcels:
@@ -421,7 +514,7 @@ class LandOwnershipProvider(ParcelBasedProvider):
             for r in res[:1]:
                 rows.append({
                     'pnu': p['pnu'], 'addr': p['addr'],
-                    'area_m2': p['area_m2'],
+                    'area_m2': p['area_m2'], 'jimok': p.get('jimok', ''),
                     'owner': (r.get('posesnSeCodeNm') or '').strip(),
                     'institution': (r.get('nationInsttSeCodeNm') or '').strip(),
                 })
@@ -434,15 +527,29 @@ class LandOwnershipProvider(ParcelBasedProvider):
                                  '토지대장·등기사항증명서로 소유구분을 확인하십시오.'),
             )
 
-        public = [r for r in rows if r['owner'] in ('국유지', '공유지')]
+        public = [r for r in rows if r['owner'] in PUBLIC_OWNERS]
+        # 아는 값도 모르는 값도 아닌 소유구분은 **사유지로 넘기지 않는다.**
+        unclear = [r for r in rows
+                   if r['owner'] not in PUBLIC_OWNERS
+                   and r['owner'] not in PRIVATE_OWNERS]
+        if unclear:
+            logger.warning('소유구분 미분류 값: %s',
+                           sorted({r['owner'] or '(빈값)' for r in unclear}))
+
         if not public:
+            unclear_txt = ''
+            if unclear:
+                vals = ', '.join(sorted({r['owner'] or '구분미상' for r in unclear}))
+                unclear_txt = (f' ⚠️ 다만 소유구분 「{vals}」는 국·공유지 여부를 '
+                               '가리지 못한 값이라 별도 확인이 필요합니다.')
             return self.item(
-                status=Status.POSSIBLE,
+                status=Status.UNKNOWN if unclear else Status.POSSIBLE,
                 reason=('조회 필지는 모두 사유지로 확인됩니다 — '
                         + ', '.join(f'{r["addr"] or r["pnu"]}({r["owner"] or "구분미상"})'
                                     for r in rows[:4])
                         + '. 토지사용승낙은 개별 소유자와 협의로 진행합니다.'
-                        + self._coverage_note(parcels, total, q)),
+                        + unclear_txt
+                        + self._coverage_note(parcels, total, q, SAMPLE_HOW)),
                 difficulty=Difficulty.LOW,
                 confidence=Confidence.MEDIUM,
                 action_required='토지사용승낙서 또는 임대차·매매 계약 확보 계획을 수립하십시오.',
@@ -456,7 +563,8 @@ class LandOwnershipProvider(ParcelBasedProvider):
             status=Status.CONDITIONAL,
             reason=(f'국·공유지가 포함되어 있습니다 — {names}. 사용허가(대부) 절차가 필요하며 '
                     '소관청 협의에 상당한 기간이 소요됩니다.'
-                    + self._coverage_note(parcels, total, q)),
+                    + self._unsampled_scope(q, parcels)
+                    + self._coverage_note(parcels, total, q, SAMPLE_HOW)),
             difficulty=Difficulty.HIGH,
             confidence=Confidence.MEDIUM,
             action_required=(
