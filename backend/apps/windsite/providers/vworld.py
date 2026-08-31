@@ -336,6 +336,25 @@ class VworldClient:
             return []
 
 
+#: "조회 반경 안에 있기만 하면 저촉"으로 보면 안 되고 **실제로 겹칠 때만**
+#: 저촉으로 봐야 하는 레이어.
+#:
+#: `RegulationLayer.proximity_m`은 모델 주석상 "0이면 교차만 판정"인데,
+#: `_judge()`의 `if lyr.proximity_m and measured:`는 0을 거짓으로 평가해
+#: 그 필터 자체를 꺼 버린다 — 그 결과 proximity_m=0인 레이어는 설계
+#: 의도와 반대로 "조회 반경(터빈 지점이면 500m) 안에 있으면 저촉"으로
+#: 동작해 왔다(실측: 삼척 천봉풍력 21·22호기 — 비행금지구역 경계에서
+#: 390~451m 떨어져 있는데도 배제로 잡힘. 군사기지법 제10조·시행령
+#: 별표5 전문을 확인했으나 이격거리 규정 자체가 없다 — 그 법이 규율하는
+#: 것은 "구역 안"에서의 높이·시설 제한이지 "구역 밖 몇 m"가 아니다).
+#:
+#: 이 버그는 proximity_m=0인 레이어 47개(활성 레이어의 89%) 전부에
+#: 해당하지만, 그 필드의 전역 동작을 한 번에 바꾸면 영향 범위가 너무
+#: 커서(실측 확인 전인 44개 레이어의 판정이 함께 바뀐다) 여기서는 실측
+#: 완료된 공역류 3개만 코드로 짚어 국소적으로 고친다.
+EXACT_INTERSECT_ONLY = {'비행금지구역', '비행제한구역', '관제권'}
+
+
 class VworldLayerProvider(LayerProvider):
     """
     RegulationLayer 한 건을 조회·판정하는 범용 어댑터.
@@ -458,10 +477,14 @@ class VworldLayerProvider(LayerProvider):
                         logger.debug('거리 산출 실패 layer=%s', lyr.layer_id, exc_info=True)
             hits.append(rec)
 
-        # 근접 임계가 설정된 레이어는 임계 밖 피처를 저촉으로 보지 않는다
+        # 근접 임계가 설정된 레이어는 임계 밖 피처를 저촉으로 보지 않는다.
+        # EXACT_INTERSECT_ONLY는 proximity_m=0이어도(원래는 필터가 꺼지는
+        # 값) 강제로 임계 0(=실제 겹침)을 적용한다.
         measured = [h for h in hits if h['distance_m'] is not None]
-        if lyr.proximity_m and measured:
-            within = [h for h in measured if h['distance_m'] <= lyr.proximity_m]
+        exact_only = lyr.code in EXACT_INTERSECT_ONLY
+        if (lyr.proximity_m or exact_only) and measured:
+            threshold = 0 if exact_only else lyr.proximity_m
+            within = [h for h in measured if h['distance_m'] <= threshold]
             if not within:
                 nearest = min(measured, key=lambda h: h['distance_m'])
                 return self.item(
@@ -469,7 +492,8 @@ class VworldLayerProvider(LayerProvider):
                     reason=(
                         f'가장 가까운 {self.item_name}은(는) {nearest["name"]}로 '
                         f'{geo.format_distance(nearest["distance_m"])} 떨어져 있어 '
-                        f'근접 판정 기준({lyr.proximity_m:,}m)을 벗어납니다.'
+                        + ('실제로 겹치지 않습니다.' if exact_only else
+                           f'근접 판정 기준({threshold:,}m)을 벗어납니다.')
                     ),
                     difficulty=Difficulty.LOW,
                     confidence=Confidence.MEDIUM,
