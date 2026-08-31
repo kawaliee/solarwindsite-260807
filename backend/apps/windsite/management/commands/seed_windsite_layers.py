@@ -220,11 +220,27 @@ SPECS: list[dict] = [
          law='급경사지 재해예방에 관한 법률', article='제6조', display_order=72),
 
     # ---------------- 문화·교육 ----------------
+    # 이 레이어(lt_c_uo301)가 담는 것은 **보호구역 자체**이고, 그 둘레의
+    # 역사문화환경 보존지역은 우리가 거리로 더해야 한다. 종전에는 조회만
+    # 500m 넓히고(search_margin_m) **판정 기준(proximity_m)을 비워 두어**,
+    # 조회 반경 안에 들어오기만 하면 저촉으로 잡혔다 — 구역 모드에서 그
+    # 반경은 사업구역 외접원(장흥 1,472m)에 500m를 더한 값이라, 실측에서
+    # 975m 떨어진 장흥회령진성이 저촉으로 나왔다.
+    #
+    # 문화유산법 제13조제3항 본문이 "외곽경계로부터 500미터 안"으로 범위를
+    # 정하므로 그 값을 판정 기준으로 둔다. 다만 같은 항 단서가 조례로 500m를
+    # 초과해 정할 수 있게 해 두었고 실제 범위는 제1항에 따라 시·도 조례가
+    # 정한다 — 그 사실은 조치사항에 남긴다.
     dict(code='국가유산보호구역', layer_id='lt_c_uo301', role='REGULATION',
          category='안전/문화재', default_status='CONDITIONAL', default_difficulty='HIGH',
-         search_margin_m=500,
+         search_margin_m=500, proximity_m=500,
          law='문화유산의 보존 및 활용에 관한 법률', article='제13조(역사문화환경 보존지역의 보호)',
-         action_required='관할 시·도의 현상변경 허용기준을 확인하고 필요 시 현상변경 허가를 신청하십시오.',
+         confidence='HIGH',          # law.go.kr 현행본 원문 대조 완료
+         action_required=(
+             '관할 시·도의 현상변경 허용기준을 확인하고 필요 시 현상변경 허가를 '
+             '신청하십시오. 역사문화환경 보존지역의 범위는 시·도 조례로 정하며, '
+             '문화유산법 제13조제3항 단서에 따라 500m를 초과해 정해진 곳도 '
+             '있으므로 관할 지자체에 실제 범위를 확인하십시오.'),
          display_order=81),
     dict(code='전통사찰보존', layer_id='lt_c_uo501', role='REGULATION',
          category='안전/문화재', default_status='CONDITIONAL', default_difficulty='MEDIUM',
