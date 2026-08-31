@@ -260,17 +260,36 @@ class ForestClassificationProvider(ParcelBasedProvider):
 
         if not found:
             gap = self._code_gap(parcels)
+            # '산지가 아니라서 없다'와 '임야인데 자료가 없다'를 가른다. 앞은
+            # 산지 절차를 빼도 되지만 뒤는 반드시 확인해야 하는데, 종전에는
+            # 두 사실을 한 문장에 담아("산지가 아닌 필지이거나 자료가 미등재된
+            # 경우입니다") 읽는 쪽이 어느 것인지 알 수 없었다.
+            #
+            # 지목은 연속지적에서 이미 읽어 두었으므로 추가 조회가 없다.
+            # 실측(2026-08, 완도 군외면 당인리 산 106-1) — 같은 PNU로
+            # getPossessionAttr·getLandCharacteristics는 응답이 오는데
+            # getLandUseAttr만 0건이었다. PNU 코드 문제가 아니라 지역지구
+            # 자료 자체가 미등재인 경우가 실제로 있다.
+            forest = [p for p in parcels if p.get('jimok') == '임야']
+            if gap:
+                why = gap
+            elif forest:
+                why = (f'조회한 필지 가운데 지목이 임야인 것이 {len(forest)}필지 '
+                       '있으나, 그 필지의 지역지구 자료가 조회되지 않아 '
+                       '**산지구분을 가리지 못했습니다.** 산지가 아니라는 뜻이 '
+                       '아니므로 보전산지 여부를 반드시 따로 확인하십시오.')
+            else:
+                why = ('조회한 필지에 지목이 임야인 것이 없어 산지구분이 확인되지 '
+                       '않았습니다. 다만 이는 조회한 표본에 한한 결과입니다.')
             return self.item(
                 status=Status.UNKNOWN,
-                reason=(gap if gap else
-                        ('조회한 필지에서 산지구분(보전산지/준보전산지) 정보가 확인되지 '
-                         '않았습니다. 산지가 아닌 필지이거나 자료가 미등재된 경우입니다.'))
-                       + self._coverage_note(parcels, total, q),
+                reason=why + self._coverage_note(parcels, total, q),
                 difficulty=Difficulty.MEDIUM,
                 confidence=Confidence.LOW,
                 action_required=(pnu_codes.unmapped_action('') if gap else
                                  '토지이용계획확인원으로 산지구분을 직접 확인하십시오.'),
-                raw={'parcels': parcels, 'total_parcels': total},
+                raw={'parcels': parcels, 'total_parcels': total,
+                     'forest_parcels': len(forest)},
             )
 
         worst = next(k for k in self.ORDER if k in found)
