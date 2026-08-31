@@ -1456,9 +1456,23 @@ HERITAGE_ITEMS = (
     '국가유산조사구역',
 )
 
-#: PART 3 인허가 순서에 있는 같은 이름의 절차. 판정·근거를 여기서 끌어와
-#: 두 곳이 어긋나지 않게 한다.
-SURVEY_STEP = '매장유산 지표조사'
+#: PART 3 인허가 순서에서 이 카드가 끌어올 절차. 판정·근거를 그쪽에서
+#: 가져와 두 곳이 어긋나지 않게 한다.
+#:
+#: ⚠️ 절차 이름이 바뀔 수 있으므로 **완전일치로 찾지 않는다.** 실제로
+#: 2024-02-13 개정(사업시행자 지표조사 의무가 매장유산법 구 제6조에서
+#: 「국가유산영향진단법」 제9조로 이관)을 반영해 절차명을 「국가유산 영향진단
+#: (매장유산 지표조사 포함)」으로 고쳤는데, 완전일치였다면 그 순간 이 카드가
+#: 조용히 '절차를 찾지 못했습니다'로 바뀌었을 것이다.
+SURVEY_STEP_KEYS = ('국가유산 영향진단', '매장유산 지표조사')
+
+
+def _find_survey_step(ctx):
+    for key in SURVEY_STEP_KEYS:
+        step = next((x for x in _all_steps(ctx) if key in (x.get('name') or '')), None)
+        if step is not None:
+            return step
+    return None
 
 
 def card_heritage(doc, ctx, no: str = '④') -> None:
@@ -1537,14 +1551,14 @@ def _survey_row(ctx) -> list:
     보려면 문서 뒤쪽 표를 찾아야 했다. 두 곳이 따로 판정하면 어긋나므로
     로드맵이 낸 판정과 사유를 그대로 옮긴다.
     """
-    step = next((x for x in _all_steps(ctx) if x.get('name') == SURVEY_STEP), None)
+    step = _find_survey_step(ctx)
     if step is None:
-        return ['매장유산 지표조사 대상 여부 (사업면적 기준)', _sig('UNKNOWN'),
+        return ['국가유산 영향진단 대상 여부 (사업면적 기준)', _sig('UNKNOWN'),
                 '인허가 절차 목록에서 해당 절차를 찾지 못했습니다.',
                 '◇ 확인 필요 — 근거 법령·조문이 확인되지 않았습니다.',
                 '국가유산청에 대상 여부를 확인하십시오.']
     status = 'CONDITIONAL' if step.get('applicable') else 'UNKNOWN'
-    return ['매장유산 지표조사 대상 여부 (사업면적 기준)', _sig(status),
+    return ['국가유산 영향진단 대상 여부 (사업면적 기준)', _sig(status),
             _summarize(step.get('applicability_reason') or '', 150),
             _basis_line(step),
             '국가유산청 협의 → 매장유산 조사기관 지표조사 '
