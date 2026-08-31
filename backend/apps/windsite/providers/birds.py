@@ -62,7 +62,7 @@ from django.core.cache import cache
 
 from .. import geo, httpcache
 from ..schemas import AnalysisItem, Confidence, Difficulty, Status
-from .base import LayerProvider, SiteQuery
+from .base import LayerProvider, SiteQuery, explain_error
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +142,7 @@ class BirdHabitatProvider(LayerProvider):
             logger.warning('철새도래지 조회 실패: %s', e)
             return self.unknown(
                 reason=(
-                    f'철새도래지 자료를 받지 못했습니다 ({type(e).__name__}). '
+                    f'철새도래지 자료를 받지 못했습니다 — {explain_error(e)}. '
                     '생활안전지도 IF_0099 인터페이스가 응답하지 않는 상태입니다 — '
                     '같은 키로 산사태위험지도(IF_0046)는 정상 조회됩니다. '
                     '**입지회피지역에 해당하는지 확인하지 못했으므로 해당 없음으로 '

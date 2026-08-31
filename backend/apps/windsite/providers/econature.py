@@ -37,7 +37,7 @@ from django.conf import settings
 
 from .. import geo, httpcache
 from ..schemas import AnalysisItem, Confidence, Difficulty, Status
-from .base import LayerProvider, SiteQuery
+from .base import LayerProvider, SiteQuery, explain_error
 
 logger = logging.getLogger(__name__)
 
@@ -114,8 +114,12 @@ class EcoNatureMapProvider(LayerProvider):
             )
         except Exception as e:                                  # noqa: BLE001
             logger.exception('생태자연도 조회 실패')
-            return self.unknown(reason=f'생태자연도 조회 중 오류: {type(e).__name__}',
-                                why='FETCH')
+            return self.unknown(
+                reason=(f'생태자연도 조회에 실패했습니다 — {explain_error(e)}. '
+                        '데이터 부재가 아니라 조회 자체가 되지 않은 상태입니다.'),
+                action_required='잠시 후 재조회하거나 환경공간정보서비스'
+                                '(egis.me.go.kr)에서 직접 확인하십시오.',
+                why='FETCH')
 
         if not features:
             return self.item(

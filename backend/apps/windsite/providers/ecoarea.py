@@ -29,7 +29,7 @@ from django.conf import settings
 
 from .. import geo, httpcache
 from ..schemas import AnalysisItem, Confidence, Difficulty, Status
-from .base import LayerProvider, SiteQuery
+from .base import LayerProvider, SiteQuery, explain_error
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ class EcoAreaProvider(LayerProvider):
         except Exception as e:                                  # noqa: BLE001
             logger.exception('생태·경관보전지역 조회 실패')
             return self.unknown(
-                reason=f'생태·경관보전지역 조회 중 오류: {type(e).__name__}. '
+                reason=f'생태·경관보전지역 조회에 실패했습니다 — {explain_error(e)}. '
                        '데이터 부재가 아니라 조회 실패입니다.',
                 action_required='잠시 후 재조회하십시오.',
                 why='FETCH',

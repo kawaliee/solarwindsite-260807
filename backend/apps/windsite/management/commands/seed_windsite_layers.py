@@ -236,15 +236,51 @@ SPECS: list[dict] = [
          display_order=83),
 
     # ---------------- 군사·항공 (풍력 높이 규제 직결) ----------------
+    #
+    # ⚠️ 여기서 **세 개념을 섞지 않는다.** 종전에는 아래 두 레이어를 「군사기지
+    #    및 군사시설 보호법 제10조」로 시딩했는데, 조문을 원문으로 대조하니
+    #    개념이 서로 달랐다(2026-08 실측, law.go.kr 현행본).
+    #
+    #      비행금지·제한구역(P/R zone)   항공안전법 제78·79조
+    #        → 규율 대상은 **항공기의 비행**이다. 항공안전법에는 장애물·높이
+    #          조항이 아예 없다(전 조문 검색으로 확인). 즉 이 공역이 지상
+    #          구조물 설치를 그 자체로 금지하지 않는다.
+    #      장애물 제한표면                공항시설법 제34조
+    #        → 이쪽이 **지상 구조물의 높이**를 규율한다. 공항 기본계획 고시
+    #          기준이라 이 레이어와 별개다.
+    #      비행안전구역(제1~6구역)        군사기지법 제10조
+    #        → 군 비행장 주변 지상 구조물 높이 제한. 토지이용계획 UNE 코드로
+    #          조회되며 MilitaryZoneProvider가 따로 판정한다. 이 레이어가 아니다.
+    #
+    #    실측 근거 — 삼척 천봉풍력 21·22호기에 걸린 피처는 `RK P64B / 원전 관련
+    #    임시 (금지)공역`이었다. ICAO P-zone 표기이고 군사시설이 아니다.
+    #
+    #    그래서 판정도 IMPOSSIBLE에서 CONDITIONAL로 내린다. 근거 조문이 지상
+    #    구조물을 금지하지 않는데 불가로 두면 **코드가 법령에 없는 금지를
+    #    만들어내는** 셈이 된다 — 기획서 §3.4가 가장 경계하는 산출물이다.
+    #    다만 제약 없음으로도 두지 않는다. 이런 공역은 원전·보안시설 보호처럼
+    #    별도 목적으로 설정되어 관계기관 협의가 실제로 필요할 수 있다.
     dict(code='비행금지구역', layer_id='lt_c_aisprhc', role='REGULATION',
-         category='안전/문화재', default_status='IMPOSSIBLE', default_difficulty='CRITICAL',
-         law='군사기지 및 군사시설 보호법', article='제10조(비행안전구역에서의 금지 또는 제한)',
-         action_required='비행금지구역 내 고층 구조물 설치는 불가합니다. 입지를 변경하십시오.',
+         category='안전/문화재', default_status='CONDITIONAL', default_difficulty='CRITICAL',
+         law='항공안전법',
+         article='제78조(공역 등의 지정 등) · 제79조(항공기의 비행제한 등)',
+         confidence='HIGH',          # law.go.kr 현행본 원문 대조 완료
+         action_required=(
+             '이 공역은 항공기 운항을 금지하는 구역이며 지상 구조물 설치를 '
+             '직접 금지하는 규정은 아닙니다. ① 공역 설정 목적(원전·보안시설 '
+             '보호 등)을 확인해 소관기관과 협의하고 ② 발전기 최고높이가 '
+             '공항시설법 제34조 장애물 제한표면에 저촉되는지 국토교통부·'
+             '관할부대에 별도 질의하십시오.'),
          display_order=91),
     dict(code='비행제한구역', layer_id='lt_c_aisresc', role='REGULATION',
          category='안전/문화재', default_status='CONDITIONAL', default_difficulty='CRITICAL',
-         law='군사기지 및 군사시설 보호법', article='제10조 · 제13조(협의)',
-         action_required='관할부대심의위원회 협의를 거쳐야 하며 표면높이 제한을 확인해야 합니다.',
+         law='항공안전법',
+         article='제78조(공역 등의 지정 등) · 제79조(항공기의 비행제한 등)',
+         confidence='HIGH',          # law.go.kr 현행본 원문 대조 완료
+         action_required=(
+             '항공기 운항이 제한되는 공역입니다. 지상 구조물 높이 제한은 '
+             '공항시설법 제34조(장애물 제한표면) 저촉 여부로 별도 확인하고, '
+             '군 관할 공역이면 관할부대심의위원회 협의를 거치십시오.'),
          display_order=92),
     dict(code='관제권', layer_id='lt_c_aisctrc', role='REGULATION',
          category='안전/문화재', default_status='CONDITIONAL', default_difficulty='CRITICAL',
@@ -465,12 +501,17 @@ class Command(BaseCommand):
                 altitude_floor_field=spec.get('altitude_floor_field', ''),
                 probe_status=probe_status,
                 probe_note=note,
-                # 법령 원문 대조는 아직 수행되지 않았다 (docs/WINDSITE_API_KEYS.md §3 참조)
-                confidence=spec.get('confidence', 'LOW'),
                 source_url='https://www.vworld.kr',
                 display_order=spec.get('display_order', 100),
                 is_active=True,
             )
+            # ⚠️ confidence는 이 시드가 아니라 `verify_laws --apply`가 소유한다.
+            #    그쪽이 law.go.kr 현행본과 조문을 대조해 채우는 값이라, 시드가
+            #    무조건 덮으면 검증 결과가 통째로 날아간다 — 실제로 그렇게
+            #    됐다(2026-08: 시드 한 번에 48개 레이어가 HIGH→LOW로 되돌아감).
+            #    스펙에 적어 둔 경우(=원문 대조를 끝내고 명시한 것)에만 준다.
+            if spec.get('confidence'):
+                defaults['confidence'] = spec['confidence']
             obj, is_new = RegulationLayer.objects.update_or_create(
                 code=spec['code'], defaults={**defaults, 'layer_id': lid})
             created += is_new

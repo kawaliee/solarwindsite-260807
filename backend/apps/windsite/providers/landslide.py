@@ -28,7 +28,7 @@ from django.conf import settings
 
 from .. import geo, httpcache
 from ..schemas import AnalysisItem, Confidence, Difficulty, Status
-from .base import LayerProvider, SiteQuery
+from .base import LayerProvider, SiteQuery, explain_error
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +103,8 @@ class LandslideProvider(LayerProvider):
         except Exception as e:                                  # noqa: BLE001
             logger.exception('산사태위험등급 조회 실패')
             return self.unknown(
-                reason=f'산사태위험지도 조회 중 오류가 발생했습니다: {type(e).__name__}',
+                reason=(f'산사태위험지도 조회에 실패했습니다 — {explain_error(e)}. '
+                        '데이터 부재가 아니라 조회 자체가 되지 않은 상태입니다.'),
                 action_required='네트워크 상태를 확인한 뒤 재조회하십시오.',
                 why='FETCH',
             )

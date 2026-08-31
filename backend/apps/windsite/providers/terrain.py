@@ -28,7 +28,7 @@ import logging
 
 from .. import dem, energy as energy_mod
 from ..schemas import AnalysisItem, Confidence, Difficulty, Status
-from .base import LayerProvider, SiteQuery
+from .base import LayerProvider, SiteQuery, explain_error
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,9 @@ class SlopeProvider(LayerProvider):
         except Exception as e:                                  # noqa: BLE001
             logger.exception('경사도 산출 실패')
             return self.unknown(
-                reason=f'표고 자료 판독 중 오류가 발생했습니다: {type(e).__name__}',
+                reason=(f'표고 자료를 판독하지 못했습니다 — {explain_error(e)}. '
+                        '경사도가 기준 이하라는 뜻이 아니라 계산 자체를 '
+                        '하지 못한 상태입니다.'),
                 action_required='DEM 파일 형식과 좌표계를 확인하십시오.',
                 why='FETCH',
             )

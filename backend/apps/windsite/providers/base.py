@@ -111,6 +111,34 @@ class SiteQuery:
         return f'<SiteQuery {self.lat},{self.lng} r={self.radius_m}m>'
 
 
+def explain_error(e: BaseException) -> str:
+    """
+    예외 → **사람이 읽을 수 있는 원인 한 마디.**
+
+    종전에는 파이썬 예외 클래스명을 그대로 보고서에 실었다(실측: 「22호기 ·
+    생태자연도 조회 중 오류: ConnectError」). 보고서를 받는 사람은 그것이
+    '그 자리에 자료가 없다'는 뜻인지 '조회 자체를 못 했다'는 뜻인지 가릴 수
+    없는데, 이 시스템에서 둘은 전혀 다른 사실이다(기획서 §3.4 — 조회 안 됨을
+    제약 없음으로 읽으면 안 된다). 그래서 원인을 우리말로 옮긴다.
+
+    클래스명을 아주 버리지는 않는다. 알아보지 못한 예외는 이름이라도 남겨야
+    개발자가 로그 없이도 되짚을 수 있다.
+    """
+    if isinstance(e, httpx.HTTPStatusError):
+        return f'서버가 오류 응답을 돌려주었습니다 (HTTP {e.response.status_code})'
+    if isinstance(e, httpx.ConnectTimeout):
+        return '서버에 연결하지 못했습니다 (연결 시간 초과)'
+    if isinstance(e, httpx.ConnectError):
+        return '서버에 연결하지 못했습니다 (네트워크 또는 서버 장애)'
+    if isinstance(e, httpx.TimeoutException):
+        return '서버 응답이 제한 시간을 넘겼습니다'
+    if isinstance(e, httpx.TransportError):
+        return '서버와 통신하지 못했습니다'
+    if isinstance(e, (ValueError, KeyError, TypeError)):
+        return f'응답을 해석하지 못했습니다 ({type(e).__name__})'
+    return f'조회 중 오류가 발생했습니다 ({type(e).__name__})'
+
+
 class LayerProvider(ABC):
     """데이터 레이어 어댑터"""
 
@@ -162,7 +190,8 @@ class LayerProvider(ABC):
         except Exception as e:                              # noqa: BLE001
             logger.exception('%s 분석 실패', self.item_name)
             return self.unknown(
-                reason=f'{self.data_source} 조회 중 오류가 발생했습니다: {type(e).__name__}',
+                reason=(f'{self.data_source} 조회에 실패했습니다 — {explain_error(e)}. '
+                        '자료가 없다는 뜻이 아니라 조회 자체가 되지 않은 상태입니다.'),
                 action_required='네트워크/인증키 상태를 확인한 뒤 재조회하십시오.',
                 why='FETCH',
             )
