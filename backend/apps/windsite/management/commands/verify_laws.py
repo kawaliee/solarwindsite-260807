@@ -26,6 +26,29 @@ from apps.windsite import lawapi
 from apps.windsite.models import LawArticle, LawReference, PermitStep, RegulationLayer
 
 
+#: 국가법령정보로 대조할 수 **없는** 근거 표기 → (걸러낼 조각, 왜)
+#:
+#: 이것들은 아직 확인하지 않은 법령이 아니라 애초에 법령이 아니다. 대조
+#: 대상에 두면 영원히 '✘ 미검증'으로 남아, 정말로 확인이 필요한 항목이
+#: 그 소음에 묻힌다(실측 2026-08: 전체 41건 중 3건이 이 상태로 고정).
+#:
+#: ⚠️ 지침·고시 등 행정규칙은 여기 넣지 않는다. `_verify_one`이
+#:    `search_admin_rule`로 되짚어 MEDIUM까지 올려 주기 때문이다.
+NOT_A_STATUTE = {
+    '조례': '지자체 조례는 `sync_ordinances`가 따로 수집한다',
+    '이용규정': '한전이 정하고 산업부가 인가하는 약관이라 법령이 아니다',
+    '참고 정보': '규제가 아니라 현황 참고 자료다',
+}
+
+
+def _not_a_statute(name: str) -> str:
+    """법령이 아니면 그 까닭을, 법령이면 빈 문자열을 돌려준다."""
+    for frag, why in NOT_A_STATUTE.items():
+        if frag in name:
+            return why
+    return ''
+
+
 class Command(BaseCommand):
     help = '법령·조문을 국가법령정보 OPEN API 원문과 대조합니다.'
 
@@ -65,9 +88,35 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(
                 '\n대조만 수행했습니다. DB에 반영하려면 --apply 를 붙이십시오.'))
 
+        # 대조 대상에서 뺀 것은 **조용히 버리지 않고** 까닭과 함께 보여 준다.
+        # 목록에서 사라지면 다음 사람이 "왜 빠졌지"를 다시 조사하게 된다.
+        skipped = self._skipped()
+        if skipped:
+            self.stdout.write('\n대조 대상 아님 — 법령이 아니라 별도 경로로 확인한다')
+            for nm, why in sorted(skipped.items()):
+                self.stdout.write(f'   · {nm} — {why}')
+
         hi = sum(1 for r in rows if r['confidence'] == 'HIGH')
         self.stdout.write(self.style.SUCCESS(
-            f'\n완료 — 원문 확인 {hi} / 전체 {len(rows)}'))
+            f'\n완료 — 원문 확인 {hi} / 전체 {len(rows)}'
+            + (f' (대조 대상 아님 {len(skipped)}건 제외)' if skipped else '')))
+
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _skipped() -> dict[str, str]:
+        """대조 대상에서 뺀 근거 표기 → 까닭."""
+        out: dict[str, str] = {}
+        names = {r.name for r in LawReference.objects.all()}
+        names |= {s.law for s in PermitStep.objects.filter(is_active=True)}
+        names |= {l.law for l in RegulationLayer.objects.filter(is_active=True)}
+        for nm in names:
+            nm = (nm or '').strip()
+            if not nm:
+                continue
+            why = _not_a_statute(nm)
+            if why:
+                out[nm] = why
+        return out
 
     # ------------------------------------------------------------------
     def _collect(self, only: list[str]) -> dict[str, set[str]]:
@@ -76,7 +125,7 @@ class Command(BaseCommand):
 
         def add(name: str, article: str = ''):
             name = (name or '').strip()
-            if not name or '해당 없음' in name:
+            if not name or '해당 없음' in name or _not_a_statute(name):
                 return
             targets.setdefault(name, set())
             if article:
