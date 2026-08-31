@@ -1751,7 +1751,47 @@ def milestone_checklist(doc, ctx) -> None:
                '「법정기간 없음(협의 소요)」은 조문에 기한 규정이 없다는 뜻이고, '
                '「◇ 확인 필요」는 아직 원문으로 확인하지 못했다는 뜻입니다 — '
                '두 가지는 다릅니다.')
+    _landuse_route_note(doc, ctx)
     _pending_steps(doc, ctx)
+
+
+#: 국토계획법 경로를 가르는 두 절차 — 서로 **택일**이다.
+#: (engine.derive_site_flags가 내는 플래그. permits.FLAG_LABEL에 라벨이 있다)
+_ROUTE_URBAN = 'URBAN_AREA'
+_ROUTE_NON_URBAN = 'NON_URBAN_AREA'
+
+
+def _landuse_route_note(doc, ctx) -> None:
+    """
+    국토계획법 인허가 **경로**를 밝힌다.
+
+    위 표는 해당하는 절차만 싣기 때문에, 택일인 두 경로 중 선택되지 않은
+    쪽은 표에서도 「대상 여부 미확정」에서도 빠진다(사유가 '확인 필요'가
+    아니라 '해당하지 않음'이라서). 그 결과 개발행위허가만 덩그러니 남아,
+    **애초에 갈림길이 있었다는 사실 자체가 문서에서 사라진다.**
+
+    갈림길은 결론이 아니라 전제다 — 부지를 조금만 조정해 도시지역에 걸치면
+    절차가 통째로 바뀌므로, 어느 경로인지와 무엇이 그것을 갈랐는지를 남긴다.
+    """
+    steps = {s.get('conditional_on'): s for s in _all_steps(ctx)
+             if s.get('conditional_on') in (_ROUTE_URBAN, _ROUTE_NON_URBAN)}
+    urban, non_urban = steps.get(_ROUTE_URBAN), steps.get(_ROUTE_NON_URBAN)
+    if not urban or not non_urban:
+        return                      # 이 발전원은 아직 경로 분기를 두지 않았다
+    taken, other = ((urban, non_urban) if urban.get('applicable')
+                    else (non_urban, urban))
+    _note(doc,
+          '※ 국토계획법 경로 — 이 사업은 「%s」로 진행합니다. 풍력·태양광 '
+          '발전시설은 국토계획법상 기반시설인 「전기공급설비」라(시행령 '
+          '제2조제1항제3호) 원칙적으로 도시·군관리계획으로 결정해야 하지만'
+          '(법 제43조제1항 본문), 도시지역·지구단위계획구역 **밖**에서는 '
+          '시행령 제35조제1항제2호 나목에 따라 결정 없이 설치할 수 있어 '
+          '개발행위허가로 갈립니다. 부지가 도시지역(녹지지역 포함)에 걸치면 '
+          '「%s」 경로가 되고, 그때는 법 제56조제1항 단서에 따라 개발행위허가를 '
+          '받지 않습니다. **분기 기준은 용도지역이며 설비용량이나 사업면적이 '
+          '아닙니다.** 부지 경계를 조정하면 경로가 바뀔 수 있으므로 확정 전 '
+          '재확인하십시오.'
+          % (taken.get('name') or '-', other.get('name') or '-'))
 
 
 def _pending_steps(doc, ctx) -> None:

@@ -159,6 +159,9 @@ class PermitStepResult:
     #: 처리기간을 어디까지 확인했는가 — 'NONE' | 'UNKNOWN' | ''
     #: (PermitStep.statutory_basis 참조)
     statutory_basis: str = ''
+    #: 이 절차를 켜는 조건 플래그(PermitStep.conditional_on). 보고서가 서로
+    #: 택일인 절차 짝을 이름이 아니라 이 값으로 찾는다 — 절차명은 바뀐다.
+    conditional_on: str = ''
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
