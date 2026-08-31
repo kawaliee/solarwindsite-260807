@@ -291,65 +291,86 @@ STEPS = [
               '3,000kW 기준의 시행령 조번호는 미확인.'),
     dict(order=30, phase='PERMIT', name='환경영향평가 협의',
          authority='기후에너지환경부(유역·지방환경청)',
-         law='환경영향평가법', article='시행령 별표3', statutory_days=None,
-         depends_on=['발전사업허가'], conditional_on='EIA', confidence='LOW',
-         note='★ 풍력 항목의 법정 규모 기준선 미확인 — 별표3 원문 확인 필요.'),
+         law='환경영향평가법', article='제29조 · 시행령 제50조(협의 내용의 통보기간)',
+         statutory_days=45, statutory_basis='',
+         depends_on=['발전사업허가'], conditional_on='EIA', confidence='HIGH',
+         note='협의기관이 협의 내용을 통보하는 기간이 45일이다(부득이한 사유로 연장 시 60일). '
+              '평가서 보완기간·전문위원회 검토기간(최장 45일)·공휴일은 산입하지 않으므로 '
+              '실제 소요는 이보다 길다. 대상 여부를 가르는 별표3의 풍력 규모 기준선은 미확인.'),
     dict(order=31, phase='PERMIT', name='소규모환경영향평가 협의',
          authority='유역·지방환경청장',
-         law='환경영향평가법', article='시행령 별표4', statutory_days=None,
-         depends_on=['발전사업허가'], conditional_on='SMALL_EIA', confidence='LOW',
-         note='★ 별표4 원문 확인 필요. 국내 육상풍력 상당수가 이 경로로 진행된다는 분석 있음.'),
+         law='환경영향평가법', article='제45조 · 시행령 제62조(협의 내용의 통보기간)',
+         statutory_days=30, statutory_basis='',
+         depends_on=['발전사업허가'], conditional_on='SMALL_EIA', confidence='HIGH',
+         note='협의 내용 통보기간 30일(연장 시 40일). 시행령 제60조제2항의 소규모 개발사업이면 '
+              '20일(연장 시 30일)이다. 보완기간·전문위원회 검토기간·공휴일은 산입하지 않는다. '
+              '대상 여부를 가르는 별표4 기준선은 미확인.'),
     dict(order=40, phase='PERMIT', name='재해영향평가 협의',
          authority='행정안전부 / 시·도',
-         law='자연재해대책법', article='(조문 미확인)', statutory_days=None,
+         law='자연재해대책법', article='(조문 미확인)', statutory_days=None, statutory_basis='UNKNOWN',
          depends_on=['발전사업허가'], conditional_on='', confidence='LOW',
          note='대상 규모·조문 미확인. 산사태위험지 포함 시 중요도 상승.'),
     dict(order=50, phase='PERMIT', name='산지전용허가 또는 산지일시사용허가',
          authority='면적별 산림청장 / 시·도지사 / 시장·군수·구청장',
          law='산지관리법', article='제14조 · 제15조의2', statutory_days=None,
+         statutory_basis='NONE',
          depends_on=['환경영향평가 협의'], conditional_on='FOREST', confidence='MEDIUM',
-         note='발전시설은 사용기간 종료 후 원상복구를 전제로 산지일시사용허가 대상으로 '
-              '파악되나, 풍력 관련 시행령 별표3의2 원문은 미확인.'),
+         note='법·시행령·시행규칙 원문을 대조했으나 **허가 처리기간 규정이 없다**(법 제14조제2항의 '
+              '25일은 변경신고 수리 통지 기간이지 본 허가 기간이 아니다). 실무 처리기간은 '
+              '민원처리 기준에 따른다. 발전시설은 사용기간 종료 후 원상복구를 전제로 '
+              '산지일시사용허가 대상으로 파악되나 시행령 별표3의2 원문은 미확인.'),
     dict(order=51, phase='PERMIT', name='농지전용허가·협의',
          authority='농림축산식품부장관 / 시·도지사 / 시장·군수·구청장 (면적별)',
-         law='농지법', article='제34조', statutory_days=None,
-         depends_on=['환경영향평가 협의'], conditional_on='FARMLAND', confidence='MEDIUM'),
+         law='농지법', article='제34조 · 시행령 제33조제1항', statutory_days=None,
+         statutory_basis='NONE',
+         depends_on=['환경영향평가 협의'], conditional_on='FARMLAND', confidence='HIGH',
+         note='법·시행령·시행규칙에 **전체 처리기간 규정이 없다.** 시행령 제33조제1항이 정한 것은 '
+              '경유기관 기간뿐이다 — 시장·군수가 10일 이내에 시·도지사에게, 시·도지사가 다시 '
+              '10일 이내에 장관에게 보낸다. 최종 허가권자의 심사기간은 규정되어 있지 않다.'),
     dict(order=52, phase='PERMIT', name='초지전용허가',
-         authority='시·도지사', law='초지법', article='제23조', statutory_days=None,
-         depends_on=['환경영향평가 협의'], conditional_on='GRASSLAND', confidence='LOW'),
+         authority='시·도지사', law='초지법', article='제23조제6항', statutory_days=35,
+         statutory_basis='',
+         depends_on=['환경영향평가 협의'], conditional_on='GRASSLAND', confidence='HIGH',
+         note='허가 신청 또는 신고를 받은 날부터 35일 이내에 허가·신고수리 여부를 통지한다.'),
     dict(order=53, phase='PERMIT', name='사방지 지정해제',
          authority='산림청장 / 시·도지사', law='사방사업법', article='(조번호 미확인)',
-         statutory_days=None, depends_on=['산지전용허가 또는 산지일시사용허가'],
+         statutory_days=None, statutory_basis='UNKNOWN', depends_on=['산지전용허가 또는 산지일시사용허가'],
          conditional_on='FOREST', confidence='LOW', note='조문번호 미확인.'),
     dict(order=60, phase='PERMIT', name='매장유산 지표조사',
          authority='국가유산청 (조사기관 의뢰)',
-         law='매장유산 보호 및 조사에 관한 법률', article='시행령 제4조', statutory_days=None,
+         law='매장유산 보호 및 조사에 관한 법률', article='시행령 제4조', statutory_days=None, statutory_basis='UNKNOWN',
          depends_on=['발전사업허가'], conditional_on='HERITAGE', confidence='MEDIUM',
          note='대상 사업 면적 기준 미확인. 통상 일정 면적 이상 개발사업이 대상.'),
     dict(order=61, phase='PERMIT', name='군 협의 (작전성 검토·비행안전영향·전파영향)',
          authority='국방부장관 또는 관할부대장 (지자체 경유)',
-         law='군사기지 및 군사시설 보호법', article='제10조 · 제13조', statutory_days=None,
+         law='군사기지 및 군사시설 보호법', article='제10조 · 제13조', statutory_days=None, statutory_basis='UNKNOWN',
          depends_on=['발전사업허가'], conditional_on='MILITARY', confidence='MEDIUM',
          note='풍력은 높이가 커 표면높이 제한·레이더 간섭 검토 대상이 되는 경우가 많음.'),
     dict(order=70, phase='PERMIT', name='개발행위허가',
          authority='시장·군수·구청장 (특별시장·광역시장·특별자치시·도지사 포함)',
-         law='국토의 계획 및 이용에 관한 법률', article='제56조', statutory_days=None,
+         law='국토의 계획 및 이용에 관한 법률',
+         article='제56조 · 제57조제2항 · 시행령 제54조제1항', statutory_days=15,
+         statutory_basis='',
          depends_on=['산지전용허가 또는 산지일시사용허가'], conditional_on='',
-         confidence='MEDIUM',
-         note='다수 지자체가 조례로 풍력 이격거리 기준을 개발행위허가 기준에 포함. '
-              '용도지역별 허가 면적 상한·도시계획위원회 심의 요건은 미확인.'),
+         confidence='HIGH',
+         note='허가·불허가 처분 기간이 15일이다. 다만 **도시계획위원회 심의를 거치거나 관계 '
+              '행정기관과 협의해야 하는 경우 그 기간은 제외**되므로(시행령 제54조제1항 괄호) '
+              '풍력처럼 심의·협의가 따르는 사업의 실제 소요는 훨씬 길다. '
+              '다수 지자체가 조례로 풍력 이격거리 기준을 개발행위허가 기준에 포함.'),
     dict(order=71, phase='PERMIT', name='도로점용허가',
          authority='도로관리청', law='도로법', article='제61조', statutory_days=None,
-         depends_on=['개발행위허가'], conditional_on='ROAD', confidence='MEDIUM',
-         note='진입로·전력구 등 도로 점용 시.'),
+         statutory_basis='NONE',
+         depends_on=['개발행위허가'], conditional_on='ROAD', confidence='HIGH',
+         note='법·시행령·시행규칙 원문을 대조했으나 점용허가 처리기간 규정이 없다. '
+              '실무 처리기간은 도로관리청의 민원처리 기준에 따른다. 진입로·전력구 등 도로 점용 시.'),
     dict(order=80, phase='PERMIT', name='송전용 전기설비 이용계약',
          authority='한국전력공사',
-         law='송·배전용 전기설비 이용규정', article='', statutory_days=None,
+         law='송·배전용 전기설비 이용규정', article='', statutory_days=None, statutory_basis='UNKNOWN',
          depends_on=['발전사업허가'], conditional_on='', confidence='LOW',
          note='계통 접속 가능 용량 확인 및 이용계약 체결. 실무상 발전사업허가와 병행.'),
     dict(order=90, phase='BUILD', name='공사계획 인가 또는 신고',
          authority='기후에너지환경부장관(인가) / 시·도지사(신고)',
-         law='전기사업법', article='제61조', statutory_days=None,
+         law='전기사업법', article='제61조', statutory_days=None, statutory_basis='UNKNOWN',
          depends_on=['개발행위허가', '산지전용허가 또는 산지일시사용허가'],
          capacity_rule='10,000kW 이상 인가 / 10,000kW 미만 신고로 안내되나 단일 출처만 확인됨.',
          conditional_on='', confidence='LOW',
@@ -358,13 +379,15 @@ STEPS = [
     dict(order=100, phase='BUILD', name='전기안전관리자 선임',
          authority='한국전기안전공사 (신고 접수)',
          law='전기안전관리법', article='제22조', statutory_days=None,
-         depends_on=['공사계획 인가 또는 신고'], conditional_on='', confidence='LOW'),
+         statutory_basis='NONE',
+         depends_on=['공사계획 인가 또는 신고'], conditional_on='', confidence='MEDIUM',
+         note='선임 신고 절차로, 법 원문에 처리기간 규정이 없다.'),
     dict(order=110, phase='BUILD', name='착공 및 시공',
          authority='—', law='', article='', statutory_days=None,
          depends_on=['공사계획 인가 또는 신고'], conditional_on='', confidence='MEDIUM'),
     dict(order=120, phase='BUILD', name='사용전검사',
          authority='기후에너지환경부장관 또는 시·도지사 (한국전기안전공사 위탁 수행)',
-         law='전기사업법', article='제63조', statutory_days=None,
+         law='전기사업법', article='제63조', statutory_days=None, statutory_basis='UNKNOWN',
          depends_on=['착공 및 시공'], conditional_on='', confidence='MEDIUM',
          note='조문 원문 확인. 다만 최신 개정본의 소관 부처 표기는 재확인 필요.'),
     dict(order=130, phase='OPS', name='사업개시신고',
@@ -375,7 +398,7 @@ STEPS = [
     dict(order=140, phase='OPS', name='REC 발급 신청 및 전력거래 개시',
          authority='한국에너지공단 신재생에너지센터 / 한국전력거래소',
          law='신에너지 및 재생에너지 개발·이용·보급 촉진법', article='(조번호 미확인)',
-         statutory_days=None, depends_on=['사업개시신고'], conditional_on='',
+         statutory_days=None, statutory_basis='UNKNOWN', depends_on=['사업개시신고'], conditional_on='',
          confidence='LOW'),
 ]
 
@@ -388,7 +411,12 @@ class Command(BaseCommand):
 
         for d in LAWS:
             LawReference.objects.update_or_create(
-                name=d['name'],
+                # ⚠️ 에너지원까지 함께 키로 잡는다. LawReference는 발전원별로
+                #    따로 두는 레코드인데(같은 전기사업법이라도 풍력과 태양광의
+                #    소관·용량 경계가 다르다) 종전에는 name만으로 찾아, 태양광
+                #    시드가 같은 이름을 넣은 뒤로는 이 시드가 통째로 죽었다
+                #    (MultipleObjectsReturned). seed_solar와 같은 규약으로 맞춘다.
+                energy_type='WIND', name=d['name'],
                 defaults={**d, 'verified_at': TODAY if d['confidence'] == 'HIGH' else None},
             )
             n_law += 1
@@ -414,7 +442,10 @@ class Command(BaseCommand):
 
         for d in STEPS:
             PermitStep.objects.update_or_create(
-                order=d['order'],
+                # LawReference와 같은 이유로 에너지원을 키에 넣는다. 지금은
+                # 태양광이 800번대를 써서(seed_solar.ORDER_BASE) 번호가 겹치지
+                # 않지만, 그 규약은 주석 한 줄로만 지켜지고 있어 언제든 깨진다.
+                energy_type='WIND', order=d['order'],
                 defaults={k: v for k, v in d.items() if k != 'order'},
             )
             n_step += 1

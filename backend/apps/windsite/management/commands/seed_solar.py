@@ -242,9 +242,12 @@ STEPS: list[dict] = [
     dict(phase='PERMIT', name='소규모 환경영향평가', depends_on=['발전사업허가'],
          authority='유역·지방환경청',
          law='환경영향평가법',
-         article='제43조(소규모 환경영향평가의 대상) · 제44조(소규모 환경영향평가서의 작성 및 협의 요청 등)',
-         conditional_on='SMALL_EIA',
-         note='대상 규모는 시행령 별표4로 확정해야 한다. 용도지역·면적에 따라 갈린다.'),
+         article='제43조(소규모 환경영향평가의 대상) · 제45조 · 시행령 제62조(협의 내용의 통보기간)',
+         conditional_on='SMALL_EIA', statutory_days=30, statutory_basis='',
+         confidence='HIGH',
+         note='협의 내용 통보기간 30일(연장 시 40일). 시행령 제60조제2항의 소규모 개발사업이면 '
+              '20일(연장 시 30일)이다. 보완기간·전문위원회 검토기간·공휴일은 산입하지 않는다. '
+              '대상 규모는 시행령 별표4로 확정해야 한다. 용도지역·면적에 따라 갈린다.'),
 
     dict(phase='PERMIT', name='공작물 축조신고 (구조물)', depends_on=['개발행위허가'],
          authority='시장·군수·구청장',
@@ -253,7 +256,9 @@ STEPS: list[dict] = [
 
     dict(phase='PERMIT', name='환경영향평가 (100MW 이상)', depends_on=['발전사업허가'],
          authority='유역·지방환경청',
-         law='환경영향평가법', article='시행령 별표3',
+         law='환경영향평가법',
+         article='제29조 · 시행령 제50조(협의 내용의 통보기간) · 시행령 별표3',
+         statutory_days=45, statutory_basis='', confidence='HIGH',
          conditional_on='EIA',
          note='**원문 대조 완료** — 시행령 별표3은 태양력ㆍ풍력의 경우 발전시설용량 '
               '10만kW(100MW) 이상을 대상으로 한다. 일반 발전소 기준(1만kW)과 다르므로 '

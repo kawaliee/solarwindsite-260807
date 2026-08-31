@@ -174,11 +174,17 @@ class PermitStepResult:
         `-` 하나로 뭉뚱그리지 않는다. 기한이 없는 절차와 아직 확인하지 못한
         절차는 일정 계획에서 전혀 다르게 다뤄야 한다 — 앞은 협의 소요를
         따로 잡아야 하고, 뒤는 먼저 조문을 찾아봐야 한다.
+
+        근거 법령이 없는 줄은 애초에 인허가가 아니다(입지 발굴·풍황계측,
+        착공 및 시공). 그런 줄까지 '확인 필요'로 적으면, 찾아보면 나올 기한이
+        있는 것처럼 읽혀 할 일 목록이 늘어난다.
         """
         if self.statutory_days:
             return f'{self.statutory_days}일'
         if self.statutory_basis == 'NONE':
             return '법정기간 없음 (협의 소요)'
+        if not self.law:
+            return '해당 없음 (법정 인허가 아님)'
         return '◇ 확인 필요'
 
 
