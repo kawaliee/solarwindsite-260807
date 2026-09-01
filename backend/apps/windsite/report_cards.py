@@ -1104,12 +1104,51 @@ def card_terrain(doc, ctx, no: str = '②') -> None:
     mapped = [e for e in _env_layers(ctx) if _is_terrain(e['name'])]
     if mapped:
         _thumb_grid(doc, ctx, mapped, [])
+    drew_landslide = _render_landslide(doc, ctx)
     _tile_table(doc, items)
     _bullets(doc, [
-        '경사도·산사태위험등급·산지구분은 **지점(반경) 기준으로 조회**하므로 '
-        '구역 전체 도형이 없어 지도로 내지 못합니다 — 판정만 싣습니다.',
+        ('산사태위험등급은 산림청 산사태위험지도(WMS) 원본을 그대로 얹은 것이라 '
+         '판정과 같은 자료입니다. 경사도·산지구분은 **지점(반경) 기준으로 조회**'
+         '하므로 구역 전체 도형이 없어 지도로 내지 못합니다 — 판정만 싣습니다.'
+         if drew_landslide else
+         '경사도·산사태위험등급·산지구분은 **지점(반경) 기준으로 조회**하므로 '
+         '구역 전체 도형이 없어 지도로 내지 못합니다 — 판정만 싣습니다.'),
+        '평균경사도는 **산지전용허가 기준(산지관리법 시행령 별표4)의 25도 미만 '
+        '요건**에 걸리는 항목이라, 산지에 입지하는 사업은 반드시 확인해야 합니다.',
         _route_note('산지', _worst_of(items)) if items else '',
     ])
+
+
+def _render_landslide(doc, ctx) -> bool:
+    """
+    산사태위험지도를 카드에 싣는다. 실었으면 True.
+
+    판정(`LandslideProvider`)이 이미 WMS 이미지를 받아 픽셀 색을 등급으로
+    되돌려 쓰고 있으므로, 같은 원본을 지도로 내면 판정과 그림이 어긋날 수
+    없다. 구역 전체 bbox로 한 번 더 받되 httpcache를 거치므로 같은 범위면
+    재조회가 나지 않는다.
+    """
+    area = ctx.outline()
+    if area is None:
+        return False
+    try:
+        from .providers.landslide import fetch_map
+        got = fetch_map(area)
+    except Exception:                                           # noqa: BLE001
+        logger.exception('산사태위험지도 조회 실패')
+        return False
+    if not got:
+        return False
+    png, extent = got
+    try:
+        img = maps.landslide_map(area, png, extent,
+                                 _turbine_points(ctx.result.get('layout')))
+        _log_map('② 산사태위험등급', area, img, '서버렌더')
+        _put_image(doc, img, image_width_emu(doc))
+        return True
+    except Exception:                                           # noqa: BLE001
+        logger.exception('산사태위험지도 렌더 실패')
+        return False
 
 
 # ── ③ 환경성 평가 협의지침 ─────────────────────────────────────────────

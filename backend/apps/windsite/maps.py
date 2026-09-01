@@ -425,6 +425,61 @@ def setback_map(lat: float, lng: float, rings: list[dict],
     return _finish(fig)
 
 
+def landslide_map(area, png: bytes, extent: tuple,
+                  turbines: list | None = None) -> bytes:
+    """
+    산사태위험지도 — 산림청 WMS 래스터를 사업구역 위에 얹는다.
+
+    이 어댑터는 등급을 숫자로 주지 않아 **이미지를 받아 픽셀 색을 등급으로
+    역변환**해 판정한다(providers/landslide.py). 그 이미지를 그대로 지도로
+    쓰면 판정과 그림이 같은 원본에서 나오므로 어긋날 수가 없다.
+
+    extent = (minx, maxx, miny, maxy) EPSG:5179 — WMS bbox와 같은 값이다.
+    """
+    import io as _io
+
+    from PIL import Image
+
+    center = area.centroid
+    minx, miny, maxx, maxy = area.bounds
+    ex = max(maxx - minx, maxy - miny) / 2 * 1.15
+    fig, ax = _new_axes('산사태위험등급', ex, center)
+
+    try:
+        img = Image.open(_io.BytesIO(png)).convert('RGBA')
+        ax.imshow(img, extent=extent, origin='upper', zorder=3,
+                  alpha=0.55 if _has_bg(ax) else 0.85, interpolation='nearest')
+    except Exception:                                           # noqa: BLE001
+        logger.exception('산사태위험지도 이미지 렌더 실패')
+
+    _outline(ax, area, color=SITE_BOUNDARY_COLOR, linewidth=1.8,
+             linestyle=(0, (5, 3)), zorder=6, label='사업구역 경계')
+
+    # 발전기 위치를 함께 찍는다 — 어느 호기가 위험등급 위에 서는지가
+    # 곧 배치 조정의 대상이다.
+    for i, p in enumerate(turbines or [], 1):
+        ax.plot([p.x], [p.y], marker='o', markersize=6, color='#111417',
+                markeredgecolor='white', markeredgewidth=1.2, zorder=8)
+        ax.annotate(str(i), (p.x, p.y), textcoords='offset points',
+                    xytext=(0, 8), ha='center', fontsize=7.5,
+                    color='#111417', zorder=9, path_effects=_halo(2.5))
+
+    # 범례는 색 표본으로 직접 만든다 — 래스터라 plot 라벨이 생기지 않는다.
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+
+    from .providers.landslide import GRADE_COLOR, GRADE_LABEL
+    handles = [Patch(facecolor=GRADE_COLOR[g], edgecolor='none',
+                     label=GRADE_LABEL[g]) for g in sorted(GRADE_COLOR)]
+    handles.append(Line2D([0], [0], color=SITE_BOUNDARY_COLOR, lw=1.8,
+                          linestyle=(0, (5, 3)), label='사업구역 경계'))
+    ax.legend(handles=handles, loc='upper right', fontsize=7.5,
+              framealpha=0.9, borderpad=0.6)
+
+    _draw_scalebar(ax, ex)
+    return _finish(fig, legend=False)
+
+
 def item_map(area, geoms: list, title: str, color: str) -> bytes:
     """
     항목별 환경성 평가 지도 — 사업구역 경계 위에 **그 항목 하나**만 얹는다.

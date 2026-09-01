@@ -57,6 +57,59 @@ def _match_grade(rgb: tuple[int, int, int]) -> int | None:
     return None
 
 
+#: 등급 → 지도 범례 색(matplotlib). PALETTE의 역방향이며 같은 값이어야
+#: 보고서 지도와 판정이 같은 색을 말한다.
+GRADE_COLOR = {
+    1: '#ff0000', 2: '#ffc900', 3: '#b6ff8e', 4: '#30c2ff', 5: '#0000ff',
+}
+GRADE_LABEL = {1: '1등급 (최고 위험)', 2: '2등급', 3: '3등급',
+               4: '4등급', 5: '5등급 (최저)'}
+
+
+def fetch_map(area_geom, margin_ratio: float = 0.15) -> tuple | None:
+    """
+    **사업구역 전체**를 덮는 산사태위험지도 이미지 → (PNG bytes, extent).
+
+    extent = (minx, maxx, miny, maxy) EPSG:5179 — matplotlib 축에 그대로 얹는다.
+
+    판정(`_sample`)은 지점·구역 기준으로 따로 하고, 이쪽은 **보여주기 위한
+    것**이다. WMS는 임의 bbox를 받으므로 배치선처럼 호기가 흩어진 검토에서도
+    구역 전체를 한 장으로 낼 수 있다. 실패하면 None을 돌려 지도만 빠지게 한다
+    — 지도 하나 때문에 카드 전체를 죽일 이유가 없다.
+    """
+    try:
+        minx, miny, maxx, maxy = area_geom.bounds
+    except Exception:                                           # noqa: BLE001
+        return None
+    pad = max(maxx - minx, maxy - miny) * margin_ratio or 100.0
+    minx, miny, maxx, maxy = minx - pad, miny - pad, maxx + pad, maxy + pad
+    span = max(maxx - minx, maxy - miny)
+    size = max(16, min(MAX_IMAGE_PX, int(span / SOURCE_PIXEL_M)))
+
+    url = getattr(settings, 'FOREST_LANDSLIDE_URL', '') or DEFAULT_WMS_URL
+    params = {
+        'serviceKey': settings.FOREST_API_KEY,
+        'service': 'WMS', 'request': 'GetMap', 'version': '1.1.1',
+        'srs': geo.METRIC_CRS,
+        'bbox': f'{minx},{miny},{maxx},{maxy}',
+        'width': str(size), 'height': str(size),
+        'format': 'image/png', 'transparent': 'true',
+    }
+
+    def fetch() -> bytes:
+        res = httpx.get(f'{url}?{urllib.parse.urlencode(params)}', timeout=45.0,
+                        headers={'User-Agent': 'windsite-feasibility/1.0'})
+        res.raise_for_status()
+        return res.content
+
+    try:
+        blob = httpcache.get_or_set('landslide', params, fetch)
+    except Exception as e:                                      # noqa: BLE001
+        logger.info('산사태위험지도 이미지 조회 실패 — %s', explain_error(e))
+        return None
+    return blob, (minx, maxx, miny, maxy)
+
+
 class LandslideProvider(LayerProvider):
     """산사태위험등급 (1~5등급, 1등급이 최고 위험)"""
 

@@ -67,11 +67,15 @@ class SlopeProvider(LayerProvider):
             return self.unknown(
                 reason=(
                     f'평균경사도를 산출하지 못했습니다 — {e} '
-                    '경사가 완만하다는 뜻이 아니라 표고 자료가 없다는 뜻입니다.'
+                    '경사가 완만하다는 뜻이 아니라 표고 자료가 없다는 뜻입니다. '
+                    '**산지전용허가 기준에 평균경사도 25도 미만 요건이 있어**'
+                    '(산지관리법 시행령 별표4, 원문 확인) 산지에 입지하는 사업은 '
+                    '반드시 확인해야 하는 항목입니다.'
                 ),
                 action_required=(
                     '국토정보플랫폼(map.ngii.go.kr)에서 해당 지역 공개DEM 도엽을 '
-                    '내려받아 backend/data/dem/ 에 넣으면 자동 판정됩니다.'),
+                    '내려받아 backend/data/dem/ 에 넣으면 자동 판정됩니다. '
+                    '측량 성과가 있으면 그 값이 우선합니다.'),
                 why='NO_DATA',
             )
         except Exception as e:                                  # noqa: BLE001
