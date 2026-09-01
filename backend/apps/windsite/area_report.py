@@ -96,8 +96,22 @@ def build_area_report(result: dict, evals: list | None = None, *,
             ('관할 지자체',
              (' · '.join(f'{j["sigungu"]} {j["ratio"] * 100:.1f}%' for j in juris)
               + (f' · 시군구 경계 밖 {outside * 100:.1f}%' if outside >= 0.005 else '')
-              + '  (검토 면적 대비)') if juris else '-'),
-            ('작성', datetime.now().strftime('%Y-%m-%d %H:%M'))]
+              + '  (검토 면적 대비)') if juris else '-')]
+    # 발전기가 **실제로 서는** 지자체를 따로 적는다. 위 값은 배치선을 부풀린
+    # 검토 면적 기준이라, 발전기가 한 기도 없는 이웃 지자체가 큰 비율로
+    # 잡힌다(평창 문재풍력 — 8기 전부 평창군인데 검토 면적으로는 횡성군
+    # 47.3%). 인허가·조례는 발전기가 선 자리를 따르므로 둘을 나란히 둔다.
+    tj = result.get('turbine_jurisdictions') or []
+    if tj:
+        meta.append(
+            ('관할 지자체 (발전기 위치)',
+             ' · '.join(
+                 '%s %d기%s' % (t['sigungu'], t['count'],
+                                '' if len(tj) == 1 else
+                                f' ({available.nos_label(t["nos"], 0)})')
+                 for t in tj)
+             + '  (발전기 %d기 기준)' % sum(t['count'] for t in tj)))
+    meta += [('작성', datetime.now().strftime('%Y-%m-%d %H:%M'))]
     if layout:
         meta += [('발전기 검토반경', f'{layout["turbine_radius_m"]:,} m'),
                  ('연결선 검토반경', f'{layout["corridor_radius_m"]:,} m')]

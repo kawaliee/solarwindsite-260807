@@ -872,6 +872,18 @@ def card_setback(doc, ctx, no: str = '①') -> None:
     _bullets(doc, _setback_bullets(ctx))
 
 
+def _ordinance_setback_rows(ctx) -> list:
+    """
+    조례 이격이 **실제로 먹은 면적**이 있는 사유 행.
+
+    카드 머리(`_setback_head`)와 요약 불렛(`_setback_bullets`)이 같은 값을
+    보아야 한다 — 한쪽은 "저촉 구간이 없다"고 하고 다른 쪽은 호기를 짚는
+    일이 실제로 있었다(평창 문재풍력 실측).
+    """
+    return [x for x in (ctx.result.get('by_reason') or [])
+            if x['layer'].startswith('조례 ')]
+
+
 def _setback_head(ctx) -> str:
     """
     이격 카드 한 줄 결론.
@@ -882,8 +894,7 @@ def _setback_head(ctx) -> str:
     117ha가 조례 주거 이격에 걸렸는데도 0으로 읽혔다. 그래서 판정과 무관하게
     **조례 이격이 실제로 먹은 면적**을 사유 목록에서 직접 센다.
     """
-    rows = [x for x in (ctx.result.get('by_reason') or [])
-            if x['layer'].startswith('조례 ')]
+    rows = _ordinance_setback_rows(ctx)
     if not rows:
         return '조례 이격거리에 저촉되는 구간이 없습니다.'
     if (ctx.result.get('grandfathering') or {}).get('review_required'):
@@ -929,12 +940,21 @@ def _setback_bullets(ctx) -> list:
     out += [n for n in (r.get('notes') or [])
             if '시·군도' in n or '「길」' in n]
     # 풍력은 어느 호기가 걸렸는지가 곧 다음 행동이다.
-    if r.get('layout'):
+    #
+    # ⚠️ **조례 이격이 실제로 먹은 면적이 있을 때만** 호기를 짚는다.
+    #    hit_label은 '그 항목 판정에 해당하는 호기'라, 조례가 있어 검토했다는
+    #    이유만으로 항목이 조건부이면 전 호기가 잡힌다. 그 상태로 적었더니
+    #    카드 머리의 "저촉되는 구간이 없습니다" 바로 아래에 "1~8호기(전 호기)"가
+    #    붙어 정면으로 어긋났다(평창 문재풍력 실측).
+    #
+    #    문구도 「이격 미달 호기」에서 바꾼다 — 무엇에 미달했다는 것인지가
+    #    드러나지 않아 뜻이 통하지 않는다는 지적을 받았다.
+    if r.get('layout') and _ordinance_setback_rows(ctx):
         hit = next((m for m in ctx.merged
                     if '이격거리 조례' in m['item_name'] and m.get('hit_label')
                     and m['hit_label'] != '-'), None)
         if hit:
-            out.append('이격 미달 호기 — %s' % hit['hit_label'])
+            out.append('조례 이격거리에 걸리는 호기 — %s' % hit['hit_label'])
     if (r.get('grandfathering') or {}).get('review_required'):
         out.append('발전사업허가일이 조례 시행일보다 앞서 **경과규정(부칙) 검토 대상**'
                    '입니다 — 적용되면 위 이격 제약이 해소될 수 있습니다.')
@@ -1627,11 +1647,15 @@ def card_grid(doc, ctx, no: str = '⑤') -> None:
         # 참고로 뒤에 둔다.
         _styled_table(
             doc, ['변전소', '전압', '도로망 경로', '직선거리', '변전소 여유', '선로 여유'],
+            # 변전소마다 **제 도로망 경로**를 쓴다. 종전에는 최근접 한 곳만
+            # 값을 넣고 나머지는 「-」로 비웠는데, 직선거리로는 2순위가 더
+            # 가까워 보여도 도로망으로는 뒤집히는 일이 있어 같은 잣대로
+            # 비교할 수 없었다.
             [[s.get('name') or '-', '%dkV' % ((s.get('voltage') or 0) // 1000),
-              _km(road_m) if i == 0 else '-',
+              _km(s.get('road_distance_m')),
               _km(s.get('distance_m')),
               _kw(s.get('margin_substation_kw')), _kw(s.get('margin_line_kw'))]
-             for i, s in enumerate(subs[:3])],
+             for s in subs[:3]],
             accent=SECTION_COLORS.get('인프라', BRAND),
             widths=[4.2, 1.8, 2.8, 2.4, 3.1, 3.1], center=True)
 

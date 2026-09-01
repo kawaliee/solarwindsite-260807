@@ -553,6 +553,44 @@ def compute_parcels(parcel_list: list, permit_date=None, job_id: str = '',
     return out
 
 
+def _turbine_jurisdictions(layout: dict | None, slices: list) -> list:
+    """
+    발전기 위치별 관할 지자체 → [{sigungu, sido, count, nos}] (기수 많은 순).
+
+    검토 면적 기준 배분(`jurisdictions`)과 다른 값이다. 배치선 검토의 검토
+    면적은 발전기 원과 연결 회랑을 부풀린 도형이라, 발전기가 한 기도 없는
+    이웃 지자체가 큰 비율로 잡힌다(평창 문재풍력 — 8기 전부 평창군인데
+    검토 면적으로는 횡성군 47.3%). 인허가·조례는 발전기가 실제로 서는
+    자리를 따르므로 두 기준을 갈라 낸다.
+
+    slices에 이미 지자체별 도형이 있으므로 추가 조회가 없다.
+    """
+    if not layout or not layout.get('turbines') or not slices:
+        return []
+    try:
+        pts = [geo.point_metric(a, o) for a, o in layout['turbines']]
+    except Exception:                                           # noqa: BLE001
+        logger.exception('발전기 좌표 변환 실패 — 위치 기준 지자체를 내지 않는다')
+        return []
+
+    by: dict[str, dict] = {}
+    for no, p in enumerate(pts, 1):
+        hit = next((s for s in slices
+                    if s.get('geom') is not None and s['geom'].contains(p)), None)
+        if hit is None:                 # 경계에 걸치면 가장 가까운 조각으로
+            hit = min((s for s in slices if s.get('geom') is not None),
+                      key=lambda s: s['geom'].distance(p), default=None)
+        if hit is None:
+            continue
+        slot = by.setdefault(hit['sigungu'], {'sigungu': hit['sigungu'],
+                                              'sido': hit.get('sido', ''),
+                                              'nos': []})
+        slot['nos'].append(no)
+    out = [{**v, 'count': len(v['nos'])} for v in by.values()]
+    out.sort(key=lambda r: -r['count'])
+    return out
+
+
 def _compute(area, separation_zone=None, layout: dict | None = None,
              permit_date=None, job_id: str = '',
              energy: str = energy_mod.DEFAULT,
@@ -836,6 +874,12 @@ def _compute(area, separation_zone=None, layout: dict | None = None,
             for s in slices
         ],
         'jurisdiction_meta': {k: v for k, v in jmeta.items()},
+        # 발전기가 **실제로 서는** 지자체. 위 jurisdictions는 검토 면적
+        # (배치선 버퍼) 기준이라 발전기가 하나도 없는 이웃 지자체가 큰 비율로
+        # 잡힌다 — 평창 문재풍력에서 8기가 전부 평창인데 검토 면적으로는
+        # 횡성군이 47.3%로 나왔다. 인허가는 발전기가 선 자리가 가르므로
+        # 두 기준을 나란히 낸다.
+        'turbine_jurisdictions': _turbine_jurisdictions(layout, slices),
         # 조회하지 못한 레이어가 있으면 그만큼 제약을 덜 본 것이다.
         # 가용면적이 실제보다 크게 나올 수 있으므로 반드시 함께 읽어야 한다.
         'fetch_failures': failures,

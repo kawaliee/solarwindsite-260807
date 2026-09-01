@@ -273,7 +273,25 @@ class OsmGridProvider(LayerProvider):
         # 가므로 도로망 경로 거리를 나란히 낸다 — 다만 이것도 확정 경로가
         # 아니라(한전 협의로 정해진다) 둘을 함께 보여 준다.
         road_txt = ''
-        rd = road_distance_m(q.lat, q.lng, nearest['lat'], nearest['lng'])             if nearest.get('lat') and nearest.get('lng') else None
+        # 보고서 표에 오르는 변전소마다 도로망 경로를 구한다. 종전에는 최근접
+        # 한 곳만 구해, 표의 나머지 변전소는 「-」로 비어 있었다(평창 문재풍력
+        # 실측 — 주진·횡성변전소가 그랬다). 직선거리로는 2순위가 더 가까워
+        # 보여도 도로망으로는 뒤집히는 일이 있어, 비교하려면 같은 잣대로
+        # 재야 한다.
+        #
+        # ⚠️ 보고서 표가 고르는 것과 **같은 기준**으로 골라야 한다
+        #    (report_cards._grid_subs — 154kV 이상이고 명칭이 확인된 곳).
+        #    필터 전 목록으로 구하면 도로망을 잰 곳과 표에 오르는 곳이
+        #    어긋나 표가 다시 비어 버린다.
+        listed = [s for s in subs
+                  if (s.get('voltage') or 0) >= self.PREFERRED_VOLTAGE
+                  and s.get('name') != '(명칭 미상)']
+        _road_distances(q, listed, ROAD_ROUTE_MAX)
+        rd = nearest.get('road_distance_m')
+        if rd is None and nearest.get('lat') and nearest.get('lng'):
+            # 최근접이 위 목록에 없을 수도 있다(154kV 미만 등). 판정 문구는
+            # 최근접을 기준으로 말하므로 그 값은 따로 채운다.
+            rd = road_distance_m(q.lat, q.lng, nearest['lat'], nearest['lng'])
         if rd:
             road_txt = (f' 도로망 경로로는 {geo.format_distance(rd)}입니다'
                         f'(직선 대비 {rd / max(nearest["distance_m"], 1):.1f}배) — '
@@ -875,3 +893,23 @@ def road_distance_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float
     except Exception:                                           # noqa: BLE001
         logger.info('도로 경로 조회 실패 %s', coords)
         return None
+
+
+#: 도로망 경로를 구할 변전소 수. 보고서 표가 3곳을 싣고(report_cards.card_grid),
+#: OSRM 공개 서버를 지점마다 한 번씩 부르므로 넉넉히 두되 상한을 건다.
+ROAD_ROUTE_MAX = 3
+
+
+def _road_distances(q, subs: list[dict], limit: int = ROAD_ROUTE_MAX) -> None:
+    """
+    상위 변전소마다 도로망 경로 거리를 구해 `road_distance_m`에 채운다(제자리).
+
+    좌표가 없거나 조회에 실패한 곳은 키를 넣지 않는다 — 0으로 채우면
+    '도로가 없다'는 뜻이 되어 실패와 구분되지 않는다.
+    """
+    for s in subs[:limit]:
+        if not (s.get('lat') and s.get('lng')):
+            continue
+        d = road_distance_m(q.lat, q.lng, s['lat'], s['lng'])
+        if d is not None:
+            s['road_distance_m'] = d
