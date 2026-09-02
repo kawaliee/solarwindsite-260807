@@ -1756,6 +1756,45 @@ def _km(m) -> str:
 # ── ⑥ 풍황 (재현바람장) ────────────────────────────────────────────────
 RAWWIND_ITEM = '풍황(재현바람장)'
 ASOS_WIND_ITEM = '풍황(연평균 풍속)'
+SEA_ITEM = '유효지역(해역 제외)'
+
+
+def _sea_rollup(ctx):
+    """호기별 해역 저촉 집계 → ([(호기번호, 비율)…], 확인못함 수)."""
+    hit, unknown = [], 0
+    for i, e in enumerate(ctx.evals, 1):
+        it = _item_of(e['result'], SEA_ITEM)
+        if it is None:
+            continue
+        if it.status.value == 'UNKNOWN':
+            unknown += 1
+            continue
+        r = float((it.raw or {}).get('sea_ratio') or 0)
+        if r > 0:
+            hit.append((i, r))
+    hit.sort(key=lambda x: -x[1])
+    return hit, unknown
+
+
+def _valid_area_note(center, radius_m) -> str:
+    """
+    신청좌표 기준 **유효지역 실면적**(2km 원 − 해역).
+
+    해안 사업은 원의 절반 넘게 바다인 경우가 있어, 배치를 넣을 자리 자체가
+    좁다. 실측에서 완도는 12.55km² 원 중 유효지역이 1.39km²(11.1%)였다.
+    조회에 실패하면 빈 문자열 — 없는 것을 '전부 육지'로 갈음하지 않는다.
+    """
+    if not center or len(center) != 2:
+        return ''
+    try:
+        from . import coast
+        va = coast.valid_area(float(center[0]), float(center[1]),
+                              float(radius_m))
+    except Exception as e:                                      # noqa: BLE001
+        logger.warning('유효지역 면적 산출 실패: %s', e)
+        return ''
+    return (f"{va['valid_m2'] / 1e6:,.2f}km² / 원 {va['circle_m2'] / 1e6:,.2f}km²"
+            f" (육지 {va['land_ratio'] * 100:.1f}%)")
 
 
 def _rawwind_pick(ctx):
@@ -1836,19 +1875,31 @@ def card_rawwind(doc, ctx, no: str = '⑥') -> None:
             accent=SECTION_COLORS.get('사업성', BRAND),
             widths=[1.8, 2.6, 3.4, 2.4, 2.6, 2.2], center=True)
 
-    # 유효지역 — 고시가 정한 허가 가능 범위. 풍황 값과 같은 칸에 둔다.
+    # 유효지역 — 고시가 정한 허가 가능 범위. 축이 둘(거리·해역)이라 둘 다 낸다.
     c = raw.get('center') or []
-    _kv(doc, [
+    rows = [
         ('신청좌표(자료 취득 지점)',
          f'{c[0]:.5f}, {c[1]:.5f}' if len(c) == 2 else '-'),
         ('유효지역',
          f"반지름 {raw.get('valid_radius_m', 2000):,}m 원 − 해역"
          f" (블레이드 회전 반지름 {float(raw.get('rotor_m') or 0):,.0f}m 포함 판정)"),
-        ('유효지역 내 호기',
+        ('① 거리 요건 — 유효지역 내 호기',
          f'{total - len(outside)}/{total}기'
          + (f' — 밖: {", ".join(f"{i}호기" for i in outside)}' if outside
             else ' (전부 포함)')),
-    ])
+    ]
+    va = _valid_area_note(c, raw.get('valid_radius_m') or 2000)
+    if va:
+        rows.append(('유효지역 실면적(해역 제외)', va))
+    sea_hit, sea_unknown = _sea_rollup(ctx)
+    rows.append((
+        '② 해역 요건 — 블레이드 저촉',
+        ('확인하지 못했습니다 (육지 경계 조회 실패)' if sea_unknown and not sea_hit
+         else '저촉 없음' if not sea_hit
+         else f'{len(sea_hit)}기 저촉 — '
+              + ', '.join(f'{i}호기 {r * 100:.0f}%' for i, r in sea_hit[:6])
+              + (' 외' if len(sea_hit) > 6 else ''))))
+    _kv(doc, rows)
 
     asos = next((it for it in (_item_of(e['result'], ASOS_WIND_ITEM)
                                for e in ctx.evals) if it is not None), None)
@@ -1859,9 +1910,14 @@ def card_rawwind(doc, ctx, no: str = '⑥') -> None:
             f'{", ".join(f"{i}호기" for i in outside)}. 유효지역은 발전사업허가를 '
             f'받을 수 있는 범위이므로, 신청좌표를 옮기거나 **허가를 나누어** '
             f'각각 재현바람장을 확보해야 합니다.')
-    bullets.append(
-        '해역 제외 요건은 이 검토에서 판정하지 않았습니다 — 해안선 자료가 '
-        '연동되어 있지 않습니다. 해안 인접 부지는 별도로 확인하십시오.')
+    if sea_hit:
+        bullets.append(
+            f'⚠️ {len(sea_hit)}기의 블레이드 회전 투영면이 해역에 걸칩니다. '
+            f'고시상 유효지역은 2km 원에서 **해역을 제외한** 지역이고 그 투영면이 '
+            f'유효지역 안에 있어야 하므로, 저촉 소지가 있습니다. 다만 육지 경계로 '
+            f'쓴 자료는 **행정경계**라 조위 기준 해안선과 수십 m 어긋날 수 있고, '
+            f'일부만 걸치는 경우의 해석은 허가청 판단입니다 — 공유수면 관리청에 '
+            f'실제 해안선으로 확인하십시오.')
     if asos is not None:
         bullets.append(
             'ASOS 관측 기반 참고치 — ' + _summarize(asos.reason or '', 180)
