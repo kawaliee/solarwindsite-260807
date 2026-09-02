@@ -28,6 +28,12 @@ from .base import LayerProvider, SiteQuery
 
 logger = logging.getLogger(__name__)
 
+
+def rawwind_law() -> str:
+    """고시의 **정식 명칭**. 어댑터마다 다르게 적으면 같은 근거가
+    보고서에서 두 법령처럼 읽히고 조문 대조도 어긋난다."""
+    return '발전사업세부허가기준, 전기요금산정기준, 전력량계허용오차 및 전력계통운영업무에 관한 고시'
+
 def match_radius_m() -> float:
     """
     저장된 표본을 **이 호기의 것으로 말할 수 있는** 최대 거리(m).
@@ -58,7 +64,7 @@ class RawWindProvider(LayerProvider):
     item_name = '풍황(재현바람장)'
     data_source = '기상청 API허브 재현바람장'
     required_settings = ('KMA_APIHUB_KEY',)
-    default_law = '발전사업 세부허가기준 등에 관한 고시'
+    default_law = rawwind_law()
     default_article = '풍력 발전사업허가 풍황 자료 제출 요건'
 
     def analyze(self, q: SiteQuery) -> AnalysisItem:

@@ -24,6 +24,12 @@ from .base import LayerProvider, SiteQuery
 logger = logging.getLogger(__name__)
 
 
+def rawwind_law() -> str:
+    """고시의 **정식 명칭**. 어댑터마다 다르게 적으면 같은 근거가
+    보고서에서 두 법령처럼 읽히고 조문 대조도 어긋난다."""
+    return '발전사업세부허가기준, 전기요금산정기준, 전력량계허용오차 및 전력계통운영업무에 관한 고시'
+
+
 class SeaAreaProvider(LayerProvider):
     """유효지역 해역 제외 — 블레이드 회전 투영면"""
 
@@ -31,7 +37,7 @@ class SeaAreaProvider(LayerProvider):
     item_name = '유효지역(해역 제외)'
     data_source = 'V-World 읍·면·동 행정경계'
     required_settings = ('VWORLD_API_KEY',)
-    default_law = '발전사업세부허가기준 등에 관한 고시'
+    default_law = rawwind_law()
     default_article = '육상풍력 사업 유효지역'
 
     def analyze(self, q: SiteQuery) -> AnalysisItem:
