@@ -263,3 +263,150 @@ def shear_alpha(mean_low: float, h_low: int,
         return math.log(mean_high / mean_low) / math.log(h_high / h_low)
     except (ValueError, ZeroDivisionError):
         return None
+
+
+# ── 육상풍력 사업 유효지역 (고시 제5조 관련 별표) ─────────────────────
+#: 「발전사업세부허가기준, 전기요금산정기준, 전력량계허용오차 및 전력계통운영
+#: 업무에 관한 고시」 — **육상풍력 사업 유효지역**(풍력발전사업 허가를 받을 수
+#: 있는 지역)은 *신청좌표를 중심으로 반지름을 2km로 하는 원 이내로 해역을
+#: 제외한 지역*으로 한다.
+VALID_RADIUS_M = 2000
+
+#: ⚠️ 판정 대상은 호기의 **점**이 아니다. 같은 고시가 이어서 정한다 —
+#: *풍력발전기 블레이드의 회전 가능 범위를 수평으로 투영한 면적은 유효지역
+#: 이내여야 한다.* 그러므로 실제 조건은
+#:
+#:     신청좌표~호기 거리 + 로터 반지름  ≤  2,000m
+#:
+#: 로터를 빼고 재면 여유를 로터 반지름만큼 과대평가한다. 실측에서 완도 10기는
+#: 최원 1,876m라 점으로는 통과하지만, 로터 반지름 200m를 더하면 2,076m로
+#: **유효지역을 벗어난다** — 빼고 재면 통과로 잘못 읽는다.
+#:
+#: 기본값 200m는 국내 육상풍력에서 나올 수 있는 블레이드 회전 반지름의
+#: **상한**이다. 기종이 확정되기 전에는 상한으로 재야 안전하다 — 실제보다
+#: 작게 잡으면 유효지역에 든다고 했다가 기종 확정 후 벗어난다. 기종이
+#: 정해지면 settings.WINDSITE_ROTOR_RADIUS_M 으로 덮어쓴다
+#: (`DEFAULT_TIP_HEIGHT_M`과 같은 방식).
+DEFAULT_ROTOR_RADIUS_M = 200
+
+
+def rotor_radius_m() -> float:
+    from django.conf import settings
+    return float(getattr(settings, 'WINDSITE_ROTOR_RADIUS_M', None)
+                 or DEFAULT_ROTOR_RADIUS_M)
+
+
+def _metric(pts):
+    from . import geo
+    return [geo.point_metric(float(a), float(b)) for a, b in pts]
+
+
+def _reach(mp, radius_m: float, rotor_m: float) -> list[set]:
+    """지점 i를 신청좌표로 잡았을 때 유효지역에 드는 호기 집합."""
+    lim = radius_m - rotor_m
+    return [{j for j, o in enumerate(mp) if c.distance(o) <= lim} for c in mp]
+
+
+def best_center(pts, radius_m: float = VALID_RADIUS_M,
+                rotor_m: float | None = None) -> dict | None:
+    """
+    **가장 많은 호기를 유효지역 안에 담는 호기**를 신청좌표 후보로 고른다.
+
+    배치선의 기하 중심을 잡으면 될 것 같지만 호기 자리를 쓴다. 재현바람장은
+    격자 조회라 아무 좌표나 되긴 하지만, 신청좌표를 실제 호기 자리에 두면
+    **그 호기의 풍황**이라고 말할 수 있고 유효지역 판정과 풍황 자료의 기준점이
+    한 점으로 정리된다.
+
+    같은 개수를 담는 호기가 여럿이면 **여유가 큰**(가장 먼 호기까지의 거리가
+    짧은) 쪽을 고른다. 설계 단계에서 배치가 조금 움직여도 유효지역이 깨지지
+    않는다 — 평창 실측에서 3·4·5·6·7호기가 모두 8기를 담지만 여유는 4호기가
+    가장 크다.
+
+    반환: {index, lat, lng, covered, uncovered, max_dist_m, margin_m, rotor_m}
+      · max_dist_m  신청좌표~가장 먼 호기 (로터 미포함, 전체 호기 기준)
+      · margin_m    2,000m까지 남은 여유 = radius − (담긴 것 중 최원거리 + 로터)
+                    담기지 않은 호기가 있으면 음수로 얼마나 모자라는지 말한다
+    """
+    pts = [(float(a), float(b)) for a, b in (pts or [])]
+    if not pts:
+        return None
+    rotor = rotor_radius_m() if rotor_m is None else float(rotor_m)
+    mp = _metric(pts)
+    best = None
+    for i, c in enumerate(mp):
+        d = [c.distance(o) for o in mp]
+        covered = [j for j, x in enumerate(d) if x + rotor <= radius_m]
+        key = (len(covered), -max(d))
+        if best is None or key > best[0]:
+            best = (key, i, covered, d)
+    _k, i, covered, d = best
+    inner = max((d[j] for j in covered), default=0.0)
+    margin = radius_m - (max(d) + rotor) if len(covered) == len(pts)         else radius_m - (max(d) + rotor)
+    return {'index': i, 'lat': pts[i][0], 'lng': pts[i][1],
+            'covered': covered,
+            'uncovered': [j for j in range(len(pts)) if j not in set(covered)],
+            'max_dist_m': round(max(d), 1),
+            'inner_dist_m': round(inner, 1),
+            'margin_m': round(margin, 1),
+            'rotor_m': rotor}
+
+
+def free_center(pts, radius_m: float = VALID_RADIUS_M,
+                rotor_m: float | None = None) -> dict | None:
+    """
+    호기 자리에 매이지 않는 **기하학적 최적 신청좌표**(최소외접원 중심).
+
+    신청좌표는 호기 좌표일 필요가 없다. 호기 중심으로 안 되는 배치도 자유
+    좌표로는 되는 경우가 있어, **정말 유효지역 하나로 안 되는 사업인지**를
+    가르려면 이쪽을 봐야 한다. 이것으로도 안 되면 배치를 바꾸거나 사업을
+    나누는 수밖에 없다 — 설계 단계에서 알아야 할 사실이다.
+    """
+    from shapely import minimum_bounding_circle
+    from shapely.geometry import MultiPoint
+
+    from . import geo
+    pts = [(float(a), float(b)) for a, b in (pts or [])]
+    if not pts:
+        return None
+    rotor = rotor_radius_m() if rotor_m is None else float(rotor_m)
+    mp = _metric(pts)
+    c = minimum_bounding_circle(MultiPoint(mp)).centroid
+    d = [c.distance(o) for o in mp]
+    lng, lat = geo.to_geographic_xy(c.x, c.y)
+    return {'lat': round(lat, 6), 'lng': round(lng, 6),
+            'max_dist_m': round(max(d), 1),
+            'margin_m': round(radius_m - (max(d) + rotor), 1),
+            'fits': max(d) + rotor <= radius_m,
+            'rotor_m': rotor}
+
+
+def cover_points(pts, radius_m: float = VALID_RADIUS_M,
+                 rotor_m: float | None = None) -> list[dict]:
+    """
+    호기 전부를 덮는 데 필요한 **신청좌표 목록**(탐욕적 집합 덮기).
+
+    배치선이 유효지역보다 길면 한 좌표로는 안 된다 — 삼척 22기는 배치선이 약
+    7km라 어느 호기를 골라도 최대 11기까지만 담긴다(실측). 유효지역이 곧
+    발전사업허가의 단위이므로, 이 개수는 **허가를 몇 건으로 나눠야 하는가**를
+    뜻한다. 재현바람장도 좌표마다 따로 받아야 한다.
+
+    최소 개수를 보장하지는 않는다(집합 덮기는 NP-난해). 좌표 하나에 한 시간
+    가까이 걸리는 수집이라 개수를 사람이 보고 판단하는 것이 중요하지, 최적해를
+    다투는 실익은 없다.
+    """
+    pts = [(float(a), float(b)) for a, b in (pts or [])]
+    if not pts:
+        return []
+    rotor = rotor_radius_m() if rotor_m is None else float(rotor_m)
+    mp = _metric(pts)
+    reach = _reach(mp, radius_m, rotor)
+    rest, out = set(range(len(pts))), []
+    while rest:
+        i = max(range(len(pts)), key=lambda k: (len(reach[k] & rest), -k))
+        got = sorted(reach[i] & rest)
+        if not got:                       # 있을 수 없지만 무한 루프는 막는다
+            break
+        out.append({'index': i, 'lat': pts[i][0], 'lng': pts[i][1],
+                    'assigned': got})
+        rest -= reach[i]
+    return out

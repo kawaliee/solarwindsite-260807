@@ -170,7 +170,7 @@ def plan_create(request):
         project=project, name=name, note=(d.get('note') or '').strip(),
         reviewer=(d.get('reviewer') or '').strip()[:60],
         mode=mode, turbines=turbines,
-        turbine_radius_m=_int(d.get('turbine_radius_m'), 500),
+        turbine_radius_m=_int(d.get('turbine_radius_m'), 200),
         corridor_radius_m=_int(d.get('corridor_radius_m'), 100),
         capacity_mw=_float(d.get('capacity_mw')),
         permit_date=(d.get('permit_date') or '')[:10],
@@ -212,7 +212,7 @@ def plan_detail(request, pk):
             return Response({'detail': '저장할 호기 좌표가 없습니다.'},
                             status=http.HTTP_400_BAD_REQUEST)
         x.turbines = t
-    for f, cast, dflt in (('turbine_radius_m', _int, 500),
+    for f, cast, dflt in (('turbine_radius_m', _int, 200),
                           ('corridor_radius_m', _int, 100)):
         if f in d:
             setattr(x, f, cast(d.get(f), dflt))

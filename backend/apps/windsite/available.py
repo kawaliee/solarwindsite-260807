@@ -400,7 +400,7 @@ def ordinance_zones(buffers: dict) -> tuple:
 
 #: 배치선 검토 기본 반경(m). 발전기는 이격 검토가 필요해 넓게, 연결선은
 #: 폭이 좁은 선형 시설이라 좁게 잡는다. 화면에서 조정할 수 있다.
-DEFAULT_TURBINE_RADIUS_M = 500
+DEFAULT_TURBINE_RADIUS_M = 200
 DEFAULT_CORRIDOR_RADIUS_M = 100
 
 

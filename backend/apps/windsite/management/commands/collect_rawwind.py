@@ -36,21 +36,35 @@ class Command(BaseCommand):
                             help='종료일 YYYYMMDD (기본: 자료 종료 시점)')
         parser.add_argument('--heights', default='80,140',
                             help='바람 고도 목록 (기본 80,140)')
+        parser.add_argument('--cover', action='store_true',
+                            help='유효지역이 하나로 안 될 때 필요한 신청좌표 '
+                                 '전부를 수집합니다 (좌표 수만큼 오래 걸립니다)')
         parser.add_argument('--itv', type=int, default=rawwind.ITV_COARSE,
                             help='자료 간격(분) — 10 또는 30만 유효')
 
     def handle(self, *args, **o):
         plan = None
+        spots: list[tuple[float, float, str]] = []
         lat, lng = o.get('lat'), o.get('lon')
         if o.get('plan'):
             try:
                 plan = SitePlan.objects.get(id=o['plan'])
             except SitePlan.DoesNotExist as e:
                 raise CommandError(f"배치안을 찾지 못했습니다: {o['plan']}") from e
-            lat, lng = _representative(plan)
-            self.stdout.write(f'배치안 {plan} — 대표 지점 {lat:.5f},{lng:.5f}')
-        if lat is None or lng is None:
-            raise CommandError('--plan 또는 --lat/--lon 이 필요합니다.')
+            self.stdout.write(f'배치안 {plan} ({len(plan.turbines or [])}기)')
+            best = _coverage_report(self, plan)
+            if o.get('cover'):
+                spots = [(c['lat'], c['lng'],
+                          f"{c['index'] + 1}호기 · {len(c['assigned'])}기 담당")
+                         for c in rawwind.cover_points(plan.turbines or [])]
+            else:
+                spots = [(best['lat'], best['lng'],
+                          f"{best['index'] + 1}호기 · "
+                          f"{len(best['covered'])}기 담당")]
+        if not spots:
+            if lat is None or lng is None:
+                raise CommandError('--plan 또는 --lat/--lon 이 필요합니다.')
+            spots = [(float(lat), float(lng), '지정 좌표')]
 
         end = (_parse_day(o['dt_to'], end=True) if o['dt_to']
                else rawwind.AVAILABLE_TO)
@@ -60,9 +74,13 @@ class Command(BaseCommand):
         itv = int(o['itv'])
 
         self.stdout.write(
-            f'기간 {start:%Y-%m-%d} ~ {end:%Y-%m-%d} · 고도 {heights} · {itv}분 간격')
-        for h in heights:
-            self._one(plan, lat, lng, start, end, h, itv)
+            f'기간 {start:%Y-%m-%d} ~ {end:%Y-%m-%d} · 고도 {heights} · {itv}분 간격 '
+            f'· 신청좌표 {len(spots)}곳')
+        for lat, lng, label in spots:
+            self.stdout.write('')
+            self.stdout.write(f'■ 신청좌표 {lat:.5f},{lng:.5f} — {label}')
+            for h in heights:
+                self._one(plan, lat, lng, start, end, h, itv)
 
     # ------------------------------------------------------------------
     def _one(self, plan, lat, lng, start, end, height_m, itv):
@@ -101,22 +119,57 @@ class Command(BaseCommand):
 
 def _representative(plan: SitePlan) -> tuple[float, float]:
     """
-    배치안의 대표 지점 — 배치선 전체의 중앙.
+    배치안의 **신청좌표 후보** — 유효지역에 가장 많은 호기를 담는 호기 자리.
 
-    호기마다 받으면 정확하지만 호기 수만큼 시간이 곱해져(8기 × 2고도 ×
-    1년이면 열 시간이 넘는다) 현실적이지 않다. 대표 한 곳으로 받고, 그
-    사실을 보고서가 밝힌다.
+    종전에는 배치선의 기하 중심을 썼다. 그러나 고시가 정하는 유효지역은
+    *신청좌표를 중심으로 반지름 2km인 원*이고 그 안에 블레이드 회전 투영면이
+    들어와야 하므로, 기준점은 '가운데'가 아니라 **가장 많은 호기를 담는 점**
+    이어야 한다. 실측에서 평창 8기는 4호기(여유 387m), 완도 10기는 어느
+    호기를 잡아도 한 기가 벗어난다 — 중심을 잘못 잡으면 이 사실이 안 보인다.
     """
     pts = plan.turbines or []
     if not pts:
         raise CommandError('배치안에 호기 좌표가 없습니다.')
-    if len(pts) == 1:
-        return float(pts[0][0]), float(pts[0][1])
-    line = geo.corridor(pts, 1)          # 폭 1m 회랑 → 중심을 잡기 위한 도형
-    rep = geo.representative_latlng(line) if line is not None else None
-    if rep:
-        return rep
-    return (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
+    b = rawwind.best_center(pts)
+    return float(b['lat']), float(b['lng'])
+
+
+def _coverage_report(cmd, plan: SitePlan) -> dict:
+    """유효지역 진단 — 몇 기가 담기고, 안 담기면 무엇을 해야 하는지."""
+    pts = plan.turbines or []
+    n = len(pts)
+    b = rawwind.best_center(pts)
+    rotor = b['rotor_m']
+    cmd.stdout.write(
+        f"유효지역 반경 {rawwind.VALID_RADIUS_M:,}m · 블레이드 회전 반지름 "
+        f"{rotor:,.0f}m → 신청좌표에서 {rawwind.VALID_RADIUS_M - rotor:,.0f}m "
+        f"안에 호기가 있어야 합니다.")
+    cmd.stdout.write(
+        f"  호기 중심 최적: {b['index'] + 1}호기 — {len(b['covered'])}/{n}기 포함 "
+        f"(최원 {b['max_dist_m']:,.0f}m, 여유 {b['margin_m']:+,.0f}m)")
+    if len(b['covered']) == n:
+        return b
+
+    out = [i + 1 for i in b['uncovered']]
+    cmd.stdout.write(cmd.style.WARNING(
+        f"  ⚠️ {len(out)}기가 유효지역 밖입니다: {', '.join(map(str, out))}호기"))
+    f = rawwind.free_center(pts)
+    if f and f['fits']:
+        cmd.stdout.write(cmd.style.WARNING(
+            f"  → 신청좌표를 호기 자리에 두지 않으면 한 유효지역으로 들어갑니다: "
+            f"{f['lat']:.5f},{f['lng']:.5f} (최원 {f['max_dist_m']:,.0f}m, "
+            f"여유 {f['margin_m']:+,.0f}m). `--lat {f['lat']:.5f} "
+            f"--lon {f['lng']:.5f}` 로 받으십시오."))
+    else:
+        cov = rawwind.cover_points(pts)
+        cmd.stdout.write(cmd.style.WARNING(
+            f"  → 자유 좌표로도 한 유효지역에 담기지 않습니다. 전부 덮으려면 "
+            f"신청좌표 {len(cov)}개가 필요합니다: "
+            + ', '.join(f"{c['index'] + 1}호기({len(c['assigned'])}기)"
+                        for c in cov)
+            + ". 유효지역은 곧 발전사업허가의 단위이므로, 허가를 나눠야 하는지"
+              " 검토하십시오. `--cover` 로 좌표 전부를 수집합니다."))
+    return b
 
 
 def _kst(dt: datetime) -> datetime:

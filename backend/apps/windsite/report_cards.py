@@ -1758,14 +1758,35 @@ RAWWIND_ITEM = '풍황(재현바람장)'
 ASOS_WIND_ITEM = '풍황(연평균 풍속)'
 
 
-def _rawwind_head(item) -> str:
+def _rawwind_pick(ctx):
+    """
+    호기별 판정에서 **자료가 실린 것 하나**와 **유효지역 집계**를 함께 낸다.
+
+    풍황은 호기마다 값이 따로 나오지 않는다 — 신청좌표 한 곳에서 받은 자료를
+    유효지역 안의 호기들이 공유한다. 그러나 유효지역 **밖** 호기는 그 자료로
+    말할 수 없으므로, 몇 호기가 그 자료로 설명되는지를 세어 함께 밝힌다.
+    """
+    have, out = None, []
+    for i, e in enumerate(ctx.evals, 1):
+        it = _item_of(e['result'], RAWWIND_ITEM)
+        if it is None:
+            continue
+        if (it.raw or {}).get('heights'):
+            if have is None:
+                have = it
+        else:
+            out.append(i)
+    return have, out, len(ctx.evals)
+
+
+def _rawwind_head(item, outside, total: int) -> str:
     if item is None:
-        return '재현바람장 판정 결과가 없습니다.'
-    hs = ((item.raw or {}).get('heights') or {})
-    if not hs:
         return '재현바람장 자료가 수집되지 않았습니다 — 발전사업허가 제출 자료입니다.'
+    hs = ((item.raw or {}).get('heights') or {})
     bits = [f"{h}m {(st or {}).get('mean_ms')} m/s" for h, st in sorted(hs.items())]
-    return ' · '.join(bits) + f" — {_sig(item.status.value)}"
+    tail = (f' · 유효지역 밖 {len(outside)}기' if outside
+            else f' · {total}기 전부 유효지역 내')
+    return ' · '.join(bits) + tail
 
 
 def card_rawwind(doc, ctx, no: str = '⑥') -> None:
@@ -1776,19 +1797,30 @@ def card_rawwind(doc, ctx, no: str = '⑥') -> None:
     풍황계측기 설치가 필수가 아니게 되고 이 자료 제출로 갈음한다. 그래서
     참고치가 아니라 인허가 서류의 근거로 실린다.
 
+    같은 고시가 **유효지역**(신청좌표 중심 반지름 2km 원에서 해역을 제외한
+    지역, 블레이드 회전 투영면이 그 안에 들어와야 한다)을 정하므로, 풍황
+    값과 함께 **몇 호기가 그 유효지역에 드는지**를 같이 낸다. 값만 싣고
+    범위를 빼면, 유효지역 밖 호기까지 그 풍황인 것처럼 읽힌다.
+
     ASOS 풍황과 나란히 낸다. 둘은 성격이 달라(ASOS는 지상 10m 관측을 α
     가정으로 환산, 재현바람장은 부지 좌표·허브고도에서 바로 나온 값) 값이
     다르면 그 사실 자체가 정보다.
     """
-    item = next((it for it in (_item_of(e['result'], RAWWIND_ITEM)
-                               for e in ctx.evals) if it is not None), None)
+    item, outside, total = _rawwind_pick(ctx)
     _card_head(doc, f'{no} 풍황 — 재현바람장 (발전사업허가 제출 자료)',
-               _rawwind_head(item), SECTION_COLORS.get('사업성', BRAND))
+               _rawwind_head(item, outside, total),
+               SECTION_COLORS.get('사업성', BRAND))
     if item is None:
-        doc.add_paragraph('재현바람장 판정 결과가 없습니다.')
+        _bullets(doc, [
+            '재현바람장 자료가 수집되지 않았습니다. 「발전사업세부허가기준 …에 '
+            '관한 고시」 개정으로 풍력 발전사업허가에서 풍황계측기 설치를 이 '
+            '자료 제출로 갈음할 수 있으므로, **허가 신청 전 반드시 확보해야 할 '
+            '자료**입니다.',
+            '자료가 없다는 뜻이지 바람이 약하다는 뜻이 아닙니다.'])
         return
 
-    hs = ((item.raw or {}).get('heights') or {})
+    raw = item.raw or {}
+    hs = raw.get('heights') or {}
     if hs:
         _styled_table(
             doc,
@@ -1804,9 +1836,32 @@ def card_rawwind(doc, ctx, no: str = '⑥') -> None:
             accent=SECTION_COLORS.get('사업성', BRAND),
             widths=[1.8, 2.6, 3.4, 2.4, 2.6, 2.2], center=True)
 
+    # 유효지역 — 고시가 정한 허가 가능 범위. 풍황 값과 같은 칸에 둔다.
+    c = raw.get('center') or []
+    _kv(doc, [
+        ('신청좌표(자료 취득 지점)',
+         f'{c[0]:.5f}, {c[1]:.5f}' if len(c) == 2 else '-'),
+        ('유효지역',
+         f"반지름 {raw.get('valid_radius_m', 2000):,}m 원 − 해역"
+         f" (블레이드 회전 반지름 {float(raw.get('rotor_m') or 0):,.0f}m 포함 판정)"),
+        ('유효지역 내 호기',
+         f'{total - len(outside)}/{total}기'
+         + (f' — 밖: {", ".join(f"{i}호기" for i in outside)}' if outside
+            else ' (전부 포함)')),
+    ])
+
     asos = next((it for it in (_item_of(e['result'], ASOS_WIND_ITEM)
                                for e in ctx.evals) if it is not None), None)
     bullets = [_summarize(item.reason or '', 400)]
+    if outside:
+        bullets.append(
+            f'⚠️ {len(outside)}기가 이 신청좌표의 유효지역 밖입니다 — '
+            f'{", ".join(f"{i}호기" for i in outside)}. 유효지역은 발전사업허가를 '
+            f'받을 수 있는 범위이므로, 신청좌표를 옮기거나 **허가를 나누어** '
+            f'각각 재현바람장을 확보해야 합니다.')
+    bullets.append(
+        '해역 제외 요건은 이 검토에서 판정하지 않았습니다 — 해안선 자료가 '
+        '연동되어 있지 않습니다. 해안 인접 부지는 별도로 확인하십시오.')
     if asos is not None:
         bullets.append(
             'ASOS 관측 기반 참고치 — ' + _summarize(asos.reason or '', 180)

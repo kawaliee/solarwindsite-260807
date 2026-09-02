@@ -123,7 +123,7 @@ export default function WindSiteView({ energy = 'WIND' }: { energy?: EnergyType 
   const setPickMode = (m: PickMode) =>
     setPickModeRaw(P.modes.includes(m) ? m : P.modes[0]);
   const [ring, setRing] = useState<LatLng[]>([]);
-  const [turbineR, setTurbineR] = useState(500);
+  const [turbineR, setTurbineR] = useState(200);
   /**
    * 발전기별 주소. ring과 인덱스를 맞춰 둔다.
    * 클릭할 때가 아니라 ring 변화를 보고 채운다 — 되돌리기·지우기로 목록이

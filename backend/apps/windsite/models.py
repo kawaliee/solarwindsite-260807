@@ -474,7 +474,18 @@ class SitePlan(models.Model):
 
     #: [[위도, 경도], …] — 1호기부터의 순서가 곧 연결선 순서다
     turbines = models.JSONField('호기 좌표', default=list)
-    turbine_radius_m = models.PositiveIntegerField('발전기 검토반경(m)', default=500)
+    #: 호기 하나가 실제로 차지하는 범위 — **블레이드 회전 반지름**을 기준으로
+    #: 잡는다. 종전 기본값 500m는 근거 없는 여유였다.
+    #:
+    #: 200m는 「발전사업세부허가기준 …에 관한 고시」의 유효지역 조항과 축이
+    #: 같다. 그 조항이 유효지역 판정 대상으로 삼는 것이 *블레이드의 회전 가능
+    #: 범위를 수평으로 투영한 면적*이므로, 검토 도형도 같은 범위로 두어야
+    #: 유효지역·검토면적·저촉판정이 한 기준을 본다.
+    #:
+    #: ⚠️ 규제 저촉 판정이 좁아지지는 않는다. 이격거리가 있는 레이어는
+    #:    조회 반경에 `proximity_m`을 따로 더하고(vworld.py), 조례 이격거리는
+    #:    조례가 정한 거리로 따로 잰다 — 이 값과 무관하다.
+    turbine_radius_m = models.PositiveIntegerField('발전기 검토반경(m)', default=200)
     corridor_radius_m = models.PositiveIntegerField('연결선 검토반경(m)', default=100)
     capacity_mw = models.FloatField('설비용량(MW)', null=True, blank=True)
     permit_date = models.CharField('발전사업허가일', max_length=10, blank=True)

@@ -381,7 +381,7 @@ export default function SitePicker({
   lat, lng, radiusM, onPick,
   mode = 'point', ring, onRingChange, overlays, overlayLabels, roadDetail,
   siteRings,
-  turbineRadiusM = 500, corridorRadiusM = 100, parcels,
+  turbineRadiusM = 200, corridorRadiusM = 100, parcels,
   screening, onScreenPick, onBoundsChange, fitToken, onMapReady,
   envLayers, activeEnvLayer, focus, adminBoundary, adminLabel,
 }: SitePickerProps) {

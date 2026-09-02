@@ -28,10 +28,19 @@ from .base import LayerProvider, SiteQuery
 
 logger = logging.getLogger(__name__)
 
-#: 저장된 표본을 이 지점의 것으로 볼 최대 거리(m).
-#: 재현바람장 격자가 촘촘해(2.3km 떨어진 두 지점의 풍속이 1.0/1.6m/s로 갈렸다)
-#: 넉넉히 잡으면 남의 자리 값을 이 부지 값이라고 말하게 된다.
-MATCH_RADIUS_M = 3000
+def match_radius_m() -> float:
+    """
+    저장된 표본을 **이 호기의 것으로 말할 수 있는** 최대 거리(m).
+
+    임의로 정하지 않는다. 고시가 정한 유효지역(신청좌표 중심 반지름 2km)에
+    블레이드 회전 투영면이 들어와야 하므로, 호기가 신청좌표에서 떨어질 수
+    있는 한계는 `2,000m − 로터 반지름`이다. 이 거리를 넘은 호기는 그 신청
+    좌표의 유효지역 밖이라, 같은 자료로 풍황을 말할 근거가 없다.
+
+    자료의 성질과도 맞는다 — 실측에서 2.3km 떨어진 두 지점(평창 1·8호기)의
+    같은 시각 풍속이 1.0과 1.6 m/s로 갈렸다.
+    """
+    return rawwind.VALID_RADIUS_M - rawwind.rotor_radius_m()
 
 #: 사업성 판정 기준(m/s). `wind.JUDGE_MS`와 같은 값을 쓴다 — 같은 사업지에
 #: 두 기준이 있으면 어느 쪽을 믿어야 할지 알 수 없다.
@@ -56,16 +65,34 @@ class RawWindProvider(LayerProvider):
         from .. import geo
         from ..models import RawWindSample
 
+        lim = match_radius_m()
         rows = list(RawWindSample.objects.all()[:200])
-        near = []
+        near, outside = [], []
         for r in rows:
             try:
                 d = geo.point_metric(q.lat, q.lng).distance(
                     geo.point_metric(r.lat, r.lng))
             except Exception:                                   # noqa: BLE001
                 continue
-            if d <= MATCH_RADIUS_M:
-                near.append((d, r))
+            (near if d <= lim else outside).append((d, r))
+        if not near and outside:
+            # 자료는 있는데 이 호기가 그 신청좌표의 유효지역 밖이다. '자료
+            # 없음'과 전혀 다른 사실이라 따로 말한다 — 이쪽은 수집이 아니라
+            # **신청좌표 또는 배치를 고쳐야 하는** 문제다.
+            d0 = min(d for d, _ in outside)
+            return self.unknown(
+                reason=(
+                    f'이 호기는 재현바람장을 받아 둔 신청좌표에서 {d0:,.0f}m '
+                    f'떨어져 있어, 블레이드 회전 반지름 '
+                    f'{rawwind.rotor_radius_m():,.0f}m를 더하면 유효지역'
+                    f'(반지름 {rawwind.VALID_RADIUS_M:,}m)을 벗어납니다. '
+                    f'같은 자료로 이 호기의 풍황을 말할 수 없습니다.'),
+                action_required=(
+                    '① 신청좌표를 옮겨 이 호기를 유효지역에 넣거나 '
+                    '② 이 호기를 담는 별도 신청좌표로 재현바람장을 따로 받으십시오 '
+                    '(`collect_rawwind --plan <배치안ID> --cover`).'),
+                why='NO_DATA',
+            )
         if not near:
             return self.unknown(
                 reason=(
@@ -119,6 +146,17 @@ class RawWindProvider(LayerProvider):
                        f'부족 가능성**이 있습니다. 기종 선정(저풍속형)과 허브고도 '
                        f'상향을 함께 검토하십시오.')
 
+        # 고도마다 수집 기간이 다르면 고도 간 비교가 성립하지 않는다. 특히
+        # 연직시어 α는 두 고도의 평균을 나눠 구하므로, 기간이 어긋난 채로
+        # 재면 시어가 아니라 계절 차이를 재게 된다. 반드시 밝힌다.
+        spans = {(r.start.date(), r.end.date()) for _d, r in usable.values()}
+        mixed = ('' if len(spans) <= 1 else
+                 ' ⚠️ 고도별 수집 기간이 서로 달라 고도 간 비교(연직시어 포함)는 '
+                 '성립하지 않습니다 — 같은 기간으로 다시 받아 대조하십시오: '
+                 + ', '.join(f'{h}m {usable[h][1].start:%Y-%m-%d}~'
+                             f'{usable[h][1].end:%Y-%m-%d}'
+                             for h in sorted(usable)) + '.')
+
         parts = []
         for h in sorted(usable):
             _d, r = usable[h]
@@ -134,7 +172,7 @@ class RawWindProvider(LayerProvider):
         # 고도와 다를 때 환산 가정이 하나 줄어든다.
         shear = ''
         hs = sorted(usable)
-        if len(hs) >= 2:
+        if len(hs) >= 2 and len(spans) <= 1:
             lo, hi = hs[0], hs[-1]
             a = rawwind.shear_alpha(
                 float((usable[lo][1].stats or {}).get('mean_ms') or 0), lo,
@@ -144,14 +182,19 @@ class RawWindProvider(LayerProvider):
                          f'— 허브고도가 다르면 이 값으로 환산하십시오.')
 
         period = f"{base.start:%Y-%m-%d} ~ {base.end:%Y-%m-%d}"
-        far = (f' 대표 지점은 검토 지점에서 {base_d:,.0f}m 떨어져 있습니다.'
-               if base_d >= 100 else '')
+        rotor = rawwind.rotor_radius_m()
+        far = (f' 신청좌표에서 {base_d:,.0f}m 떨어져 있어 블레이드 반지름 '
+               f'{rotor:,.0f}m를 더해도 유효지역(반지름 '
+               f'{rawwind.VALID_RADIUS_M:,}m) 안입니다 — 여유 '
+               f'{rawwind.VALID_RADIUS_M - base_d - rotor:,.0f}m.'
+               if base_d >= 100 else
+               f' 신청좌표가 이 호기 자리입니다 — 유효지역 안입니다.')
 
         return self.item(
             status=st,
             reason=(
                 f'재현바람장 {period} 기준 — ' + ' · '.join(parts) + f'. {verdict}'
-                + shear
+                + shear + mixed
                 + f' 자료는 사업지 **대표 지점 한 곳**({base.lat:.5f}, '
                   f'{base.lng:.5f})에서 받은 값입니다.{far} 재현바람장 격자는 '
                   f'촘촘해 2~3km 떨어진 지점의 풍속이 눈에 띄게 다를 수 있으므로, '
@@ -170,5 +213,9 @@ class RawWindProvider(LayerProvider):
             ),
             raw={'heights': {h: (r.stats or {}) for h, (_d, r) in usable.items()},
                  'match_distance_m': round(base_d, 1),
+                 'center': [base.lat, base.lng],
+                 'valid_radius_m': rawwind.VALID_RADIUS_M,
+                 'rotor_m': rotor,
+                 'margin_m': round(rawwind.VALID_RADIUS_M - base_d - rotor, 1),
                  'coverage': round(base.coverage, 3)},
         )
