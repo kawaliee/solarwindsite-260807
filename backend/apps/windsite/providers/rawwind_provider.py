@@ -176,7 +176,7 @@ class RawWindProvider(LayerProvider):
         # 두 고도를 받았으면 연직시어 지수를 역산해 함께 낸다. ASOS 환산이
         # α를 가정했던 것과 달리 이 부지의 실제 값이라, 허브고도가 조회
         # 고도와 다를 때 환산 가정이 하나 줄어든다.
-        shear = ''
+        shear, alpha = '', None
         hs = sorted(usable)
         if len(hs) >= 2 and len(spans) <= 1:
             lo, hi = hs[0], hs[-1]
@@ -184,6 +184,7 @@ class RawWindProvider(LayerProvider):
                 float((usable[lo][1].stats or {}).get('mean_ms') or 0), lo,
                 float((usable[hi][1].stats or {}).get('mean_ms') or 0), hi)
             if a is not None:
+                alpha = round(a, 3)
                 shear = (f' 두 고도에서 역산한 연직시어 지수 α는 {a:.2f}입니다 '
                          f'— 허브고도가 다르면 이 값으로 환산하십시오.')
 
@@ -223,5 +224,12 @@ class RawWindProvider(LayerProvider):
                  'valid_radius_m': rawwind.VALID_RADIUS_M,
                  'rotor_m': rotor,
                  'margin_m': round(rawwind.VALID_RADIUS_M - base_d - rotor, 1),
-                 'coverage': round(base.coverage, 3)},
+                 'coverage': round(base.coverage, 3),
+                 'alpha': alpha,
+                 'samples': base.samples,
+                 'expected_samples': base.expected_samples,
+                 'interval_min': base.interval_min,
+                 'period': [base.start.date().isoformat(),
+                            base.end.date().isoformat()],
+                 'mixed_period': len(spans) > 1},
         )

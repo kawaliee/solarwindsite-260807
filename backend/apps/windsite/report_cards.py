@@ -1888,6 +1888,22 @@ def card_rawwind(doc, ctx, no: str = '⑥') -> None:
          + (f' — 밖: {", ".join(f"{i}호기" for i in outside)}' if outside
             else ' (전부 포함)')),
     ]
+    per = raw.get('period') or []
+    if len(per) == 2:
+        rows.append(('수집 기간',
+                     f'{per[0]} ~ {per[1]}'
+                     + (' ⚠️ 고도별 기간 불일치' if raw.get('mixed_period') else '')))
+    smp, exp = raw.get('samples'), raw.get('expected_samples')
+    if smp:
+        rows.append(('표본',
+                     f"{smp:,}개 / 기대 {exp:,}개"
+                     f" ({float(raw.get('coverage') or 0) * 100:.0f}% 수집,"
+                     f" {raw.get('interval_min')}분 간격)"))
+    # α는 서술에 두면 요약에서 잘려 사라진다. 허브고도 환산에 쓰는 값이라
+    # 반드시 남아야 한다 — 표에 박는다.
+    if raw.get('alpha') is not None:
+        rows.append(('연직시어 지수 α (역산)',
+                     f"{raw['alpha']:.2f} — 허브고도가 다르면 이 값으로 환산"))
     va = _valid_area_note(c, raw.get('valid_radius_m') or 2000)
     if va:
         rows.append(('유효지역 실면적(해역 제외)', va))
@@ -1903,7 +1919,7 @@ def card_rawwind(doc, ctx, no: str = '⑥') -> None:
 
     asos = next((it for it in (_item_of(e['result'], ASOS_WIND_ITEM)
                                for e in ctx.evals) if it is not None), None)
-    bullets = [_summarize(item.reason or '', 400)]
+    bullets = [_summarize(item.reason or '', 620)]
     if outside:
         bullets.append(
             f'⚠️ {len(outside)}기가 이 신청좌표의 유효지역 밖입니다 — '
