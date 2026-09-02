@@ -154,12 +154,25 @@ def _coverage_report(cmd, plan: SitePlan) -> dict:
     cmd.stdout.write(cmd.style.WARNING(
         f"  ⚠️ {len(out)}기가 유효지역 밖입니다: {', '.join(map(str, out))}호기"))
     f = rawwind.free_center(pts)
-    if f and f['fits']:
+    if f and f.get('usable'):
         cmd.stdout.write(cmd.style.WARNING(
             f"  → 신청좌표를 호기 자리에 두지 않으면 한 유효지역으로 들어갑니다: "
             f"{f['lat']:.5f},{f['lng']:.5f} (최원 {f['max_dist_m']:,.0f}m, "
-            f"여유 {f['margin_m']:+,.0f}m). `--lat {f['lat']:.5f} "
+            f"여유 {f['margin_m']:+,.0f}m, 육지). `--lat {f['lat']:.5f} "
             f"--lon {f['lng']:.5f}` 로 받으십시오."))
+    elif f and f['fits'] and f.get('on_land') is False:
+        # 기하학적으로는 되지만 그 점이 바다다. 육상풍력 신청좌표로 쓸 수 없다.
+        cmd.stdout.write(cmd.style.WARNING(
+            f"  → 기하학적 최적 좌표({f['lat']:.5f},{f['lng']:.5f})는 한 "
+            f"유효지역에 담기지만 **해상**입니다(해안선까지 "
+            f"{f['offshore_m']:,.0f}m). 육상풍력 신청좌표로 쓸 수 없으므로 "
+            f"호기 자리 기준으로 진행하고, 벗어난 호기는 배치 조정 또는 별도 "
+            f"신청좌표로 다루십시오."))
+    elif f and f['fits'] and f.get('on_land') is None:
+        cmd.stdout.write(cmd.style.WARNING(
+            f"  → 기하학적 최적 좌표({f['lat']:.5f},{f['lng']:.5f})는 한 "
+            f"유효지역에 담기지만, 육지 여부를 확인하지 못했습니다. 해상이면 "
+            f"신청좌표로 쓸 수 없으니 직접 확인하십시오."))
     else:
         cov = rawwind.cover_points(pts)
         cmd.stdout.write(cmd.style.WARNING(

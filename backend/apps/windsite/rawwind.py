@@ -375,10 +375,29 @@ def free_center(pts, radius_m: float = VALID_RADIUS_M,
     c = minimum_bounding_circle(MultiPoint(mp)).centroid
     d = [c.distance(o) for o in mp]
     lng, lat = geo.to_geographic_xy(c.x, c.y)
+
+    # ⚠️ 기하학적 최적점이 **바다에 떨어질 수 있다.** 실측에서 완도 10기의
+    #    최소외접원 중심은 해안선에서 132m 떨어진 해상이었다. 육상풍력
+    #    신청좌표를 해상에 두는 것은 말이 되지 않으므로, 육지 여부를 함께
+    #    낸다. 조회에 실패하면 None으로 두고 '확인 필요'로 다룬다 —
+    #    모르는 것을 육지로 갈음하지 않는다.
+    on_land, offshore = None, None
+    try:
+        from . import coast
+        pt = geo.point_metric(lat, lng)
+        land = coast.land_union(pt.buffer(3000))
+        on_land = bool(land.contains(pt))
+        offshore = 0.0 if on_land else round(float(pt.distance(land)), 1)
+    except Exception as e:                                      # noqa: BLE001
+        logger.warning('자유 신청좌표 육지 확인 실패: %s', e)
+
     return {'lat': round(lat, 6), 'lng': round(lng, 6),
             'max_dist_m': round(max(d), 1),
             'margin_m': round(radius_m - (max(d) + rotor), 1),
             'fits': max(d) + rotor <= radius_m,
+            'on_land': on_land,
+            'offshore_m': offshore,
+            'usable': (max(d) + rotor <= radius_m) and on_land is True,
             'rotor_m': rotor}
 
 
