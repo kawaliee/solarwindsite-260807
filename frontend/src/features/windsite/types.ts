@@ -146,6 +146,26 @@ export interface GeocodeResult {
   sigungu: string;
   /** 정규화 전 원본 */
   sigungu_full?: string;
+  /**
+   * 검색한 자리가 속한 읍·면·동 경계 (주소→좌표 방향에서만 온다).
+   *
+   * 점만 찍어 주면 부지가 행정구역 어디에 걸치는지 알 수 없어, 경계를
+   * 넘긴 자리를 사업지로 잡아도 눈치채지 못한다. 조회에 실패하면 null이며
+   * 그때는 경계만 안 그려진다.
+   */
+  boundary?: AdminBoundary | null;
+}
+
+/** 읍·면·동 행정구역 경계 */
+export interface AdminBoundary {
+  /** '강원특별자치도 횡성군 둔내면' */
+  full_name: string;
+  sido: string;
+  /** 조례 조회 기준 시·군·구 (읍면동 이름이 아니다) */
+  sigungu: string;
+  /** 읍·면·동 이름 */
+  emd: string;
+  rings: [number, number][][];
 }
 
 /** 후보지 비교 — POST /compare/ */

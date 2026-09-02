@@ -1986,6 +1986,41 @@ select.fs-input { cursor: pointer; }
   transform: translate(-50%, -50%);
 }
 
+/* ── 주소 검색 ──────────────────────────────────────────
+   사업지를 찍기 전에 지도를 그 자리로 옮기는 입력이다. 아래 입력들과
+   성격이 달라(찍고 난 뒤 채워지는 값들) 시각적으로도 떼어 둔다. */
+.ws-search { padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.ws-search-row { display: flex; gap: 6px; }
+.ws-search-row input { flex: 1; min-width: 0; }
+.ws-search-row .ws-btn {
+  flex: 0 0 auto; padding: 8px 14px; border-radius: 8px;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+  background: rgba(255,255,255,.06); color: var(--ink);
+  border: 1px solid var(--line); cursor: pointer;
+}
+.ws-search-row .ws-btn:hover:not(:disabled) { background: rgba(255,255,255,.12); }
+.ws-search-row .ws-btn:disabled { opacity: .5; cursor: not-allowed; }
+.ws-search-msg {
+  font-size: 11px; color: var(--ink-dim); line-height: 1.5; margin: 6px 0 0;
+}
+.ws-linkbtn {
+  align-self: flex-start; margin-top: 4px; padding: 0;
+  background: none; border: 0; cursor: pointer;
+  font-size: 11px; color: var(--ink-faint); text-decoration: underline;
+}
+.ws-linkbtn:hover { color: var(--ink-dim); }
+
+/* 행정구역(읍·면·동) 이름표. 판정 결과가 아니라 길잡이라 눈에 덜 띄게 둔다 */
+.ws-admin-label { white-space: nowrap; pointer-events: none; }
+.ws-admin-label span {
+  display: inline-block;
+  background: rgba(47, 128, 237, .88);
+  color: #fff; border-radius: 6px; padding: 2px 8px;
+  font-size: 11px; font-weight: 700; line-height: 1.4;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .35);
+  transform: translate(-50%, -50%);
+}
+
 /* ── 범례: 도로 이격 ────────────────────────────────────
    채움이 아니라 선이라 네모로는 알 수 없다. 지도에 그리는 선 그대로 보여
    준다. 색은 SitePicker의 ROAD_COLOR와 같아야 한다 —

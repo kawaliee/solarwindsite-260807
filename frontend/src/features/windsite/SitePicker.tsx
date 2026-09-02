@@ -46,6 +46,23 @@ interface SitePickerProps {
    * 지도를 옮기는 중에 시점이 되돌아가지 않는다.
    */
   fitToken?: number;
+  /**
+   * 주소 검색으로 옮겨 갈 자리. token이 바뀔 때만 움직인다.
+   *
+   * fitToken은 **찍어 둔 지점(ring)**에 맞추는 것이라 아직 아무것도 찍지
+   * 않은 상태에서는 쓸 수 없다. 주소만 알고 지도에서 그 자리를 찾아가는
+   * 것이 검색의 목적이므로 별도 손잡이를 둔다.
+   */
+  focus?: { lat: number; lng: number; token: number } | null;
+  /**
+   * 사업지가 속한 읍·면·동 경계. 검색 결과와 함께 받아 면으로 그린다.
+   *
+   * 주소를 점으로만 찍어 주면 부지가 행정구역 어디에 걸치는지 알 수 없다.
+   * 경계를 깔아 두면 그 안에서 꼭짓점을 찍게 되어 사업지 지정이 정확해진다.
+   */
+  adminBoundary?: [number, number][][] | null;
+  /** 경계 라벨 — '강원특별자치도 평창군 방림면' */
+  adminLabel?: string;
   /** 검토 결과를 지도에 겹쳐 그릴 영역 */
   overlays?: { blocked: [number, number][][]; conditional: [number, number][][];
                free: [number, number][][];
@@ -366,7 +383,7 @@ export default function SitePicker({
   siteRings,
   turbineRadiusM = 500, corridorRadiusM = 100, parcels,
   screening, onScreenPick, onBoundsChange, fitToken, onMapReady,
-  envLayers, activeEnvLayer,
+  envLayers, activeEnvLayer, focus, adminBoundary, adminLabel,
 }: SitePickerProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -376,6 +393,7 @@ export default function SitePicker({
   const overlayRef = useRef<L.LayerGroup | null>(null);
   const screenRef = useRef<L.LayerGroup | null>(null);
   const envLayerRef = useRef<L.LayerGroup | null>(null);
+  const adminRef = useRef<L.LayerGroup | null>(null);
   const onBoundsRef = useRef(onBoundsChange);
   const onScreenPickRef = useRef(onScreenPick);
   const onMapReadyRef = useRef(onMapReady);
@@ -670,6 +688,57 @@ export default function SitePicker({
     else map.flyToBounds(b, { ...opts, duration: FLY_SECONDS });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitToken]);
+
+  // ── 주소 검색 → 그 자리로 이동 ──────────────────────────────────────
+  // 경계를 함께 받았으면 경계 전체가 보이도록 맞추고, 아니면 좌표로 날아간다.
+  // 경계에 맞추는 쪽이 낫다 — 사업지가 그 안 어디쯤인지 가늠하려면 면 전체가
+  // 보여야 하고, 좌표만 확대하면 어느 면인지 알 수 없다.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !focus) return;
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const ring0 = adminBoundary?.[0];
+    if (ring0 && ring0.length > 2) {
+      const opts = { padding: [30, 30] as [number, number], maxZoom: 15 };
+      const b = L.latLngBounds(ring0);
+      if (still) map.fitBounds(b, opts);
+      else map.flyToBounds(b, { ...opts, duration: FLY_SECONDS });
+      return;
+    }
+    const z = Math.max(map.getZoom(), SITE_ZOOM);
+    if (still) map.setView([focus.lat, focus.lng], z);
+    else map.flyTo([focus.lat, focus.lng], z, { duration: FLY_SECONDS });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus?.token]);
+
+  // ── 행정구역(읍·면·동) 경계 ─────────────────────────────────────────
+  // 채움을 아주 옅게만 준다. 이 면은 **판정 결과가 아니라 길잡이**라,
+  // 제약도 색(초록·주황·빨강)과 경쟁하면 안 된다.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    adminRef.current?.remove();
+    adminRef.current = null;
+    if (!adminBoundary?.length) return;
+
+    const g = L.layerGroup().addTo(map);
+    adminBoundary.forEach(r => {
+      if (r.length < 4) return;
+      g.addLayer(L.polygon(r, {
+        color: '#2f80ed', weight: 2, dashArray: '8 4',
+        fillColor: '#2f80ed', fillOpacity: 0.06, interactive: false,
+      }));
+    });
+    if (adminLabel) {
+      const b = L.latLngBounds(adminBoundary.flat());
+      g.addLayer(L.marker(b.getCenter(), {
+        icon: L.divIcon({ className: 'ws-admin-label',
+                          html: `<span>${adminLabel}</span>` }),
+        interactive: false, keyboard: false,
+      }));
+    }
+    adminRef.current = g;
+  }, [adminBoundary, adminLabel]);
 
   // ── 스크리닝 채색 ───────────────────────────────────────────────────
   //

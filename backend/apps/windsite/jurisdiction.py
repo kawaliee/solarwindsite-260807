@@ -40,6 +40,10 @@ logger = logging.getLogger(__name__)
 
 WFS_URL = 'https://api.vworld.kr/req/wfs'
 SIGUNGU_LAYER = 'lt_c_adsigg'
+#: 읍면동 경계. 사업지가 **어느 면에 속하는지**를 지도에서 보여 주는 데 쓴다.
+#: 시군구는 너무 넓어 부지를 짚는 데 도움이 안 되고, 리(lt_c_adri)는 너무
+#: 잘아 화면이 조각난다. 실무에서 사업지를 부를 때 쓰는 단위가 읍·면이다.
+EMD_LAYER = 'lt_c_ademd'
 
 #: 이격 대상 시설을 관할구역으로 한정하는지. 'ALL' = 한정하지 않음(현재 가정).
 #: 조례 원문 대조 후 확정한다. 위 모듈 주석 참고.
@@ -232,3 +236,80 @@ def with_ordinances(area_geom, energy: str = None) -> tuple[list[dict], dict]:
         s['area_m2'] for s in slices
         if s['ordinance_state'] not in (ordinances.HAS_RULES, ordinances.NO_RULE))
     return slices, meta
+
+
+def emd_at(lat: float, lng: float) -> dict | None:
+    """
+    한 좌표가 속한 **읍·면·동 경계** → {full_name, sido, sigungu, emd, rings}.
+
+    사업지 주소를 검색해 지도를 옮길 때, 그 자리가 어느 면에 속하는지를 면으로
+    보여 주기 위한 것이다. 주소만 찍으면 점 하나뿐이라 부지가 행정구역 어디에
+    걸치는지 알 수 없고, 경계를 벗어난 곳을 사업지로 잡아도 눈치채지 못한다.
+
+    좌표를 못 찾으면 None. 실패를 예외로 올리지 않는다 — 지도 보조 기능이라
+    검색 자체를 죽일 이유가 없다.
+    """
+    try:
+        pt = geo.point_metric(lat, lng)
+    except Exception:                                           # noqa: BLE001
+        return None
+    minx, miny, maxx, maxy = pt.buffer(200).bounds
+    params = {
+        'SERVICE': 'WFS', 'REQUEST': 'GetFeature', 'VERSION': '1.1.0',
+        'KEY': settings.VWORLD_API_KEY,
+        'DOMAIN': getattr(settings, 'VWORLD_DOMAIN', '') or 'localhost',
+        'TYPENAME': EMD_LAYER,
+        'SRSNAME': geo.METRIC_CRS,
+        'BBOX': ','.join(f'{v:.2f}' for v in (minx, miny, maxx, maxy)),
+        'OUTPUT': 'application/json',
+        'MAXFEATURES': '10',
+    }
+
+    def call() -> dict:
+        res = LayerProvider.get(WFS_URL, params, timeout=60.0)
+        res.raise_for_status()
+        ct = (res.headers.get('content-type') or '').lower()
+        if 'json' not in ct:
+            raise BoundaryUnavailable(f'읍면동 경계 응답이 JSON이 아닙니다 ({ct})')
+        return res.json()
+
+    try:
+        payload = httpcache.get_or_set('vworld_wfs', params, call)
+    except Exception as e:                                      # noqa: BLE001
+        logger.info('읍면동 경계 조회 실패 (%.5f, %.5f): %s', lat, lng, e)
+        return None
+
+    # bbox로 받으므로 이웃 면이 섞여 온다. **점을 실제로 품은** 것을 고른다.
+    #
+    # ⚠️ 이 응답은 SRSNAME으로 EPSG:5179를 지정해 받으므로 **이미 미터
+    #    좌표**다. `to_metric`을 한 번 더 걸면 4326으로 알고 변환해 좌표가
+    #    inf로 폭발한다(실측 — 링 760점이 전부 inf가 되어 JSON 직렬화에서
+    #    500이 났다). `split()`도 같은 이유로 재투영하지 않는다.
+    best = None
+    for f in payload.get('features') or []:
+        gm = geo.geom_from_geojson(f.get('geometry'))
+        if gm is None:
+            continue
+        if gm.contains(pt):
+            best = (f, gm)
+            break
+        if best is None:                    # 경계에 딱 걸치면 가장 가까운 것
+            best = (f, gm)
+    if best is None:
+        return None
+
+    props = best[0].get('properties') or {}
+    full = (props.get('full_nm') or '').strip()
+    # ⚠️ full_nm이 읍면동까지 붙은 3~4단계라 `split_full_name`을 그대로 쓰면
+    #    **읍면동 이름이 시·군·구 자리에 들어간다**(실측: '강원특별자치도
+    #    횡성군 둔내면' → 시군구 '둔내면'). 조례를 그 이름으로 찾으면 당연히
+    #    없다. 마지막 토큰(읍면동)을 떼고 시군구 규칙을 적용한다.
+    parts = full.split()
+    sido, sigungu = split_full_name(' '.join(parts[:-1]) if len(parts) > 2 else full)
+    return {
+        'full_name': full,
+        'sido': sido,
+        'sigungu': sigungu,
+        'emd': (props.get('emd_kor_nm') or '').strip(),
+        'rings': geo.rings_4326(best[1], precision=5),
+    }

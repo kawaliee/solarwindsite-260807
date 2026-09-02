@@ -840,9 +840,14 @@ def geocode_view(request):
                 {'detail': 'V-World 지오코딩에 실패했습니다(인증키 미설정 또는 주소 미매칭).'},
                 status=http.HTTP_404_NOT_FOUND)
         rg = reverse_geocode(g['lat'], g['lng']) or {}
+        # 검색한 자리가 **어느 읍·면에 속하는지**를 면으로 함께 준다.
+        # 점만 찍어 주면 부지가 행정구역 어디에 걸치는지 알 수 없어, 경계를
+        # 넘긴 자리를 사업지로 잡아도 눈치채지 못한다. 실패해도 검색 자체는
+        # 살린다 — 지도 보조 정보라 없으면 경계만 안 그려질 뿐이다.
         return Response({
             'lat': g['lat'], 'lng': g['lng'], 'matched': g['matched'],
             'sido': rg.get('sido', ''), 'sigungu': rg.get('sigungu', ''),
+            'boundary': jurisdiction.emd_at(g['lat'], g['lng']),
         })
 
     try:

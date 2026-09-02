@@ -14,6 +14,7 @@ import {
   STATUS_LABEL,
   UNKNOWN_REASON_HINT,
   UNKNOWN_REASON_LABEL,
+  type AdminBoundary,
   type CompareCandidate,
   type CompareResult,
   type AreaItem,
@@ -60,6 +61,40 @@ export default function WindSiteView({ energy = 'WIND' }: { energy?: EnergyType 
   const [sido, setSido] = useState('');
   const [sigungu, setSigungu] = useState('');
   const [capacity, setCapacity] = useState('');
+
+  // ── 주소 검색 ────────────────────────────────────────────────────────
+  // 주소를 아는데 지도에서 그 자리를 찾아 들어가는 데 시간이 많이 든다.
+  // 검색으로 옮겨 가고, 그 자리가 속한 읍·면 경계를 함께 깔아 준다 —
+  // 경계 안에서 꼭짓점을 찍게 되어 사업지 지정이 정확해진다.
+  const [query, setQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchMsg, setSearchMsg] = useState('');
+  const [focus, setFocus] = useState<{ lat: number; lng: number; token: number } | null>(null);
+  const [adminArea, setAdminArea] = useState<AdminBoundary | null>(null);
+
+  async function searchAddress() {
+    const q = query.trim();
+    if (!q || searching) return;
+    setSearching(true);
+    setSearchMsg('');
+    try {
+      const g = await windsiteApi.geocode({ address: q });
+      setFocus({ lat: g.lat, lng: g.lng, token: Date.now() });
+      setAdminArea(g.boundary ?? null);
+      // 시·도/시·군·구는 조례 조회 기준이라 검색 결과로 채워 준다. 손으로
+      // 다시 적게 하면 표기가 어긋나 조례를 못 찾는 일이 생긴다.
+      if (g.sido) setSido(g.sido);
+      if (g.sigungu) setSigungu(g.sigungu);
+      setSearchMsg(g.boundary
+        ? `${g.boundary.full_name} — ${g.matched || q}`
+        : `${g.matched || q} (행정구역 경계는 표시하지 못했습니다)`);
+    } catch (e) {
+      setSearchMsg(e instanceof Error ? e.message : '주소를 찾지 못했습니다.');
+      setAdminArea(null);
+    } finally {
+      setSearching(false);
+    }
+  }
 
   const [laws, setLaws] = useState<LawRef[]>([]);
   const [config, setConfig] = useState<ProviderConfigRow[]>([]);
@@ -703,6 +738,9 @@ export default function WindSiteView({ energy = 'WIND' }: { energy?: EnergyType 
               onMapReady={(map) => { mapInstanceRef.current = map; }}
               envLayers={areaResult?.env_layers}
               activeEnvLayer={activeEnvLayer}
+              focus={focus}
+              adminBoundary={adminArea?.rings ?? null}
+              adminLabel={adminArea?.full_name}
             />
             {areaResult?.screening && (
               <ScreenPanel r={areaResult.screening} busy={areaLoading}
@@ -718,6 +756,28 @@ export default function WindSiteView({ energy = 'WIND' }: { energy?: EnergyType 
         <div className="ops-card ws-formcard">
           <div className="ops-card-hd"><span className="tag">INPUT</span> 검토 조건</div>
           <div className="ops-card-bd">
+            {/* 주소로 지도를 옮긴다. 사업지를 찍기 **전에** 쓰는 것이라
+                맨 위에 둔다 — 아래 입력은 찍고 난 뒤에 채워진다. */}
+            <label className="ws-fld ws-search">
+              <span>주소로 찾기 <em>(사업지 위치로 지도 이동)</em></span>
+              <div className="ws-search-row">
+                <input type="text" value={query}
+                  placeholder="강원특별자치도 평창군 방림면"
+                  onChange={e => setQuery(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); searchAddress(); } }} />
+                <button type="button" className="ws-btn" onClick={searchAddress}
+                  disabled={searching || !query.trim()}>
+                  {searching ? '찾는 중…' : '검색'}
+                </button>
+              </div>
+              {searchMsg && <p className="ws-search-msg">{searchMsg}</p>}
+              {adminArea && (
+                <button type="button" className="ws-linkbtn"
+                  onClick={() => { setAdminArea(null); setSearchMsg(''); }}>
+                  행정구역 경계 지우기
+                </button>
+              )}
+            </label>
             <label className="ws-fld">
               <span>
                 사업지 주소{' '}
