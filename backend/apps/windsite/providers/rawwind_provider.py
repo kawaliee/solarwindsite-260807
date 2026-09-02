@@ -29,6 +29,18 @@ from .base import LayerProvider, SiteQuery
 logger = logging.getLogger(__name__)
 
 
+def kst(dt):
+    """
+    저장된 시각을 **KST로 되돌린다.**
+
+    재현바람장 시각은 KST인데 Django(USE_TZ)가 UTC로 저장한다. 그대로 찍으면
+    9시간 어긋나 날짜가 하루 밀린다 — 2025-06-01부터 받은 자료가 보고서에
+    2025-05-31로 실렸다. 인허가 제출 자료의 관측 기간이라 하루도 틀리면 안 된다.
+    """
+    from django.utils import timezone
+    return timezone.localtime(dt) if timezone.is_aware(dt) else dt
+
+
 def rawwind_law() -> str:
     """고시의 **정식 명칭**. 어댑터마다 다르게 적으면 같은 근거가
     보고서에서 두 법령처럼 읽히고 조문 대조도 어긋난다."""
@@ -155,12 +167,13 @@ class RawWindProvider(LayerProvider):
         # 고도마다 수집 기간이 다르면 고도 간 비교가 성립하지 않는다. 특히
         # 연직시어 α는 두 고도의 평균을 나눠 구하므로, 기간이 어긋난 채로
         # 재면 시어가 아니라 계절 차이를 재게 된다. 반드시 밝힌다.
-        spans = {(r.start.date(), r.end.date()) for _d, r in usable.values()}
+        spans = {(kst(r.start).date(), kst(r.end).date())
+                 for _d, r in usable.values()}
         mixed = ('' if len(spans) <= 1 else
                  ' ⚠️ 고도별 수집 기간이 서로 달라 고도 간 비교(연직시어 포함)는 '
                  '성립하지 않습니다 — 같은 기간으로 다시 받아 대조하십시오: '
-                 + ', '.join(f'{h}m {usable[h][1].start:%Y-%m-%d}~'
-                             f'{usable[h][1].end:%Y-%m-%d}'
+                 + ', '.join(f'{h}m {kst(usable[h][1].start):%Y-%m-%d}~'
+                             f'{kst(usable[h][1].end):%Y-%m-%d}'
                              for h in sorted(usable)) + '.')
 
         parts = []
@@ -188,7 +201,7 @@ class RawWindProvider(LayerProvider):
                 shear = (f' 두 고도에서 역산한 연직시어 지수 α는 {a:.2f}입니다 '
                          f'— 허브고도가 다르면 이 값으로 환산하십시오.')
 
-        period = f"{base.start:%Y-%m-%d} ~ {base.end:%Y-%m-%d}"
+        period = f"{kst(base.start):%Y-%m-%d} ~ {kst(base.end):%Y-%m-%d}"
         rotor = rawwind.rotor_radius_m()
         far = (f' 신청좌표에서 {base_d:,.0f}m 떨어져 있어 블레이드 반지름 '
                f'{rotor:,.0f}m를 더해도 유효지역(반지름 '
@@ -229,7 +242,7 @@ class RawWindProvider(LayerProvider):
                  'samples': base.samples,
                  'expected_samples': base.expected_samples,
                  'interval_min': base.interval_min,
-                 'period': [base.start.date().isoformat(),
-                            base.end.date().isoformat()],
+                 'period': [kst(base.start).date().isoformat(),
+                            kst(base.end).date().isoformat()],
                  'mixed_period': len(spans) > 1},
         )

@@ -74,7 +74,7 @@ class Command(BaseCommand):
         itv = int(o['itv'])
 
         self.stdout.write(
-            f'기간 {start:%Y-%m-%d} ~ {end:%Y-%m-%d} · 고도 {heights} · {itv}분 간격 '
+            f'기간 {start:%Y-%m-%d} ~ {end:%Y-%m-%d}(KST) · 고도 {heights} · {itv}분 간격 '
             f'· 신청좌표 {len(spots)}곳')
         for lat, lng, label in spots:
             self.stdout.write('')
@@ -100,7 +100,12 @@ class Command(BaseCommand):
 
         # 기대 표본 수 — 빠짐없이 받았다면 나왔을 개수. 실제와의 차이가
         # 곧 결측·조각 실패분이라, 얼마나 성긴 자료인지 문서가 밝힐 수 있다.
-        expected = int((end - start).total_seconds() // (itv * 60))
+        # ⚠️ 요청한 기간이 아니라 **실제 조회 가능한 기간**으로 센다.
+        #    collect()가 자료 가용 구간으로 잘라내므로, 요청 기준으로 세면
+        #    받을 수 없었던 몫까지 결측으로 잡혀 수집률이 실제보다 낮게 나온다.
+        eff_s = max(start, rawwind.AVAILABLE_FROM)
+        eff_e = min(end, rawwind.AVAILABLE_TO)
+        expected = max(int((eff_e - eff_s).total_seconds() // (itv * 60)), 1)
         # 재현바람장 시각은 KST다. naive로 저장하면 Django가 경고를 내고
         # 나중에 UTC로 읽혀 9시간 어긋난다 — 자료 시각을 잘못 말하게 된다.
         obj, created = RawWindSample.objects.update_or_create(

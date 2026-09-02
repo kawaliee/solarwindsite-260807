@@ -57,6 +57,10 @@ ITV_COARSE = 30
 #: 한 번에 요청할 일수. 3일이 22초로, 이보다 늘리면 타임아웃이 잦아진다.
 CHUNK_DAYS = 3
 
+#: 한 조각 안에서 이어받기를 시도할 최대 횟수. 응답이 끝에서 잘리므로
+#: 몇 번 더 청해야 한 조각이 채워진다. 진전이 없으면 즉시 접는다.
+MAX_RESUME = 8
+
 #: 자료가 있는 기간(KST). API 안내문 기준이며, 벗어나면 빈 응답이 온다.
 AVAILABLE_FROM = datetime(2021, 6, 1, 9, 0)
 AVAILABLE_TO = datetime(2026, 6, 1, 8, 0)
@@ -204,15 +208,41 @@ def collect(lat: float, lng: float, start: datetime, end: datetime,
     cur = start
     total = max((end - start).days, 1)
     failed = 0
+    step = timedelta(minutes=itv)
     while cur < end:
         nxt = min(cur + timedelta(days=CHUNK_DAYS), end)
-        try:
-            rows += fetch(lat, lng, cur, nxt - timedelta(minutes=itv),
-                          height_m=height_m, itv=itv)
-        except Exception as e:                                  # noqa: BLE001
-            failed += 1
-            logger.warning('재현바람장 조각 실패 %s~%s (%dm): %s',
-                           cur, nxt, height_m, e)
+        # ⚠️ 응답이 요청 구간을 다 채우지 않는다. 실측(140m·30분 간격·3일):
+        #    112/144행 · 121/144행 · 144/144행 — 중간에 끊긴 데 없이 **끝이
+        #    잘린다**. 서버가 응답 크기에서 자르는 것으로 보인다.
+        #
+        #    한 번만 받고 넘어가면 늘 조각의 **뒷부분**이 빠진다. 조각 시작이
+        #    항상 0시라 빠지는 자리가 매번 셋째 날 밤 시간대로 몰려, 결측이
+        #    고르게 흩어지지 않고 **일주기 편향**이 된다. 밤에 바람이 센
+        #    지점이면 연평균이 낮게 나온다 — 1년치 87.9%가 그렇게 생겼다.
+        #
+        #    그래서 받은 마지막 시각 다음부터 이어서 다시 청한다. 진전이
+        #    없으면(같은 자리에서 또 끊기면) 그 조각을 접고 다음으로 간다.
+        want_last = nxt - step
+        sub_cur, guard = cur, 0
+        while sub_cur <= want_last and guard < MAX_RESUME:
+            try:
+                got = fetch(lat, lng, sub_cur, want_last,
+                            height_m=height_m, itv=itv)
+            except Exception as e:                              # noqa: BLE001
+                failed += 1
+                logger.warning('재현바람장 조각 실패 %s~%s (%dm): %s',
+                               sub_cur, want_last, height_m, e)
+                break
+            if not got:
+                break
+            rows += got
+            last = got[-1][0]
+            if last >= want_last or last < sub_cur:
+                break
+            sub_cur = last + step
+            guard += 1
+            logger.info('재현바람장 이어받기 %s~%s (%dm)',
+                        sub_cur, want_last, height_m)
         cur = nxt
         if on_progress:
             on_progress(min((cur - start).days, total), total)
