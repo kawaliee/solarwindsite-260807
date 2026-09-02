@@ -114,7 +114,11 @@ WIND_PROFILE = EnergyProfile(
     facility_height_m=200,
     report_title='풍력 입지타당성 검토 보고서',
     # 육상풍력은 산지가 무대다 — 보전산지·산사태·경사도가 배치를 정한다.
-    gis_cards=('setback', 'terrain', 'environment', 'heritage', 'grid'),
+    # 풍황(재현바람장)은 고시 개정으로 **발전사업허가 제출 자료**가 되어
+    # 참고치가 아니라 인허가 근거다. 계통 다음에 둔다 — 사업성 두 축을
+    # 나란히 읽게 된다.
+    gis_cards=('setback', 'terrain', 'environment', 'heritage', 'grid',
+               'rawwind'),
 )
 
 #: 조례 원문은 '태양광'과 '태양에너지'를 섞어 쓴다. 표 머리글은 대개

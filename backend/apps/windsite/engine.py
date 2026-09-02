@@ -41,6 +41,7 @@ from .providers.solar_site import (AcceptanceInfoProvider, CurtailmentInfoProvid
                                    FarmlandRouteProvider, HeritageSurveyCheckProvider,
                                    SiteObstacleProvider)
 from .providers.terrain import SlopeProvider
+from .providers.rawwind_provider import RawWindProvider
 from .providers.wind import WindResourceProvider
 from .providers.military import MilitaryZoneProvider
 from .providers.others import LocalOrdinanceProvider
@@ -121,7 +122,12 @@ def build_providers(sido: str = '', sigungu: str = '', substations=None,
         # 자원 어댑터는 에너지원마다 하나씩이다. 풍력 검토에 일사량을,
         # 태양광 검토에 풍속을 끼워 넣으면 판정에 쓰이지도 않는 수치가
         # 보고서에 근거처럼 남아 인용된다.
-        ([WindResourceProvider()] if prof.has_wind_resource else [])
+        # 풍황은 둘을 나란히 낸다. ASOS는 지상 10m 관측을 α 가정으로
+        # 환산한 참고치이고, 재현바람장은 부지 좌표·허브고도에서 바로
+        # 나온 **인허가 제출 자료**다(고시 개정으로 풍황계측기를 갈음).
+        # 값이 다르면 그 사실 자체가 정보라 어느 하나로 덮지 않는다.
+        ([WindResourceProvider(), RawWindProvider()]
+         if prof.has_wind_resource else [])
         + ([SolarResourceProvider()] if prof.has_solar_resource else [])
         # 태양광에만 성립하는 항목. 풍력에 끼워 넣으면 판정에 쓰이지도 않는
         # 수치가 보고서에 근거처럼 남는다.

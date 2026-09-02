@@ -502,3 +502,57 @@ class SitePlan(models.Model):
 
     def __str__(self):
         return f'{self.project.name} · {self.name}'
+
+
+class RawWindSample(models.Model):
+    """
+    기상청 재현바람장 수집 결과 (지점·고도·기간 단위).
+
+    「발전사업 세부허가기준 등에 관한 고시」 개정으로 풍력 발전사업허가에
+    풍황계측기 대신 재현바람장 자료를 제출하게 되면서 필요해진 자료다.
+
+    ⚠️ **왜 저장하는가** — API가 느리다. 30분 간격으로도 1년치가 약 50분
+    걸려(실측) 보고서 생성 중에 받을 수 없다. 미리 받아 두고 보고서는 이
+    표를 읽는다.
+
+    ⚠️ **왜 지점 단위인가** — 격자가 촘촘해 2.3km 떨어진 두 지점의 같은 시각
+    풍속이 1.0과 1.6m/s로 달랐다(평창 문재풍력 실측). 사업지마다 따로 받아야
+    하며, 한 지점 값을 사업지 전체로 말하면 안 된다.
+    """
+
+    plan = models.ForeignKey(SitePlan, null=True, blank=True,
+                             on_delete=models.CASCADE,
+                             related_name='rawwind_samples',
+                             verbose_name='배치안')
+    #: 조회한 대표 지점. plan이 지워져도 어디를 쟀는지는 남는다.
+    lat = models.FloatField('위도')
+    lng = models.FloatField('경도')
+    height_m = models.PositiveIntegerField('바람 고도(m)')
+    start = models.DateTimeField('자료 시작(KST)')
+    end = models.DateTimeField('자료 종료(KST)')
+    interval_min = models.PositiveIntegerField('자료 간격(분)', default=30)
+
+    #: rawwind.WindStats.to_dict() 그대로. 평균·정온비율·주풍향 등.
+    stats = models.JSONField('통계', default=dict)
+    #: 받으려던 조각 수 대비 실제로 받은 표본 수를 남긴다. 조각이 일부
+    #: 실패해도 나머지는 쓰되, 얼마나 성긴 자료인지 밝혀야 한다.
+    samples = models.PositiveIntegerField('유효 표본 수', default=0)
+    expected_samples = models.PositiveIntegerField('기대 표본 수', default=0)
+
+    collected_at = models.DateTimeField('수집 시점', auto_now_add=True)
+
+    class Meta:
+        db_table = 'windsite_rawwind'
+        verbose_name = '재현바람장 표본'
+        verbose_name_plural = '재현바람장 표본'
+        ordering = ['-collected_at']
+        indexes = [models.Index(fields=['lat', 'lng', 'height_m'])]
+
+    def __str__(self):
+        return (f'{self.lat:.4f},{self.lng:.4f} {self.height_m}m '
+                f'{self.start:%Y-%m-%d}~{self.end:%Y-%m-%d}')
+
+    @property
+    def coverage(self) -> float:
+        """기대 대비 실제 표본 비율. 1.0이면 빠짐없이 받은 것이다."""
+        return (self.samples / self.expected_samples) if self.expected_samples else 0.0

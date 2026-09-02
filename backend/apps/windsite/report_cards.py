@@ -23,7 +23,7 @@ import io
 import logging
 from dataclasses import dataclass, field
 
-from . import available, maps
+from . import available, maps, rawwind
 from .report_style import (
     BRAND, DEFAULT_SECTION_COLOR, INK, MUTED, SECTION_COLORS, STATUS_COLORS,
     _callout, _fmt_area, _fmt_ha, _kpi, _kv, _no_borders, _note, _pct, _run,
@@ -1752,6 +1752,71 @@ def _km(m) -> str:
     return '%.2f km' % (m / 1000) if m else '-'
 
 
+
+# ── ⑥ 풍황 (재현바람장) ────────────────────────────────────────────────
+RAWWIND_ITEM = '풍황(재현바람장)'
+ASOS_WIND_ITEM = '풍황(연평균 풍속)'
+
+
+def _rawwind_head(item) -> str:
+    if item is None:
+        return '재현바람장 판정 결과가 없습니다.'
+    hs = ((item.raw or {}).get('heights') or {})
+    if not hs:
+        return '재현바람장 자료가 수집되지 않았습니다 — 발전사업허가 제출 자료입니다.'
+    bits = [f"{h}m {(st or {}).get('mean_ms')} m/s" for h, st in sorted(hs.items())]
+    return ' · '.join(bits) + f" — {_sig(item.status.value)}"
+
+
+def card_rawwind(doc, ctx, no: str = '⑥') -> None:
+    """
+    재현바람장 풍황 — **발전사업허가 제출 자료**.
+
+    「발전사업 세부허가기준 등에 관한 고시」 개정으로 풍력 발전사업허가에
+    풍황계측기 설치가 필수가 아니게 되고 이 자료 제출로 갈음한다. 그래서
+    참고치가 아니라 인허가 서류의 근거로 실린다.
+
+    ASOS 풍황과 나란히 낸다. 둘은 성격이 달라(ASOS는 지상 10m 관측을 α
+    가정으로 환산, 재현바람장은 부지 좌표·허브고도에서 바로 나온 값) 값이
+    다르면 그 사실 자체가 정보다.
+    """
+    item = next((it for it in (_item_of(e['result'], RAWWIND_ITEM)
+                               for e in ctx.evals) if it is not None), None)
+    _card_head(doc, f'{no} 풍황 — 재현바람장 (발전사업허가 제출 자료)',
+               _rawwind_head(item), SECTION_COLORS.get('사업성', BRAND))
+    if item is None:
+        doc.add_paragraph('재현바람장 판정 결과가 없습니다.')
+        return
+
+    hs = ((item.raw or {}).get('heights') or {})
+    if hs:
+        _styled_table(
+            doc,
+            ['고도', '평균 풍속', '주풍향(빈도)', '3m/s 미만', '12m/s 이상', '최대'],
+            [[f'{h}m',
+              f"{(st or {}).get('mean_ms')} m/s",
+              f"{rawwind.dir_ko((st or {}).get('prevailing_dir') or '')}"
+              f" ({float((st or {}).get('dir_ratio') or 0) * 100:.0f}%)",
+              f"{float((st or {}).get('calm_ratio') or 0) * 100:.0f}%",
+              f"{float((st or {}).get('rated_ratio') or 0) * 100:.0f}%",
+              f"{(st or {}).get('max_ms')} m/s"]
+             for h, st in sorted(hs.items())],
+            accent=SECTION_COLORS.get('사업성', BRAND),
+            widths=[1.8, 2.6, 3.4, 2.4, 2.6, 2.2], center=True)
+
+    asos = next((it for it in (_item_of(e['result'], ASOS_WIND_ITEM)
+                               for e in ctx.evals) if it is not None), None)
+    bullets = [_summarize(item.reason or '', 400)]
+    if asos is not None:
+        bullets.append(
+            'ASOS 관측 기반 참고치 — ' + _summarize(asos.reason or '', 180)
+            + ' ASOS는 지상 10m 관측을 멱법칙(α 가정)으로 환산한 값이고 '
+              '재현바람장은 해당 고도에서 바로 나온 값이라, 두 값이 다르면 '
+              '**환산 가정의 차이**로 보아야 합니다.')
+    bullets.append(item.action_required or '')
+    _bullets(doc, bullets)
+
+
 #: PART 2 카드 열쇠 → 렌더 함수. `energy.EnergyProfile.gis_cards`가 차례를 쥔다.
 CARD_BUILDERS = {
     'setback': card_setback,
@@ -1760,6 +1825,7 @@ CARD_BUILDERS = {
     'environment': card_environment,
     'heritage': card_heritage,
     'grid': card_grid,
+    'rawwind': card_rawwind,
 }
 
 
