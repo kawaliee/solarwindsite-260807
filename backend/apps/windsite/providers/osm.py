@@ -223,7 +223,14 @@ class OsmGridProvider(LayerProvider):
                 action_required='requirements.txt 반영 후 backend 이미지를 재빌드하십시오.',
             )
 
-        site = geo.point_metric(q.lat, q.lng)
+        # ⚠️ 거리는 **사업구역 도형에서** 잰다. 점(외접원 중심)으로 재면
+        #    선로 포설 거리를 실제와 다르게 말한다 — shapely의 distance()는
+        #    도형을 주면 경계까지의 최단거리를 주므로, 구역 검토에서는
+        #    "변전소와 가장 가까운 구역 경계"가 기준이 된다.
+        #
+        #    배치선(풍력)은 호기마다 이 어댑터가 따로 돌고, 보고서가 호기별
+        #    결과를 모아 변전소마다 최단 호기를 고른다(report_cards.card_grid).
+        site = q.geom if q.is_area else geo.point_metric(q.lat, q.lng)
         subs, sub_err = self._substations(q, site)
         lines, _ = self._lines(q, site)
         # 한전 여유용량을 변전소명으로 결합한다 (위치는 OSM, 용량은 한전)
@@ -291,7 +298,8 @@ class OsmGridProvider(LayerProvider):
         if rd is None and nearest.get('lat') and nearest.get('lng'):
             # 최근접이 위 목록에 없을 수도 있다(154kV 미만 등). 판정 문구는
             # 최근접을 기준으로 말하므로 그 값은 따로 채운다.
-            rd = road_distance_m(q.lat, q.lng, nearest['lat'], nearest['lng'])
+            _o = _route_origin(q, nearest['lat'], nearest['lng'])
+            rd = road_distance_m(_o[0], _o[1], nearest['lat'], nearest['lng'])
         if rd:
             road_txt = (f' 도로망 경로로는 {geo.format_distance(rd)}입니다'
                         f'(직선 대비 {rd / max(nearest["distance_m"], 1):.1f}배) — '
@@ -906,10 +914,34 @@ def _road_distances(q, subs: list[dict], limit: int = ROAD_ROUTE_MAX) -> None:
 
     좌표가 없거나 조회에 실패한 곳은 키를 넣지 않는다 — 0으로 채우면
     '도로가 없다'는 뜻이 되어 실패와 구분되지 않는다.
+
+    ⚠️ 출발점은 **변전소마다 다르다.** 구역 검토에서 선로는 그 변전소와 가장
+    가까운 구역 경계에서 뽑으므로, 중심점 하나에서 재면 직선거리와 기준이
+    어긋나 '직선 대비 몇 배' 같은 비교가 성립하지 않는다.
     """
     for s in subs[:limit]:
         if not (s.get('lat') and s.get('lng')):
             continue
-        d = road_distance_m(q.lat, q.lng, s['lat'], s['lng'])
+        start = _route_origin(q, s['lat'], s['lng'])
+        d = road_distance_m(start[0], start[1], s['lat'], s['lng'])
         if d is not None:
             s['road_distance_m'] = d
+            s['route_origin'] = {'lat': round(start[0], 6), 'lng': round(start[1], 6)}
+
+
+def _route_origin(q, lat: float, lng: float) -> tuple[float, float]:
+    """
+    그 변전소로 선로를 뽑을 **출발 지점** (lat, lng).
+
+    구역 검토면 사업구역 경계 중 변전소에 가장 가까운 점, 아니면 검토 지점.
+    """
+    if not q.is_area:
+        return q.lat, q.lng
+    try:
+        from shapely.ops import nearest_points
+        p = nearest_points(q.geom, geo.point_metric(lat, lng))[0]
+        lng2, lat2 = geo.to_geographic_xy(p.x, p.y)
+        return lat2, lng2
+    except Exception:                                           # noqa: BLE001
+        logger.info('구역 경계 최근접점 산출 실패 — 대표점으로 대신한다')
+        return q.lat, q.lng

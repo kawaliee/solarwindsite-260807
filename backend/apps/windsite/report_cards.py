@@ -1643,6 +1643,35 @@ def _grid_subs(item) -> list:
             and s.get('name') != '(명칭 미상)']
 
 
+def _grid_subs_best(ctx) -> list:
+    """
+    변전소마다 **가장 가까운 호기**의 값을 골라 낸다.
+
+    배치선 검토에서는 이 어댑터가 호기마다 따로 돌아, 호기 수만큼 변전소
+    목록이 나온다. 종전에는 그중 **첫 번째 호기 것만** 실었다. 배치선이
+    수 km 뻗으면 1호기 기준과 8호기 기준이 크게 달라, 연계에 유리한 쪽이
+    문서에서 사라진다 — 평창 문재풍력 실측에서 주진변전소가 1호기 15.97km,
+    8호기 14.46km로 1.5km 차이가 났고 방향도 반대였다.
+
+    선로는 배치선 어디서든 뽑을 수 있으므로 **변전소별 최단 호기**가 실제
+    연계 조건이다. 어느 호기인지도 함께 남긴다 — 그 호기 부근이 곧 연계점
+    후보다.
+
+    구역 검토(태양광)는 어댑터가 이미 구역 도형에서 재므로(osm.py) 호기
+    개념이 없고 결과가 하나뿐이라 그대로 지나간다.
+    """
+    best: dict[str, dict] = {}
+    for e in ctx.evals:
+        no = e.get('no')
+        for s in _grid_subs(_item_of(e['result'], GRID_ITEM)):
+            key = s.get('name') or ''
+            cur = best.get(key)
+            if cur is None or (s.get('distance_m') or 0) < (cur.get('distance_m') or 0):
+                best[key] = {**s, 'nearest_no': no}
+    out = sorted(best.values(), key=lambda s: s.get('distance_m') or 0)
+    return out
+
+
 def _kw(v) -> str:
     return f'{int(v):,} kW' if v is not None else '-'
 
@@ -1669,8 +1698,11 @@ def card_grid(doc, ctx, no: str = '⑤') -> None:
         doc.add_paragraph('전력계통 판정 결과가 없습니다.')
         return
 
-    subs = _grid_subs(item)
-    road_m = (item.raw or {}).get('road_distance_m')
+    # 변전소마다 가장 가까운 호기의 값을 쓴다(구역 검토면 결과가 하나뿐이라
+    # 그대로 지나간다). 배치선에서 첫 호기 것만 실으면 연계에 유리한 쪽이
+    # 문서에서 사라진다 — `_grid_subs_best` 문서 참고.
+    subs = _grid_subs_best(ctx) or _grid_subs(item)
+    road_m = subs[0].get('road_distance_m') if subs else None
     area = ctx.outline()
     if area is not None:
         try:
@@ -1685,18 +1717,23 @@ def card_grid(doc, ctx, no: str = '⑤') -> None:
         # 직선거리가 아니라 실제로 케이블을 끌고 갈 길이다. 직선거리는
         # 참고로 뒤에 둔다.
         _styled_table(
-            doc, ['변전소', '전압', '도로망 경로', '직선거리', '변전소 여유', '선로 여유'],
+            doc, ['변전소', '전압', '도로망 경로', '직선거리', '기준 지점',
+                  '변전소 여유', '선로 여유'],
             # 변전소마다 **제 도로망 경로**를 쓴다. 종전에는 최근접 한 곳만
             # 값을 넣고 나머지는 「-」로 비웠는데, 직선거리로는 2순위가 더
             # 가까워 보여도 도로망으로는 뒤집히는 일이 있어 같은 잣대로
             # 비교할 수 없었다.
+            #
+            # 「기준 지점」을 함께 낸다 — 거리는 어디서 쟀느냐에 따라 달라지고,
+            # 그 자리가 곧 연계점 후보다.
             [[s.get('name') or '-', '%dkV' % ((s.get('voltage') or 0) // 1000),
               _km(s.get('road_distance_m')),
               _km(s.get('distance_m')),
+              (f"{s['nearest_no']}호기" if s.get('nearest_no') else '구역 경계'),
               _kw(s.get('margin_substation_kw')), _kw(s.get('margin_line_kw'))]
              for s in subs[:3]],
             accent=SECTION_COLORS.get('인프라', BRAND),
-            widths=[4.2, 1.8, 2.8, 2.4, 3.1, 3.1], center=True)
+            widths=[3.8, 1.6, 2.6, 2.2, 2.0, 2.9, 2.9], center=True)
 
     ratio = ''
     if road_m and subs and subs[0].get('distance_m'):
