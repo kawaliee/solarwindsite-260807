@@ -1825,7 +1825,8 @@ def _rawwind_head(item, outside, total: int) -> str:
     bits = [f"{h}m {(st or {}).get('mean_ms')} m/s" for h, st in sorted(hs.items())]
     tail = (f' · 유효지역 밖 {len(outside)}기' if outside
             else f' · {total}기 전부 유효지역 내')
-    return ' · '.join(bits) + tail
+    # 판정을 빼면 표만 남아 '그래서 되는가'가 사라진다.
+    return ' · '.join(bits) + tail + f' — {_sig(item.status.value)}'
 
 
 def card_rawwind(doc, ctx, no: str = '⑥') -> None:
@@ -1919,7 +1920,27 @@ def card_rawwind(doc, ctx, no: str = '⑥') -> None:
 
     asos = next((it for it in (_item_of(e['result'], ASOS_WIND_ITEM)
                                for e in ctx.evals) if it is not None), None)
-    bullets = [_summarize(item.reason or '', 620)]
+    # ⚠️ 판정 사유를 `_summarize`로 줄이면 **첫 문장만** 남는다. 이 항목의
+    #    첫 문장은 수치 나열이라, 정작 판정 근거와 대표 지점 단서가 통째로
+    #    사라진다. 그래서 문장을 자르지 않고 값에서 조립한다.
+    bullets = []
+    if raw.get('verdict'):
+        bullets.append(
+            f"{_sig(item.status.value)} — 판정은 보고 고도 중 낮은 쪽"
+            f"({raw.get('base_height_m')}m, 평균 "
+            f"{(hs.get(raw.get('base_height_m')) or {}).get('mean_ms')} m/s)"
+            f"으로 냅니다. 허브고도가 정해지기 전에 높은 고도로 단정하면 "
+            f"사업성을 후하게 봅니다. {raw['verdict']}")
+    if raw.get('shear_note'):
+        bullets.append(raw['shear_note'])
+    if raw.get('mixed_note'):
+        bullets.append(raw['mixed_note'])
+    bullets.append(
+        f"자료는 사업지 **대표 지점 한 곳**에서 받은 값입니다"
+        + (f"(검토 호기에서 {float(raw.get('match_distance_m') or 0):,.0f}m)"
+           if float(raw.get('match_distance_m') or 0) >= 100 else '')
+        + '. 재현바람장 격자는 촘촘해 2~3km 떨어진 지점의 풍속이 눈에 띄게 '
+          '다를 수 있으므로, 호기별 값은 배치 확정 단계에서 따로 확인해야 합니다.')
     if outside:
         bullets.append(
             f'⚠️ {len(outside)}기가 이 신청좌표의 유효지역 밖입니다 — '

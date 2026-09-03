@@ -65,8 +65,8 @@ def match_radius_m() -> float:
 JUDGE_MS = 5.5
 
 #: 표본이 이 비율에 못 미치면 통계로 말하지 않는다. 조각 실패가 많으면
-#: 특정 기간이 통째로 빠져 계절 편향이 생긴다.
-MIN_COVERAGE = 0.7
+#: 특정 기간이 통째로 빠져 계절 편향이 생긴다. 수집 명령과 **같은 값**을 본다.
+MIN_COVERAGE = rawwind.MIN_USABLE_COVERAGE
 
 
 class RawWindProvider(LayerProvider):
@@ -244,5 +244,10 @@ class RawWindProvider(LayerProvider):
                  'interval_min': base.interval_min,
                  'period': [kst(base.start).date().isoformat(),
                             kst(base.end).date().isoformat()],
-                 'mixed_period': len(spans) > 1},
+                 'mixed_period': len(spans) > 1,
+                 'verdict': verdict,
+                 'judge_ms': JUDGE_MS,
+                 'base_height_m': base_h,
+                 'shear_note': shear.strip(),
+                 'mixed_note': mixed.strip()},
         )

@@ -61,6 +61,12 @@ CHUNK_DAYS = 3
 #: 몇 번 더 청해야 한 조각이 채워진다. 진전이 없으면 즉시 접는다.
 MAX_RESUME = 8
 
+#: 판정에 쓸 수 있는 최소 수집률. 조각이 무더기로 실패하면 특정 기간이
+#: 통째로 빠져 계절 편향이 생긴다. `RawWindProvider.MIN_COVERAGE`가 이 값을
+#: 쓴다 — 수집과 판정이 다른 하한을 보면 저장은 됐는데 판정은 거부하는 식으로
+#: 어긋난다.
+MIN_USABLE_COVERAGE = 0.7
+
 #: 자료가 있는 기간(KST). API 안내문 기준이며, 벗어나면 빈 응답이 온다.
 AVAILABLE_FROM = datetime(2021, 6, 1, 9, 0)
 AVAILABLE_TO = datetime(2026, 6, 1, 8, 0)

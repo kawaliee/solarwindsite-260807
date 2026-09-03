@@ -108,6 +108,33 @@ class Command(BaseCommand):
         expected = max(int((eff_e - eff_s).total_seconds() // (itv * 60)), 1)
         # 재현바람장 시각은 KST다. naive로 저장하면 Django가 경고를 내고
         # 나중에 UTC로 읽혀 9시간 어긋난다 — 자료 시각을 잘못 말하게 된다.
+        coverage = stats.samples / expected
+        prev = RawWindSample.objects.filter(
+            lat=round(lat, 5), lng=round(lng, 5), height_m=height_m,
+            start=_kst(start), end=_kst(end)).first()
+
+        # ⚠️ 망 장애 중에 재실행하면 멀쩡한 자료가 쓰레기로 덮인다.
+        #    실측: 완도 수집 중 DNS가 끊겨 조각 112개가 연속 실패해 1년치가
+        #    8.9%로 남았다. 같은 일이 이미 100%로 받아 둔 평창에서 일어났다면
+        #    되돌릴 길이 없다 — 원본을 다시 받는 데만 한 시간이 든다.
+        #    **더 나쁜 자료로는 덮지 않는다.**
+        if prev is not None and coverage < prev.coverage - 0.05:
+            self.stdout.write('')
+            self.stdout.write(self.style.ERROR(
+                f'[{height_m}m] 저장하지 않습니다 — 이번 수집률 '
+                f'{coverage * 100:.1f}%가 기존 {prev.coverage * 100:.1f}%보다 '
+                f'낮습니다. 기존 자료를 지키고 이번 결과는 버립니다. '
+                f'망 상태를 확인한 뒤 다시 실행하십시오.'))
+            return
+
+        if coverage < rawwind.MIN_USABLE_COVERAGE:
+            # 저장은 하되(다음 실행이 이어받을 근거가 된다) 쓸 수 없다고 못박는다.
+            self.stdout.write('')
+            self.stdout.write(self.style.ERROR(
+                f'[{height_m}m] 수집률 {coverage * 100:.1f}% — 판정에 쓸 수 '
+                f'없습니다(하한 {rawwind.MIN_USABLE_COVERAGE * 100:.0f}%). '
+                f'조각이 무더기로 실패했다면 망 문제입니다. 다시 실행하십시오.'))
+
         obj, created = RawWindSample.objects.update_or_create(
             lat=round(lat, 5), lng=round(lng, 5), height_m=height_m,
             start=_kst(start), end=_kst(end),
