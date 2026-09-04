@@ -32,6 +32,7 @@
 from __future__ import annotations
 
 import logging
+import time
 import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -60,6 +61,17 @@ CHUNK_DAYS = 3
 #: 한 조각 안에서 이어받기를 시도할 최대 횟수. 응답이 끝에서 잘리므로
 #: 몇 번 더 청해야 한 조각이 채워진다. 진전이 없으면 즉시 접는다.
 MAX_RESUME = 8
+
+#: 한 조각을 재시도하는 횟수와 대기 초. 실측에서 컨테이너 DNS가 몇 분 끊긴
+#: 사이(`[Errno -2] Name or service not known`) 조각 122개가 통째로 날아가
+#: 1년치가 27.7%로 남았다. 한 번 실패했다고 접으면 잠깐의 장애가 자료를
+#: 통째로 못 쓰게 만든다.
+RETRY_WAITS = (5, 20, 60)
+
+#: 조각이 이만큼 **연달아** 실패하면 일시적 장애가 아니라 지속 장애다.
+#: 계속 돌면 한 시간을 태우고 쓸 수 없는 자료를 남기므로, 거기서 멈추고
+#: 무엇이 잘못됐는지 알린다 — 조용히 27%를 저장하는 것보다 낫다.
+MAX_CONSECUTIVE_FAIL = 5
 
 #: 판정에 쓸 수 있는 최소 수집률. 조각이 무더기로 실패하면 특정 기간이
 #: 통째로 빠져 계절 편향이 생긴다. `RawWindProvider.MIN_COVERAGE`가 이 값을
@@ -194,6 +206,31 @@ def _parse(body: str) -> list[tuple[datetime, float, float]]:
     return out
 
 
+def _fetch_retry(lat: float, lng: float, start: datetime, end: datetime,
+                 height_m: int, itv: int):
+    """
+    `fetch`에 재시도를 입힌다.
+
+    DNS·연결 끊김 같은 일시 장애는 몇 초 뒤면 풀린다. 그때마다 조각을 버리면
+    1년치가 누더기가 된다 — 실측에서 그렇게 27.7%가 나왔다. 다만 잘못된
+    요청(RawWindError)은 다시 청해도 같으므로 즉시 올린다.
+    """
+    last: Exception | None = None
+    for i, wait in enumerate((0, *RETRY_WAITS)):
+        if wait:
+            time.sleep(wait)
+        try:
+            return fetch(lat, lng, start, end, height_m=height_m, itv=itv)
+        except RawWindError:
+            raise
+        except Exception as e:                                  # noqa: BLE001
+            last = e
+            if i < len(RETRY_WAITS):
+                logger.info('재현바람장 재시도 %d/%d (%s~%s, %dm): %s',
+                            i + 1, len(RETRY_WAITS), start, end, height_m, e)
+    raise last                                                  # type: ignore[misc]
+
+
 def collect(lat: float, lng: float, start: datetime, end: datetime,
             height_m: int = 80, itv: int = ITV_COARSE,
             on_progress=None) -> list[tuple[datetime, float, float]]:
@@ -214,6 +251,7 @@ def collect(lat: float, lng: float, start: datetime, end: datetime,
     cur = start
     total = max((end - start).days, 1)
     failed = 0
+    streak = 0
     step = timedelta(minutes=itv)
     while cur < end:
         nxt = min(cur + timedelta(days=CHUNK_DAYS), end)
@@ -232,13 +270,21 @@ def collect(lat: float, lng: float, start: datetime, end: datetime,
         sub_cur, guard = cur, 0
         while sub_cur <= want_last and guard < MAX_RESUME:
             try:
-                got = fetch(lat, lng, sub_cur, want_last,
-                            height_m=height_m, itv=itv)
+                got = _fetch_retry(lat, lng, sub_cur, want_last,
+                                   height_m=height_m, itv=itv)
             except Exception as e:                              # noqa: BLE001
                 failed += 1
+                streak += 1
                 logger.warning('재현바람장 조각 실패 %s~%s (%dm): %s',
                                sub_cur, want_last, height_m, e)
+                if streak >= MAX_CONSECUTIVE_FAIL:
+                    raise RawWindError(
+                        f'조각이 {streak}회 연달아 실패했습니다 ({height_m}m, '
+                        f'마지막 {sub_cur:%Y-%m-%d}~{want_last:%Y-%m-%d}) — '
+                        f'{e}. 지속 장애로 보고 중단합니다. 받다 만 자료를 '
+                        f'저장하지 않습니다.') from e
                 break
+            streak = 0
             if not got:
                 break
             rows += got
