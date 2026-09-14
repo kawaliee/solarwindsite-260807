@@ -1797,32 +1797,56 @@ def _valid_area_note(center, radius_m) -> str:
             f" (육지 {va['land_ratio'] * 100:.1f}%)")
 
 
-def _rawwind_pick(ctx):
+def _rawwind_groups(ctx):
     """
-    호기별 판정에서 **자료가 실린 것 하나**와 **유효지역 집계**를 함께 낸다.
+    호기별 판정을 **신청좌표별로 묶는다.**
 
-    풍황은 호기마다 값이 따로 나오지 않는다 — 신청좌표 한 곳에서 받은 자료를
-    유효지역 안의 호기들이 공유한다. 그러나 유효지역 **밖** 호기는 그 자료로
-    말할 수 없으므로, 몇 호기가 그 자료로 설명되는지를 세어 함께 밝힌다.
+    ⚠️ 종전에는 자료가 실린 첫 판정 하나만 집어 그 신청좌표를 카드 전체의
+       기준으로 삼았다. 신청좌표가 하나뿐일 때는 맞지만, 유효지역 하나에
+       담기지 않아 좌표를 여럿 둔 사업에서는 **틀린 말이 된다.**
+
+       삼척 22기 실측이 그랬다. 좌표 3곳을 받고 나니 호기마다 어딘가에서는
+       유효지역 안에 들어, 카드가 「① 거리 요건 — 22/22기 (전부 포함)」이라고
+       적었다. 실제로는 한 좌표가 최대 10기까지만 담는다. 이 기능이 막으려던
+       오판을 카드가 그대로 저질렀다.
+
+    반환: ([{center, item, turbines:[호기번호…]}…], 자료 없는 호기 번호, 총 호기)
     """
-    have, out = None, []
+    groups: dict[tuple, dict] = {}
+    out = []
     for i, e in enumerate(ctx.evals, 1):
         it = _item_of(e['result'], RAWWIND_ITEM)
         if it is None:
             continue
-        if (it.raw or {}).get('heights'):
-            if have is None:
-                have = it
-        else:
+        raw = it.raw or {}
+        if not raw.get('heights'):
             out.append(i)
-    return have, out, len(ctx.evals)
+            continue
+        c = raw.get('center') or []
+        key = (round(float(c[0]), 5), round(float(c[1]), 5)) if len(c) == 2             else ('?', i)
+        g = groups.setdefault(key, {'center': c, 'item': it, 'turbines': []})
+        g['turbines'].append(i)
+    # 담당 호기가 많은 좌표부터 — 사업의 주된 유효지역이 먼저 읽힌다.
+    return (sorted(groups.values(), key=lambda g: -len(g['turbines'])),
+            out, len(ctx.evals))
 
 
-def _rawwind_head(item, outside, total: int) -> str:
-    if item is None:
+def _rawwind_head(groups, outside, total: int) -> str:
+    if not groups:
         return '재현바람장 자료가 수집되지 않았습니다 — 발전사업허가 제출 자료입니다.'
+    item = groups[0]['item']
     hs = ((item.raw or {}).get('heights') or {})
     bits = [f"{h}m {(st or {}).get('mean_ms')} m/s" for h, st in sorted(hs.items())]
+    if len(groups) > 1:
+        # 좌표가 여럿이면 값 하나로 말할 수 없다. 범위로 낸다.
+        bits = []
+        for h in sorted(hs):
+            vals = [float(((g['item'].raw or {}).get('heights') or {})
+                          .get(h, {}).get('mean_ms') or 0) for g in groups]
+            vals = [v for v in vals if v]
+            if vals:
+                bits.append(f'{h}m {min(vals):.2f}~{max(vals):.2f} m/s')
+        bits.append(f'신청좌표 {len(groups)}곳')
     tail = (f' · 유효지역 밖 {len(outside)}기' if outside
             else f' · {total}기 전부 유효지역 내')
     # 판정을 빼면 표만 남아 '그래서 되는가'가 사라진다.
@@ -1846,11 +1870,11 @@ def card_rawwind(doc, ctx, no: str = '⑥') -> None:
     가정으로 환산, 재현바람장은 부지 좌표·허브고도에서 바로 나온 값) 값이
     다르면 그 사실 자체가 정보다.
     """
-    item, outside, total = _rawwind_pick(ctx)
+    groups, outside, total = _rawwind_groups(ctx)
     _card_head(doc, f'{no} 풍황 — 재현바람장 (발전사업허가 제출 자료)',
-               _rawwind_head(item, outside, total),
+               _rawwind_head(groups, outside, total),
                SECTION_COLORS.get('사업성', BRAND))
-    if item is None:
+    if not groups:
         _bullets(doc, [
             '재현바람장 자료가 수집되지 않았습니다. 「발전사업세부허가기준 …에 '
             '관한 고시」 개정으로 풍력 발전사업허가에서 풍황계측기 설치를 이 '
@@ -1859,64 +1883,89 @@ def card_rawwind(doc, ctx, no: str = '⑥') -> None:
             '자료가 없다는 뜻이지 바람이 약하다는 뜻이 아닙니다.'])
         return
 
+    item = groups[0]['item']
     raw = item.raw or {}
     hs = raw.get('heights') or {}
-    if hs:
-        _styled_table(
-            doc,
-            ['고도', '평균 풍속', '주풍향(빈도)', '3m/s 미만', '12m/s 이상', '최대'],
-            [[f'{h}m',
-              f"{(st or {}).get('mean_ms')} m/s",
-              f"{rawwind.dir_ko((st or {}).get('prevailing_dir') or '')}"
-              f" ({float((st or {}).get('dir_ratio') or 0) * 100:.0f}%)",
-              f"{float((st or {}).get('calm_ratio') or 0) * 100:.0f}%",
-              f"{float((st or {}).get('rated_ratio') or 0) * 100:.0f}%",
-              f"{(st or {}).get('max_ms')} m/s"]
-             for h, st in sorted(hs.items())],
-            accent=SECTION_COLORS.get('사업성', BRAND),
-            widths=[1.8, 2.6, 3.4, 2.4, 2.6, 2.2], center=True)
-
-    # 유효지역 — 고시가 정한 허가 가능 범위. 축이 둘(거리·해역)이라 둘 다 낸다.
-    c = raw.get('center') or []
-    rows = [
-        ('신청좌표(자료 취득 지점)',
-         f'{c[0]:.5f}, {c[1]:.5f}' if len(c) == 2 else '-'),
-        ('유효지역',
-         f"반지름 {raw.get('valid_radius_m', 2000):,}m 원 − 해역"
-         f" (블레이드 회전 반지름 {float(raw.get('rotor_m') or 0):,.0f}m 포함 판정)"),
-        ('① 거리 요건 — 유효지역 내 호기',
-         f'{total - len(outside)}/{total}기'
-         + (f' — 밖: {", ".join(f"{i}호기" for i in outside)}' if outside
-            else ' (전부 포함)')),
-    ]
-    per = raw.get('period') or []
-    if len(per) == 2:
-        rows.append(('수집 기간',
-                     f'{per[0]} ~ {per[1]}'
-                     + (' ⚠️ 고도별 기간 불일치' if raw.get('mixed_period') else '')))
-    smp, exp = raw.get('samples'), raw.get('expected_samples')
-    if smp:
-        rows.append(('표본',
-                     f"{smp:,}개 / 기대 {exp:,}개"
-                     f" ({float(raw.get('coverage') or 0) * 100:.0f}% 수집,"
-                     f" {raw.get('interval_min')}분 간격)"))
-    # α는 서술에 두면 요약에서 잘려 사라진다. 허브고도 환산에 쓰는 값이라
-    # 반드시 남아야 한다 — 표에 박는다.
-    if raw.get('alpha') is not None:
-        rows.append(('연직시어 지수 α (역산)',
-                     f"{raw['alpha']:.2f} — 허브고도가 다르면 이 값으로 환산"))
-    va = _valid_area_note(c, raw.get('valid_radius_m') or 2000)
-    if va:
-        rows.append(('유효지역 실면적(해역 제외)', va))
     sea_hit, sea_unknown = _sea_rollup(ctx)
-    rows.append((
-        '② 해역 요건 — 블레이드 저촉',
-        ('확인하지 못했습니다 (육지 경계 조회 실패)' if sea_unknown and not sea_hit
-         else '저촉 없음' if not sea_hit
-         else f'{len(sea_hit)}기 저촉 — '
-              + ', '.join(f'{i}호기 {r * 100:.0f}%' for i, r in sea_hit[:6])
-              + (' 외' if len(sea_hit) > 6 else ''))))
-    _kv(doc, rows)
+
+    if len(groups) > 1:
+        _note(doc,
+              f'유효지역 하나에 {total}기가 담기지 않아 신청좌표를 '
+              f'{len(groups)}곳으로 나눴습니다. 유효지역은 **발전사업허가를 받을 '
+              f'수 있는 범위**이므로, 이 수는 곧 허가를 몇 건으로 나눠야 하는지의 '
+              f'문제입니다. 좌표마다 풍황·유효지역을 따로 냅니다.')
+
+    for g in groups:
+        graw = g['item'].raw or {}
+        ghs = graw.get('heights') or {}
+        gc = graw.get('center') or []
+        mine = g['turbines']
+        if len(groups) > 1:
+            _sub_band(doc,
+                      f"신청좌표 {gc[0]:.5f}, {gc[1]:.5f}"
+                      f" — {len(mine)}기 담당"
+                      f" ({', '.join(f'{i}호기' for i in mine[:8])}"
+                      f"{' 외' if len(mine) > 8 else ''})")
+        if ghs:
+            _styled_table(
+                doc,
+                ['고도', '평균 풍속', '주풍향(빈도)', '3m/s 미만', '12m/s 이상',
+                 '최대'],
+                [[f'{h}m',
+                  f"{(st or {}).get('mean_ms')} m/s",
+                  f"{rawwind.dir_ko((st or {}).get('prevailing_dir') or '')}"
+                  f" ({float((st or {}).get('dir_ratio') or 0) * 100:.0f}%)",
+                  f"{float((st or {}).get('calm_ratio') or 0) * 100:.0f}%",
+                  f"{float((st or {}).get('rated_ratio') or 0) * 100:.0f}%",
+                  f"{(st or {}).get('max_ms')} m/s"]
+                 for h, st in sorted(ghs.items())],
+                accent=SECTION_COLORS.get('사업성', BRAND),
+                widths=[1.8, 2.6, 3.4, 2.4, 2.6, 2.2], center=True)
+
+        # 유효지역 — 고시가 정한 허가 가능 범위. 축이 둘(거리·해역)이라 둘 다 낸다.
+        rows = [
+            ('신청좌표(자료 취득 지점)',
+             f'{gc[0]:.5f}, {gc[1]:.5f}' if len(gc) == 2 else '-'),
+            ('유효지역',
+             f"반지름 {graw.get('valid_radius_m', 2000):,}m 원 − 해역"
+             f" (블레이드 회전 반지름 "
+             f"{float(graw.get('rotor_m') or 0):,.0f}m 포함 판정)"),
+            # ⚠️ 이 좌표가 담는 호기만 센다. 전체 호기로 세면 좌표를 여럿 둔
+            #    사업에서 '한 유효지역이 전부를 담는다'는 틀린 말이 된다.
+            ('① 거리 요건 — 이 유효지역 내 호기',
+             f'{len(mine)}/{total}기'
+             + (' (전부 포함)' if len(mine) == total else
+                f' — {", ".join(f"{i}호기" for i in mine[:10])}'
+                + (' 외' if len(mine) > 10 else ''))),
+        ]
+        per = graw.get('period') or []
+        if len(per) == 2:
+            rows.append(('수집 기간',
+                         f'{per[0]} ~ {per[1]}'
+                         + (' ⚠️ 고도별 기간 불일치'
+                            if graw.get('mixed_period') else '')))
+        smp, exp = graw.get('samples'), graw.get('expected_samples')
+        if smp:
+            rows.append(('표본',
+                         f"{smp:,}개 / 기대 {exp:,}개"
+                         f" ({float(graw.get('coverage') or 0) * 100:.0f}% 수집,"
+                         f" {graw.get('interval_min')}분 간격)"))
+        if graw.get('alpha') is not None:
+            rows.append(('연직시어 지수 α (역산)',
+                         f"{graw['alpha']:.2f} — 허브고도가 다르면 이 값으로 환산"))
+        va = _valid_area_note(gc, graw.get('valid_radius_m') or 2000)
+        if va:
+            rows.append(('유효지역 실면적(해역 제외)', va))
+        mine_sea = [(i, r) for i, r in sea_hit if i in set(mine)]
+        rows.append((
+            '② 해역 요건 — 블레이드 저촉',
+            ('확인하지 못했습니다 (육지 경계 조회 실패)'
+             if sea_unknown and not mine_sea
+             else '저촉 없음' if not mine_sea
+             else f'{len(mine_sea)}기 저촉 — '
+                  + ', '.join(f'{i}호기 {r * 100:.0f}%' for i, r in mine_sea[:6])
+                  + (' 외' if len(mine_sea) > 6 else ''))))
+        _kv(doc, rows)
 
     asos = next((it for it in (_item_of(e['result'], ASOS_WIND_ITEM)
                                for e in ctx.evals) if it is not None), None)

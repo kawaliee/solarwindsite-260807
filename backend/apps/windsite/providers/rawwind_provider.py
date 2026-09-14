@@ -128,10 +128,23 @@ class RawWindProvider(LayerProvider):
         near.sort(key=lambda x: x[0])
         by_h = {}
         for d, r in near:
-            # 같은 고도가 여럿이면 가장 가깝고 표본이 많은 것을 쓴다.
+            # 같은 고도에 후보가 여럿이면 **관측 기간이 긴 것**을 먼저 쓴다.
+            #
+            # ⚠️ 종전에는 가까운 것을 먼저 썼다. 그러자 시험 삼아 받아 둔
+            #    10일치가 코앞에 있다는 이유로 1년치를 밀어냈고, 보고서가
+            #    평창을 신청좌표 두 곳으로 쪼개 그려 버렸다(호기 5~8이 시험
+            #    좌표에 붙었다). 연평균을 말해야 하는 자료에서 열흘치가
+            #    이기는 일은 있을 수 없다.
+            #
+            # 기간이 비슷하면(같은 달 수) 수집률, 그 다음 거리로 가른다.
+            # 거리는 어차피 유효지역(1,800m) 안이라 어느 쪽이든 이 호기의
+            # 자료로 쓸 수 있다 — 자료의 질이 먼저다.
+            months = round((r.end - r.start).days / 30)
+            key = (-months, -r.coverage, d)
             cur = by_h.get(r.height_m)
-            if cur is None or (d, -r.samples) < (cur[0], -cur[1].samples):
-                by_h[r.height_m] = (d, r)
+            if cur is None or key < cur[0]:
+                by_h[r.height_m] = (key, d, r)
+        by_h = {h: (d, r) for h, (_k, d, r) in by_h.items()}
 
         usable = {h: (d, r) for h, (d, r) in by_h.items()
                   if r.coverage >= MIN_COVERAGE}
