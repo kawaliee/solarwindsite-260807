@@ -36,6 +36,8 @@ class Command(BaseCommand):
                             help='종료일 YYYYMMDD (기본: 자료 종료 시점)')
         parser.add_argument('--heights', default='80,140',
                             help='바람 고도 목록 (기본 80,140)')
+        parser.add_argument('--force', action='store_true',
+                            help='이미 충분히 받아 둔 구간도 다시 받습니다')
         parser.add_argument('--cover', action='store_true',
                             help='유효지역이 하나로 안 될 때 필요한 신청좌표 '
                                  '전부를 수집합니다 (좌표 수만큼 오래 걸립니다)')
@@ -76,14 +78,47 @@ class Command(BaseCommand):
         self.stdout.write(
             f'기간 {start:%Y-%m-%d} ~ {end:%Y-%m-%d}(KST) · 고도 {heights} · {itv}분 간격 '
             f'· 신청좌표 {len(spots)}곳')
+        # 한 좌표에서 지속 장애로 중단되어도 **나머지 좌표는 이어간다.**
+        # 종전에는 예외가 그대로 올라가 남은 좌표가 통째로 날아갔다 — 삼척
+        # 15·17호기가 그렇게 한 줄도 못 받았다. 장애는 회복되기도 하므로
+        # 실패는 모아 두었다가 끝에 한 번에 알린다.
+        trouble = []
         for lat, lng, label in spots:
             self.stdout.write('')
             self.stdout.write(f'■ 신청좌표 {lat:.5f},{lng:.5f} — {label}')
             for h in heights:
-                self._one(plan, lat, lng, start, end, h, itv)
+                try:
+                    self._one(plan, lat, lng, start, end, h, itv,
+                              force=o.get('force', False))
+                except rawwind.RawWindError as e:
+                    trouble.append(f'{lat:.5f},{lng:.5f} {h}m — {e}')
+                    self.stdout.write(self.style.ERROR(f'  중단: {e}'))
+        if trouble:
+            self.stdout.write('')
+            self.stdout.write(self.style.ERROR(
+                f'※ {len(trouble)}건을 받지 못했습니다. 받다 만 자료는 저장하지 '
+                f'않았으므로, 장애가 풀린 뒤 같은 명령을 다시 실행하면 빠진 '
+                f'것만 받습니다.'))
+            for t in trouble:
+                self.stdout.write(self.style.ERROR(f'  · {t}'))
 
     # ------------------------------------------------------------------
-    def _one(self, plan, lat, lng, start, end, height_m, itv):
+    #: 이 수집률 이상이면 이미 받은 것으로 보고 건너뛴다. 한 고도에 한 시간
+    #: 가까이 걸리므로, 재실행할 때마다 멀쩡한 자료를 다시 받으면 장애 복구가
+    #: 끝나지 않는다.
+    KEEP_COVERAGE = 0.99
+
+    def _one(self, plan, lat, lng, start, end, height_m, itv,
+             force=False):
+        if not force:
+            done = RawWindSample.objects.filter(
+                lat=round(lat, 5), lng=round(lng, 5), height_m=height_m,
+                start=_kst(start), end=_kst(end)).first()
+            if done and done.coverage >= self.KEEP_COVERAGE:
+                self.stdout.write(
+                    f'[{height_m}m] 건너뜀 — 이미 {done.coverage * 100:.1f}% 받아 '
+                    f'두었습니다 (다시 받으려면 --force).')
+                return
         self.stdout.write(f'\n[{height_m}m] 수집 시작 — 오래 걸립니다')
 
         def progress(done, total):
