@@ -1,53 +1,57 @@
 <#
 .SYNOPSIS
-  Git이 나르지 않는 운영 데이터(backend/media + .env)를 하나의 압축 번들로 백업합니다.
-  이관/재현 시 이 번들을 새 PC로 옮긴 뒤 restore_data.ps1로 복원하십시오.
+  Git이 나르지 않는 운영 데이터(PostgreSQL + .env)를 압축 번들로 백업합니다.
 
-.PARAMETER OutDir
-  번들을 저장할 폴더. 기본값: 프로젝트 상위 폴더의 260618_backup
+.DESCRIPTION
+  이 서비스에서 지켜야 할 것은 DB입니다.
+
+    · 배치안·사업 (windsite_plan, windsite_project)
+    · 검토 이력 (windsite_history)
+    · 재현바람장 표본 (windsite_rawwind) — 좌표·고도당 수집에 약 1시간
+    · 조례·법령·재결례 수집분 (windsite_ordinance, windsite_law*, windsite_korec*)
+
+  특히 재현바람장은 다시 받으려면 사업 하나에 여러 시간이 걸립니다.
+
+  공간데이터 원본(backend/data/의 대용량)은 배포처에서 재수급 가능하므로
+  번들에 넣지 않습니다. 받는 법은 각 디렉터리의 README를 보십시오.
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File scripts\backup_data.ps1
-  powershell -ExecutionPolicy Bypass -File scripts\backup_data.ps1 -OutDir D:\handover
+  .\scripts\backup_data.ps1
 #>
-param(
-    [string]$OutDir = ""
-)
 
-$ErrorActionPreference = "Stop"
-$ProjectRoot = Split-Path -Parent $PSScriptRoot   # scripts/ 의 부모 = 프로젝트 루트
-$MediaDir = Join-Path $ProjectRoot "backend\media"
-$EnvFile  = Join-Path $ProjectRoot ".env"
+$ErrorActionPreference = 'Stop'
 
-if (-not $OutDir) { $OutDir = Join-Path (Split-Path -Parent $ProjectRoot) "260618_backup" }
-if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Path $OutDir | Out-Null }
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
+$Stamp       = Get-Date -Format 'yyyyMMdd_HHmmss'
+$OutDir      = Join-Path (Split-Path -Parent $ProjectRoot) '260618_backup'
+$Staging     = Join-Path $env:TEMP "260618_backup_$Stamp"
+$Bundle      = Join-Path $OutDir "260618_data_$Stamp.tar"
 
-$Stamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$Staging = Join-Path $OutDir "_staging_$Stamp"
-New-Item -ItemType Directory -Path $Staging | Out-Null
+New-Item -ItemType Directory -Force -Path $OutDir, $Staging | Out-Null
 
-Write-Host "[1/3] 스테이징 준비: $Staging"
-if (Test-Path $MediaDir) {
-    Copy-Item $MediaDir -Destination (Join-Path $Staging "media") -Recurse
-} else { Write-Warning "media 폴더가 없습니다: $MediaDir" }
+Write-Host "[1/3] PostgreSQL 덤프 중..."
+$DbUser = if ($env:POSTGRES_USER) { $env:POSTGRES_USER } else { 're_user' }
+$DbName = if ($env:POSTGRES_DB)   { $env:POSTGRES_DB }   else { 're_agent' }
+$DumpPath = Join-Path $Staging 'postgres.dump'
+
+# -Fc(커스텀 포맷)로 받아 pg_restore가 선택 복원할 수 있게 한다.
+docker compose exec -T postgres pg_dump -U $DbUser -d $DbName -Fc |
+    Set-Content -Path $DumpPath -Encoding Byte
+if ($LASTEXITCODE -ne 0) { throw "pg_dump 실패 (컨테이너가 떠 있는지 확인하십시오)" }
+Write-Host ("      덤프 크기: {0:N1} MB" -f ((Get-Item $DumpPath).Length / 1MB))
+
+Write-Host "[2/3] .env 복사 중..."
+$EnvFile = Join-Path $ProjectRoot '.env'
 if (Test-Path $EnvFile) {
-    Copy-Item $EnvFile -Destination (Join-Path $Staging ".env")
-} else { Write-Warning ".env 파일이 없습니다: $EnvFile" }
-
-$Bundle = Join-Path $OutDir "260618_data_$Stamp.zip"
-Write-Host "[2/3] 압축 중 (media는 이미 압축 포맷이라 용량 축소는 적음)..."
-# tar가 있으면 tar 사용(대용량에 유리), 없으면 Compress-Archive
-$tar = Get-Command tar -ErrorAction SilentlyContinue
-if ($tar) {
-    $Bundle = Join-Path $OutDir "260618_data_$Stamp.tar"
-    tar -C $Staging -cf $Bundle .
+    Copy-Item $EnvFile -Destination (Join-Path $Staging '.env')
 } else {
-    Compress-Archive -Path (Join-Path $Staging "*") -DestinationPath $Bundle -Force
+    Write-Warning ".env가 없습니다: $EnvFile"
 }
 
-Write-Host "[3/3] 스테이징 정리..."
+Write-Host "[3/3] 압축 중..."
+tar -cf $Bundle -C $Staging .
 Remove-Item $Staging -Recurse -Force
 
-$Size = "{0:N1} MB" -f ((Get-Item $Bundle).Length / 1MB)
-Write-Host "완료: $Bundle ($Size)" -ForegroundColor Green
-Write-Host "이 번들과 GitHub 코드를 함께 넘기면 다른 PC에서 재현 가능합니다."
+Write-Host ""
+Write-Host "완료: $Bundle" -ForegroundColor Green
+Write-Host "⚠️ 번들에 .env(비밀 키)가 들어 있습니다. 안전한 채널로만 전달하십시오." -ForegroundColor Yellow

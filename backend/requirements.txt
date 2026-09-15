@@ -1,5 +1,5 @@
 # =====================================================================
-# 재생E AI Agent — Backend Dependencies
+# 재생에너지 입지타당성 검토 시스템 — Backend Dependencies
 # =====================================================================
 
 # Django
@@ -12,65 +12,52 @@ django-filter>=24.0,<25.0
 psycopg2-binary>=2.9,<3.0
 dj-database-url>=2.1,<3.0
 
-# Async Tasks
-celery>=5.4,<6.0
+# Cache — 한 지점 검토가 외부 공간정보 API를 수십 건 호출한다. 같은 지점을
+#         다시 보거나 보고서를 만들 때 동일 호출이 반복되므로 응답을 캐시해
+#         지연과 사용량 제한을 줄인다(settings.CACHES).
 redis>=5.0,<6.0
 
-# Vector DB
-qdrant-client>=1.9,<2.0
-
-# Embedding (BGE-M3)
-# FlagEmbedding>=1.2    # 용량이 크므로 필요 시 활성화
-sentence-transformers>=3.0,<4.0
-fastembed>=0.2,<1.0
-
-# Document Parsing
-PyMuPDF>=1.24,<2.0
-pdfplumber>=0.10,<1.0
-python-docx>=1.1,<2.0
-openpyxl>=3.1,<4.0
-pandas>=2.2,<3.0
-
-# OCR (스캔 PDF 처리)
-pdf2image>=1.16,<2.0
-pytesseract>=0.3.10,<1.0
-Pillow>=10.0,<12.0
-
-# LLM
+# HTTP — 공공 공간정보·법령 API 호출
 httpx>=0.27,<1.0
-openai>=1.30,<2.0
 
-# Word Export
-python-docx>=1.1,<2.0
-
-# Utilities
+# 서버
 python-dotenv>=1.0,<2.0
 gunicorn>=22.0,<23.0
-python-pptx>=1.0.0
-
-# HWP/HWPX Document Parsing
-hwp-hwpx-parser>=1.0.0
-olefile>=0.47
 
 # =====================================================================
-# 풍력 입지검토(windsite) — 공간연산 스택
+# 공간연산 스택
 #   shapely  : 폴리곤 교차·거리·면적 연산 (최근접 이격거리, 가용면적)
 #   pyproj   : WGS84 ↔ EPSG:5179(UTM-K) 투영 변환 — 미터 단위 정확 거리
 #   pyshp    : SHP 판독 (국가유산 등 공간데이터 적재, GDAL 불필요)
-#   dbfread  : SHP 속성(DBF) 판독 — CP949 인코딩 대응
-#   matplotlib: 검토 보고서용 지도 렌더링
+#   numpy    : 격자 연산 (DEM 경사도, 일사량 래스터)
 #   rasterio : DEM(수치표고) 판독 — 경사도·향 산출
 #              태양광 조례에는 거리가 아닌 지형 조건이 있다(홍성군 [별표 26]
 #              '경사도 15도 이상 산지 제외'). 그 판정에 표고 격자가 필요하다.
 #              국토지리정보원 공개DEM은 ERDAS IMG 형식이라 pyshp로는 못 읽는다.
 #              ⚠️ 시스템 GDAL을 요구하지 않는다 — 배포 wheel이 GDAL을 함께
 #                 담고 있어 'GDAL 불필요' 원칙은 그대로 유지된다.
+#   netCDF4  : 기상청 태양기상자원지도(GK2A 일사량) 판독 — 태양광 사업성 축
+#   matplotlib: 검토 보고서용 지도 렌더링
 # =====================================================================
 shapely>=2.0,<3.0
 pyproj>=3.6,<4.0
 pyshp>=2.3,<4.0
-dbfread>=2.0,<3.0
+numpy>=1.26,<3.0
 rasterio>=1.3,<2.0
-#   netCDF4  : 기상청 태양기상자원지도(GK2A 일사량) 판독 — 태양광 사업성 축
 netCDF4>=1.6,<2.0
 matplotlib>=3.8,<4.0
+Pillow>=10.0,<12.0
+
+# =====================================================================
+# 보고서·자료 판독
+#   python-docx : 검토 보고서(docx) 생성
+#   openpyxl    : 전기위원회 재결례 목록(xlsx) 수집
+#   PyMuPDF     : 재결례 원문 PDF 판독
+#   pytesseract : 스캔본 재결례 OCR (시스템 tesseract 필요, 없으면 건너뜀)
+#   olefile     : HWP5(OLE 복합문서) 조례 원문 판독 — HWPX는 자체 ZIP 파서
+# =====================================================================
+python-docx>=1.1,<2.0
+openpyxl>=3.1,<4.0
+PyMuPDF>=1.24,<2.0
+pytesseract>=0.3.10,<1.0
+olefile>=0.47

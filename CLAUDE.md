@@ -1,56 +1,142 @@
-# CLAUDE.md — 재생에너지 거래 AI RAG 챗봇 이관 개발 지침서
+# CLAUDE.md — 재생에너지 입지타당성 검토 시스템 개발 지침
 
-이 파일은 Claude Code가 본 프로젝트를 열었을 때, 시스템 빌드 구조와 기존 RAG 엔진 개량 패치 이력을 1초 만에 학습하여 연속성 있게 협업하기 위한 마스터 가이드라인입니다.
-
----
-
-## 1. 빌드 및 주요 명령 스크립트 (Build & Exec Commands)
-
-Claude Code에서 후속 구현 검증 또는 컨테이너 기동 시 아래 표준 명령어를 사용하십시오.
-
-### 🐳 도커 컨테이너 라이프사이클
-- **전체 컨테이너 백그라운드 구동**: `docker compose up -d`
-- **전체 컨테이너 정지 (볼륨 유지)**: `docker compose down`
-- **백엔드 실시간 연산 로그 모니터링**: `docker compose logs -f backend`
-
-### ⚡ RAG 데이터 파이프라인 관리
-- **미디어 문서 디렉토리 색인/임베딩 동기화**: `docker compose exec backend python manage.py ingest_media`
-- **로컬 RAG 파이프라인 E2E 정상성 검증**:
-  ```bash
-  docker compose exec backend python manage.py shell -c "from services.rag import search_documents; from services.llm import generate_answer; search_res = search_documents('태평 pjt ppa 계약가격과 보증사항'); ans = generate_answer('태평 pjt ppa 계약가격과 보증사항', context=search_res['context']); print('ANSWER:\n', ans['content'])"
-  ```
+Claude Code가 이 저장소를 열었을 때 구조와 규칙을 바로 파악하기 위한 안내입니다.
 
 ---
 
-## 2. RAG 시스템 최적화 패치 핵심 요약 (RAG Optimization History)
+## 1. 이 저장소는 무엇인가
 
-사용자의 질문 정합성을 보장하기 위해 핵심 RAG 모듈들에 이식 완료된 4대 개조 사양입니다. 임의 롤백을 금지합니다.
+좌표를 찍으면 공공 공간정보 API 20여 종을 병렬 조회해 입지 규제를 자동
+스크리닝하고, 인허가 로드맵과 docx 보고서를 내는 시스템입니다.
 
-### 📌 2.1. O&M 카테고리 맵핑 일치화 (`OM` -> `OM`)
-- **버그**: 질의 분석기(`query_analyzer.py`)가 카테고리를 `'O&M'`으로 추출하나, DB 메타데이터 상에는 `'OM'`으로 적재되어 RAG 검색 시 카테고리 필터링이 불일치 기각되던 현상.
-- **조치**: [services/rag.py](file:///c:/AI_PJT/260618/backend/services/rag.py)에서 `'O&M'`을 `'OM'`으로 자동 정형 변환되도록 통일 완료.
+- **풍력** — 호기 배치선 단위 판정, 이격거리 조례, 재현바람장 풍황, 유효지역
+- **태양광** — 필지 단위 정밀판정, 가용면적 산출, 일사량
+- **운영관리 Dashboard** — 전국 사업장 분포 (프런트 전용, 백엔드 의존 없음)
 
-### 📌 2.2. 초대형 3만 자 CHUNK 0 버퍼 포만 가드 탑재
-- **버그**: 계약서 전반부에 조항 구분자(`제1조` 등)가 없어 서두가 3만 자짜리 초대형 CHUNK 0로 적재됨. 이로 인해 RAG 전송 한도(25,000자)를 100% 독점해 뒤이은 가격/보증 알맹이 청크들이 잘렸음.
-- **조치**: 
-  1. [backend/services/parser.py](file:///c:/AI_PJT/260618/backend/services/parser.py) 내에 서두가 1,500자를 초과할 때 1,200자 단위(오버랩 200자)로 슬라이싱 분할 적재하는 안전 파서를 도입해 89개 청크로 무손실 재적재 완수.
-  2. [services/rag.py](file:///c:/AI_PJT/260618/backend/services/rag.py)의 컨텍스트 결합 루프에 `MAX_CHUNK_CHARS_IN_CONTEXT = 3000` (3,000자) 상한제 가드를 장착해 버퍼 포만을 원천 차단함.
-
-### 📌 2.3. 복합 질문 시 가격/보증 랭킹 누락 해소 (Top-15 및 쿼리 확장)
-- **버그**: "가격"과 "보증"을 동시에 질문 시, 보증 관련 키워드가 상위 8위 슬롯을 독차지해 PPA 고정단가(`CHUNK 28`)가 8위 밖으로 밀려나 누락되던 Recall 병목 발생.
-- **조치**:
-  1. Qdrant 1차 픽업량을 `top_k=50`으로 확장하여 Reranking 전의 후보군 모수를 다량 확보함.
-  2. 챗봇 컨트롤러 뷰([backend/apps/chat/views.py](file:///c:/AI_PJT/260618/backend/apps/chat/views.py)) L77의 RAG 전송 슬롯 규제를 `10`에서 **`15`**로 완벽 상향하여 Rerank 후 전달 한도를 전면 개방함.
-  3. `rag.py` 쿼리 보정 알고리즘에 `'상대방/당사자'`, `'ppa'`, `'가격/단가/정산단가'` 형태소 자동 확장을 결합해 검색 점수를 획기적으로 상승시킴.
-
-### 📌 2.4. LLM 팩트 융합 및 SPC 별칭 가이드 주입 완료
-- **조치**: [services/llm.py](file:///c:/AI_PJT/260618/backend/services/llm.py)의 동기식/스트리밍식 시스템 프롬프트에 **프로젝트 별칭 ↔ 정식 법인명 동의어 가이드**와, **계약가격·정산단가·보증사항을 [내부 참조 자료]에 실제 제시된 값·조건만 근거로 발췌하되 조건부·유보(서면합의 예정 등) 문구도 함께 밝히라**는 팩트 융합 규칙을 장착하여, 명칭 불일치로 인한 기각 없이 E2E 정합성을 복원함.
-  - ⚠️ **보안**: 특정 계약가격·대주단·지분·금액 등 기밀 수치는 **소스에 하드코딩하지 않는다.** 답변 근거 값은 반드시 DB(RAG 컨텍스트)에서 인용하며, 소스/문서/커밋에 사내 기밀을 남기지 않는다.
+풍력·태양광은 **같은 엔진**을 쓰고 `apps/windsite/energy.py`의 `EnergyProfile`로
+갈립니다. 한쪽에 기능을 넣을 때 다른 쪽에 어떻게 비치는지 반드시 확인하십시오.
 
 ---
 
-## 3. 후속 구현 및 준수 규칙 (Development Rules)
+## 2. 가장 중요한 규칙
 
-- **임의 순위 보정 금지**: RAG 검색 스펙을 조율할 때, 투심위 보고서 등 특정 문서를 1위로 올리기 위해 메타데이터나 필터를 하드코딩식으로 강제 개조하지 마십시오.
-- **DRM 암호화 파일 조치**: 현재 당진 1단계 O&M 위탁계약서는 암호화 파일(`[['EncryptedPackage']]`)로 잠겨 있습니다. 복호화된 docx로 덮어쓰고 `ingest_media`를 다시 호출해 수집하십시오.
-- **협업 컨텍스트 준수**: 새로운 RAG 기능 개발 시, 기존의 `MAX_CHUNK_CHARS_IN_CONTEXT` 상한 정책과 Qdrant 50개 픽업 모델을 해치지 않고 조화롭게 설계하십시오.
+> **추측하지 않는다.** 조회에 실패하거나 판정 기준이 없으면 `UNKNOWN`으로 남기고,
+> **왜 모르는지**를 함께 적는다.
+
+입지 검토는 잘못된 "가능" 판정 하나가 사업 손실로 이어집니다. 이 저장소에서
+**조회 안 됨과 제약 없음은 전혀 다른 사실**이며, 절대 같은 문구로 내지 않습니다.
+
+이어지는 규칙들은 전부 이 원칙에서 나옵니다.
+
+### 2.1. 실측하지 않은 것을 코드에 쓰지 않는다
+
+레이어 ID·속성명·API 응답 형식은 **서버 응답으로 직접 확인한 값만** 씁니다.
+문서에 적힌 대로 동작하지 않는 API가 많습니다. 실제로 겪은 예:
+
+- V-World 일부 레이어는 데이터 API(`req/data`)로는 거절되고 WFS로만 나옵니다.
+- WFS에 `SRSNAME=EPSG:5179`를 주면 응답이 **이미 미터 좌표**입니다. 여기에
+  `to_metric`을 또 걸면 좌표가 발산합니다.
+- 기상청 재현바람장 API는 `itv`가 10 또는 30만 유효하고, 3일 요청이 끝에서
+  잘려 돌아옵니다(112/144행). 받은 마지막 시각부터 이어 받아야 채워집니다.
+
+확인되지 않은 코드는 **검출 사실만 알리고 판정을 보류**합니다.
+
+### 2.2. 법령은 원문으로 확인한다
+
+조문을 인용하기 전에 `lawapi.py`로 국가법령정보 원문을 조회해 대조하십시오.
+폐지된 조문에 근거한 절차가 실제로 발견된 적이 있습니다.
+
+`verify_laws --apply`가 `confidence`를 관리합니다. **시드 명령이 이 값을 덮어쓰면
+안 됩니다** — 시드가 선언한 경우에만 설정하십시오.
+
+> `LAW_API_OC`는 랜덤 키가 아니라 신청 이메일의 `@` 앞부분이며, 호출 서버의
+> **공인 IP를 open.law.go.kr에 등록**해야 통과합니다. IP가 바뀌면 재등록이 필요합니다.
+
+### 2.3. 판정 문구에 조회 범위의 한계를 적는다
+
+필지 단위인지 구역 전체인지, 거리가 실제로 측정된 값인지, 대표 지점 한 곳의
+값인지를 밝힙니다. 보고서를 받는 사람이 범위를 오해하면 판정이 맞아도 소용없습니다.
+
+---
+
+## 3. 빌드 및 주요 명령
+
+### 컨테이너
+```bash
+docker compose up -d                      # 전체 기동
+docker compose logs -f backend            # 백엔드 로그
+docker compose exec backend python manage.py check
+```
+
+### 초기 데이터
+```bash
+docker compose exec backend python manage.py migrate
+docker compose exec backend python manage.py seed_windsite          # 풍력 법령·절차
+docker compose exec backend python manage.py seed_solar             # 태양광 법령·절차
+docker compose exec backend python manage.py seed_windsite_layers   # V-World 레이어
+```
+
+### 운영
+```bash
+docker compose exec backend python manage.py verify_laws --apply              # 법령 현행 대조
+docker compose exec backend python manage.py sync_ordinances --sigungu 화순군 --apply
+docker compose exec backend python manage.py sync_korec                       # 전기위원회 재결례
+docker compose exec -d backend python manage.py collect_rawwind --plan <UUID> # 재현바람장
+```
+
+> `collect_rawwind`는 좌표·고도당 약 1시간 걸립니다. 반드시 `-d`로 띄우십시오.
+> 이미 99% 이상 받아 둔 구간은 건너뜁니다(`--force`로 재수집).
+
+---
+
+## 4. 구조
+
+```
+backend/apps/windsite/
+  providers/       데이터 소스 어댑터 — 하나가 한 자료원을 맡는다
+  engine.py        병렬 실행 · 플래그 도출 · 점수 산출
+  energy.py        EnergyProfile — 풍력/태양광 분기의 단일 지점
+  available.py     가용면적 산출 · 항목 병합
+  screening.py     구역 스크리닝 (제약없음/조건부/배제)
+  geo.py           EPSG:5179 공간연산 (shapely · pyproj)
+  ordinances.py    조례 수집 · 이격거리 추출
+  lawapi.py        국가법령정보 OPEN API
+  permits.py       인허가 절차 · 플래그 조건
+  rawwind.py       기상청 재현바람장 · 유효지역 계산
+  coast.py         유효지역 해역 제외
+  area_report.py   docx 보고서 조립
+  report_cards.py  PART 2 항목별 카드
+  maps.py          지도 렌더링 (matplotlib)
+frontend/src/features/windsite/    풍력·태양광 공용 화면
+frontend/src/features/ops/         운영관리 Dashboard
+```
+
+좌표계는 **EPSG:5179(UTM-K)** 가 미터 연산 기준입니다. 생태자연도·산사태
+래스터 등 일부 자료는 EPSG:5186이라 재투영합니다. PostGIS 없이 bbox 1차 필터 +
+shapely 정밀 연산으로 처리합니다.
+
+---
+
+## 5. 후속 개발 규칙
+
+- **임의 순위 보정 금지** — 특정 결과를 위로 올리려고 메타데이터나 필터를
+  하드코딩으로 강제하지 마십시오.
+- **보고서는 버튼으로만** — 수정·검증 중 docx를 디스크에 만들지 마십시오. 느려집니다.
+  카드 렌더링은 메모리에서 확인합니다.
+- **인증키를 소스에 쓰지 않는다** — 전부 `.env`에서 읽습니다. 키가 없으면 해당
+  항목은 자동으로 `UNKNOWN` 판정됩니다.
+- **사업지 좌표·사업명 등 사내 정보를 커밋에 남기지 않는다.**
+- 원본 공간데이터(`backend/data/` 대용량)는 `.gitignore` 처리돼 있습니다. 재수급
+  방법은 각 디렉터리의 README를 보십시오.
+
+---
+
+## 6. 문서
+
+| 문서 | 내용 |
+|---|---|
+| [docs/WINDSITE_API_KEYS.md](docs/WINDSITE_API_KEYS.md) | 공공 API 키 발급·등록 |
+| [docs/WINDSITE_VWORLD_LAYERS.md](docs/WINDSITE_VWORLD_LAYERS.md) | V-World 레이어 ID·속성명 실측 기록 |
+| [docs/WINDSITE_PHASE3.md](docs/WINDSITE_PHASE3.md) | 구현 이력과 남은 한계 |
+| [docs/풍력입지검토시스템_시스템기획서.md](docs/풍력입지검토시스템_시스템기획서.md) | 시스템 설계 |
+| [docs/태양광입지검토_작업분담.md](docs/태양광입지검토_작업분담.md) | 태양광 확장 범위 |

@@ -1,10 +1,13 @@
-# 재생E AI Agent
+# 재생에너지 입지타당성 검토 시스템
 
-재생에너지 사업개발 실무를 지원하는 Django + React 시스템입니다. 두 축으로 구성됩니다.
+좌표를 찍으면 공공 API 20여 종을 병렬 조회해 입지 규제를 자동 스크리닝하고,
+인허가 로드맵과 docx 보고서를 생성하는 Django + React 시스템입니다.
 
-- **RAG 챗봇** — 사내 계약서·투심위 보고서 등을 색인해 근거와 함께 답변합니다.
-- **풍력 입지타당성 검토(`windsite`)** — 좌표를 찍으면 공공 API 20여 종을 병렬 조회해
-  입지 규제를 자동 스크리닝하고, 인허가 로드맵과 docx 보고서를 생성합니다.
+- **풍력 입지검토** — 호기 배치선 단위 판정 · 이격거리 조례 · 재현바람장 풍황
+- **태양광 입지검토** — 필지 단위 정밀판정 · 가용면적 산출 · 일사량
+- **운영관리 Dashboard** — 전국 사업장 분포 (프런트 전용)
+
+풍력·태양광은 같은 엔진을 쓰고 `EnergyProfile`로 갈립니다.
 
 ---
 
@@ -35,11 +38,9 @@ cp .env.example .env
 | 구분 | 키 | 없으면 |
 |---|---|---|
 | 필수 | `POSTGRES_*`, `DJANGO_SECRET_KEY` | 기동 불가 |
-| RAG | `LLM_API_KEY`, `EMBEDDING_API_KEY` | 챗봇 동작 불가 |
 | 입지검토 핵심 | `VWORLD_API_KEY`, `VWORLD_DOMAIN` | 규제 레이어 대부분 `UNKNOWN` |
 | 입지검토 확장 | `DATA_GO_KR_KEY`, `ECO_API_KEY`, `FOREST_API_KEY`, `KMA_APIHUB_KEY`, `KEPCO_API_KEY` | 해당 항목만 `UNKNOWN` |
 | 법령 | `LAW_API_OC` | 공용 데모 계정(`test`)으로 동작 |
-| 웹검색 | `TAVILY_API_KEY` | 웹 검색 기능만 비활성 |
 
 발급 방법은 [docs/WINDSITE_API_KEYS.md](docs/WINDSITE_API_KEYS.md)에 정리돼 있습니다.
 
@@ -53,7 +54,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-PostgreSQL 16 · Qdrant · Redis · Django · Celery · Vite가 함께 뜹니다.
+PostgreSQL 16 · Redis · Django · Vite가 함께 뜹니다.
 프런트는 <http://localhost:5173>, API는 <http://localhost:8000/api> 입니다.
 
 ### 3. 초기 데이터
@@ -62,6 +63,7 @@ PostgreSQL 16 · Qdrant · Redis · Django · Celery · Vite가 함께 뜹니다
 docker compose exec backend python manage.py migrate
 docker compose exec backend python manage.py seed_windsite          # 법령·판정규칙·인허가절차
 docker compose exec backend python manage.py seed_windsite_layers   # V-World 레이어 정의
+docker compose exec backend python manage.py seed_solar             # 태양광 법령·절차
 ```
 
 국가유산 SHP처럼 용량이 큰 자료는 별도로 내려받아 적재합니다.
@@ -148,8 +150,11 @@ docker compose exec backend python manage.py sync_ordinances --sigungu 화순군
 # 법령 현행 여부 대조 (confidence 갱신)
 docker compose exec backend python manage.py verify_laws --apply
 
-# RAG 문서 색인
-docker compose exec backend python manage.py ingest_media
+# 전기위원회 재결례 수집
+docker compose exec backend python manage.py sync_korec
+
+# 재현바람장(기상청) 1년치 수집 — 좌표·고도당 약 1시간
+docker compose exec -d backend python manage.py collect_rawwind --plan <배치안UUID>
 
 # 로그
 docker compose logs -f backend
@@ -168,11 +173,13 @@ backend/
       ordinances.py      조례 수집·추출 서비스
       geo.py             EPSG:5179 공간연산 (shapely·pyproj)
       lawapi.py          국가법령정보 OPEN API
-      report.py          docx 보고서 + 지도 4종
-    chat/ contracts/ documents/ factsheets/ workspaces/ accounts/
-  services/              RAG 파이프라인 (parser·embedding·rerank·llm·tavily)
-frontend/src/features/   chat · contracts · factsheet · ops · windsite
-docs/                    실측 기록 · API 키 발급 안내 · 이관 문서
+      area_report.py     docx 보고서 조립
+      report_cards.py    PART 2 항목별 카드 · 지도
+      rawwind.py         기상청 재현바람장 (발전사업허가 제출 자료)
+      coast.py           유효지역 해역 제외 판정
+    accounts/            로그인 · 사용자
+frontend/src/features/   windsite (풍력·태양광 공용) · ops
+docs/                    실측 기록 · API 키 발급 안내
 ```
 
 좌표계는 **EPSG:5179(UTM-K)** 를 미터 연산 기준으로 씁니다. 일부 자료(생태자연도,
@@ -188,7 +195,8 @@ shapely 정밀 연산으로 처리합니다.
 | [docs/WINDSITE_API_KEYS.md](docs/WINDSITE_API_KEYS.md) | 공공 API 키 발급·등록 방법 |
 | [docs/WINDSITE_VWORLD_LAYERS.md](docs/WINDSITE_VWORLD_LAYERS.md) | V-World 레이어 ID·속성명 실측 기록 |
 | [docs/WINDSITE_PHASE3.md](docs/WINDSITE_PHASE3.md) | 구현 이력과 남은 한계 |
-| [CLAUDE.md](CLAUDE.md) | RAG 엔진 최적화 이력 및 준수 규칙 |
+| [CLAUDE.md](CLAUDE.md) | 개발 지침 · 준수 규칙 |
+| [docs/풍력입지검토시스템_시스템기획서.md](docs/풍력입지검토시스템_시스템기획서.md) | 시스템 설계 |
 
 ---
 
@@ -196,7 +204,8 @@ shapely 정밀 연산으로 처리합니다.
 
 | 항목 | 상태 |
 |---|---|
-| 풍황(연평균 풍속) | ASOS 관측소는 부지와 표고·지형이 달라 **참고치**입니다. 현장 계측(측풍탑·라이다)을 대체하지 못합니다 |
+| 풍황 | 기상청 재현바람장으로 산출합니다. 고시 개정으로 발전사업허가 단계에서는 이 자료로 풍황계측기 설치를 갈음할 수 있으나, **투자 판단·발전량 예측에는 현장 실측이 필요합니다** — 모델 재현값이자 격자 대표값입니다 |
+| 유효지역 해역 제외 | 육지 경계로 행정경계(읍·면·동)를 씁니다. 조위 기준 해안선과 수십 m 어긋날 수 있어 해안 인접 부지는 공유수면 관리청 확인이 필요합니다 |
 | 군사 협의 | 구역 저촉은 판정하나 표면높이 초과 여부와 레이더 전파영향은 관할부대 협의 사항입니다 |
 | 계통 여유용량 | 공표값은 신청 시점에 이미 선점됐을 수 있습니다. 한전 사전검토가 필요합니다 |
 | 필지 단위 조회 | NED API는 필지별 호출이라 중심 필지 + 면적 상위 6개만 조회합니다. 결과에 조회 범위를 명시합니다 |
@@ -207,6 +216,6 @@ shapely 정밀 연산으로 처리합니다.
 ## 보안
 
 - **인증키를 소스에 쓰지 마십시오.** 전부 `.env`에서 읽습니다.
-- 계약가격·대주단·지분 등 사내 기밀 수치를 소스·문서·커밋 메시지에 남기지 마십시오.
-  답변 근거 값은 반드시 DB(RAG 컨텍스트)에서 인용합니다.
-- `.env`, `*api key*.txt`, 미디어 원본은 `.gitignore` 처리돼 있습니다.
+- 사업지 좌표·사업명 등 사내 정보를 소스·문서·커밋 메시지에 남기지 마십시오.
+- `.env`, `*api key*.txt`, 원본 공간데이터(`backend/data/` 대용량)는 `.gitignore`
+  처리돼 있습니다. 공간데이터 재수급 방법은 각 디렉터리의 README를 보십시오.

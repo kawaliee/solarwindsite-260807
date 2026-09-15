@@ -1,7 +1,11 @@
 # =====================================================================
-# 재생E AI Agent — Docker Compose
-# 서비스: PostgreSQL(Main DB) · Qdrant(벡터) · Django(backend) · React(frontend)
-#        + Redis · Celery worker (비동기 문서 수집/임베딩)
+# 재생에너지 입지타당성 검토 시스템 — Docker Compose
+# 서비스: PostgreSQL(Main DB) · Redis(외부 API 응답 캐시) ·
+#        Django(backend) · React(frontend)
+#
+# Redis는 선택이 아니다 — 한 지점 검토가 외부 공간정보 API를 수십 건
+# 호출하므로, 캐시가 없으면 같은 지점을 다시 볼 때마다 사용량 제한에 걸린다
+# (settings.CACHES는 REDIS_URL이 없으면 프로세스 로컬 캐시로 내려간다).
 # =====================================================================
 
 services:
@@ -16,7 +20,6 @@ services:
       - "5433:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     networks:
       - re_net
     healthcheck:
@@ -24,17 +27,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: re_qdrant
-    ports:
-      - "6333:6333"   # REST
-      - "6334:6334"   # gRPC
-    volumes:
-      - qdrant_data:/qdrant/storage
-    networks:
-      - re_net
 
   redis:
     image: redis:7
@@ -51,46 +43,18 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-re_user}:${POSTGRES_PASSWORD:-re_pass}@postgres:5432/${POSTGRES_DB:-re_agent}
-      QDRANT_URL: http://qdrant:6333
       REDIS_URL: redis://redis:6379/0
-      # Reranker(BAAI/bge-reranker-v2-m3) 로드 시 HuggingFace HEAD 요청 타임아웃으로
-      # 로컬 캐시 폴백 없이 로드 실패하는 문제 방지 — 캐시(hf_cache 볼륨)에서만 로드
-      HF_HUB_OFFLINE: "1"
-      TRANSFORMERS_OFFLINE: "1"
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
-      - ./backend/media:/app/media
-      - hf_cache:/root/.cache/huggingface
     networks:
       - re_net
     depends_on:
       postgres:
         condition: service_healthy
-      qdrant:
-        condition: service_started
       redis:
         condition: service_started
-
-  worker:
-    build: ./backend
-    container_name: re_worker
-    command: celery -A config worker -l info
-    env_file: .env
-    environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-re_user}:${POSTGRES_PASSWORD:-re_pass}@postgres:5432/${POSTGRES_DB:-re_agent}
-      QDRANT_URL: http://qdrant:6333
-      REDIS_URL: redis://redis:6379/0
-    volumes:
-      - ./backend:/app
-      - ./backend/media:/app/media
-      - hf_cache:/root/.cache/huggingface
-    networks:
-      - re_net
-    depends_on:
-      - backend
-      - redis
 
   frontend:
     build: ./frontend
@@ -117,6 +81,3 @@ networks:
 
 volumes:
   pg_data:
-  qdrant_data:
-  media_data:
-  hf_cache:

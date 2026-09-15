@@ -1,17 +1,12 @@
 import { useState } from 'react'
 import Sidebar from './components/Sidebar'
 import Topbar from './components/Topbar'
-import ChatView from './features/chat/ChatView'
-import ContractView from './features/contracts/ContractView'
 import OpsView from './features/ops/OpsView'
 import WindSiteView from './features/windsite/WindSiteView'
-import FactSheetView from './features/factsheet/FactSheetView'
-import PlaceholderView from './components/PlaceholderView'
 import ViewBoundary from './components/ViewBoundary'
 import Login from './components/Login'
 
-type ViewType = 'chat' | 'contract' | 'finance' | 'ops' | 'windsite' | 'solarsite'
-  | 'factsheet';
+type ViewType = 'windsite' | 'solarsite' | 'ops';
 
 interface UserProfile {
   id?: string;
@@ -22,13 +17,9 @@ interface UserProfile {
 }
 
 const VIEW_META: Record<ViewType, { title: string; sub: string }> = {
-  chat: { title: '대화', sub: '사내 자료 기반 질의응답' },
-  contract: { title: '계약', sub: '계약서 생성 및 검토' },
-  finance: { title: '재무모델', sub: '재무모델 생성 및 검토 (준비 중)' },
-  ops: { title: '운영관리 Dashboard', sub: '전국 사업장 분포 · 발전 자산 통합 모니터링' },
   windsite: { title: '풍력 입지타당성 검토', sub: '입지 규제 자동 스크리닝 · 인허가 로드맵 · 관련 법령' },
   solarsite: { title: '태양광 입지타당성 검토', sub: '필지 단위 정밀판정 · 태양광 이격거리 조례 · 가용면적 산출' },
-  factsheet: { title: '사업 정보 입력', sub: 'PJT별 사업 Fact-sheet 작성 · RAG 코퍼스 발행' },
+  ops: { title: '운영관리 Dashboard', sub: '전국 사업장 분포 · 발전 자산 통합 모니터링' },
 };
 
 export default function App() {
@@ -37,9 +28,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
 
-  const [activeView, setActiveView] = useState<ViewType>('chat');
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [conversationRefreshKey, setConversationRefreshKey] = useState(0);
+  const [activeView, setActiveView] = useState<ViewType>('windsite');
 
   const handleLoginSuccess = (userData: UserProfile) => {
     localStorage.setItem('user', JSON.stringify(userData));
@@ -49,11 +38,6 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('user');
     setUser(null);
-  };
-
-  const handleNewChat = () => {
-    setActiveConversationId(null);
-    setConversationRefreshKey(k => k + 1);
   };
 
   const meta = VIEW_META[activeView];
@@ -67,10 +51,6 @@ export default function App() {
       <Sidebar
         activeView={activeView}
         onNavigate={(view) => setActiveView(view as ViewType)}
-        activeConversationId={activeConversationId}
-        onSelectConversation={setActiveConversationId}
-        onNewChat={handleNewChat}
-        refreshKey={conversationRefreshKey}
         user={user}
         onLogout={handleLogout}
       />
@@ -80,28 +60,6 @@ export default function App() {
         {/* 화면 하나가 터져도 앱 전체가 흰 화면이 되지 않도록 가둔다.
             key를 화면 이름으로 줘 메뉴를 옮기면 경계가 새로 만들어진다. */}
         <ViewBoundary key={activeView} name={meta.title}>
-        {activeView === 'chat' && (
-          <ChatView
-            conversationId={activeConversationId}
-            onConversationCreated={(id) => {
-              setActiveConversationId(id);
-              setConversationRefreshKey(k => k + 1);
-            }}
-          />
-        )}
-
-        {activeView === 'contract' && <ContractView />}
-
-        {activeView === 'finance' && (
-          <PlaceholderView
-            icon="chart"
-            title="재무모델"
-            description="재무모델 생성 및 검토 기능은 현재 준비 중입니다. 추후 동일한 패턴으로 확장될 예정입니다."
-          />
-        )}
-
-        {activeView === 'ops' && <OpsView />}
-
         {/* 두 카테고리는 완전히 분리된 화면이다. ViewBoundary의 key가
             화면 이름이라 메뉴를 옮기면 상태가 초기화되고, 한쪽에서 찍은
             좌표·검토 조건이 다른 쪽으로 새지 않는다. */}
@@ -109,7 +67,7 @@ export default function App() {
 
         {activeView === 'solarsite' && <WindSiteView energy="SOLAR" />}
 
-        {activeView === 'factsheet' && <FactSheetView />}
+        {activeView === 'ops' && <OpsView />}
         </ViewBoundary>
       </main>
     </>

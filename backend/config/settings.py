@@ -1,5 +1,5 @@
 """
-재생E AI Agent — Django Settings
+재생에너지 입지타당성 검토 시스템 — Django Settings
 """
 import os
 from pathlib import Path
@@ -32,12 +32,7 @@ INSTALLED_APPS = [
     'django_filters',
     # Local apps
     'apps.accounts',
-    'apps.workspaces',
-    'apps.documents',
-    'apps.chat',
-    'apps.contracts',
     'apps.windsite',
-    'apps.factsheets',
 ]
 
 MIDDLEWARE = [
@@ -109,13 +104,6 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 32 * 1024 * 1024
 # ───── CORS ─────
 CORS_ALLOW_ALL_ORIGINS = True  # 개발 환경
 
-# ───── Celery ─────
-CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = CELERY_BROKER_URL
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
-
 # ───── Cache ─────
 # 풍력 입지검토는 한 지점당 수십 건의 외부 API를 호출한다. 같은 지점을 다시 보거나
 # 보고서를 만들 때 동일 호출이 반복되므로 응답을 캐시해 지연과 사용량 제한을 줄인다.
@@ -132,21 +120,6 @@ CACHES = {
 }
 #: 외부 공간정보 응답 캐시 수명(초). 규제 레이어는 자주 바뀌지 않는다.
 WINDSITE_CACHE_TTL = int(os.environ.get('WINDSITE_CACHE_TTL', 60 * 60 * 24))
-
-# ───── Qdrant ─────
-QDRANT_URL = os.environ.get('QDRANT_URL', 'http://localhost:6333')
-QDRANT_COLLECTION = 're_documents'
-
-# ───── Embedding ─────
-EMBEDDING_MODEL = os.environ.get('EMBEDDING_MODEL', 'BAAI/bge-m3')
-EMBEDDING_DEVICE = os.environ.get('EMBEDDING_DEVICE', 'api')  # api | cpu | cuda
-EMBEDDING_API_BASE = os.environ.get('EMBEDDING_API_BASE', '')
-EMBEDDING_API_KEY = os.environ.get('EMBEDDING_API_KEY', '')
-
-# ───── LLM ─────
-LLM_API_BASE = os.environ.get('LLM_API_BASE', '')
-LLM_API_KEY = os.environ.get('LLM_API_KEY', '')
-LLM_MODEL = os.environ.get('LLM_MODEL', 'mock')
 
 # ───── 풍력 입지·인허가 검토 (windsite) ─────
 # 각 공공 API 인증키. 비어 있으면 해당 항목은 자동으로 UNKNOWN(확인 필요) 판정된다.
@@ -277,8 +250,6 @@ OVERPASS_URL = os.environ.get('OVERPASS_URL', ','.join([
 ]))
 
 # ───── File Storage ─────
-MEDIA_ROOT = BASE_DIR / 'media'
-MEDIA_URL = '/media/'
 
 STATIC_URL = 'static/'
 
