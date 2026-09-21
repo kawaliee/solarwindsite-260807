@@ -199,11 +199,6 @@ KMA_API_KEY = (
 KMA_APIHUB_KEY = os.environ.get('KMA_APIHUB_KEY', '')
 KMA_APIHUB_BASE = os.environ.get('KMA_APIHUB_BASE', 'https://apihub.kma.go.kr/api/typ01/url')
 
-# Tavily 웹 검색 — LLM Function Calling에서 최신 정보 조회에 쓴다.
-# 종전에는 이 항목이 없고 tavily_service.py에 실제 키가 하드코딩돼 있었다.
-# 하드코딩을 걷어내니 settings에 정의가 없다는 사실이 드러나 여기에 추가한다.
-TAVILY_API_KEY = os.environ.get('TAVILY_API_KEY', '')
-
 # 건축물대장 (공공데이터포털) — 건물의 **주용도**를 얻는 유일한 공식 경로다.
 # V-World 건물 레이어(lt_c_spbd)에는 용도 속성이 없고 관리번호(bd_mgt_sn)만 있어,
 # 조례의 '주택'과 '부속 건축물'을 가릴 수 없다. 그 구분이 없으면 창고·농막까지
