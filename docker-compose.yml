@@ -8,10 +8,16 @@
 # (settings.CACHES는 REDIS_URL이 없으면 프로세스 로컬 캐시로 내려간다).
 # =====================================================================
 
+# 컨테이너 이름은 ws_ (windsite) 접두사를 쓴다. 팀 통합본
+# (RenewablesAgent/Chatbot)이 같은 호스트에서 re_ 접두사를 쓰는데, 이름이
+# 겹치면 둘 중 하나만 뜬다 — 포트는 갈라 놓아도 이름은 호스트 전역이라
+# 충돌한다. 통합본 쪽은 팀 문서가 `docker exec re_backend …` 로 이름을 직접
+# 부르므로 그쪽을 고칠 수 없다. 이 저장소는 전부 `docker compose exec <서비스>`
+# 를 쓰기 때문에 이름을 바꿔도 문서·스크립트가 깨지지 않는다.
 services:
   postgres:
     image: postgres:16
-    container_name: re_postgres
+    container_name: ws_postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-re_agent}
       POSTGRES_USER: ${POSTGRES_USER:-re_user}
@@ -30,7 +36,7 @@ services:
 
   redis:
     image: redis:7
-    container_name: re_redis
+    container_name: ws_redis
     ports:
       - "6379:6379"
     networks:
@@ -38,7 +44,7 @@ services:
 
   backend:
     build: ./backend
-    container_name: re_backend
+    container_name: ws_backend
     command: python manage.py runserver 0.0.0.0:8000
     env_file: .env
     environment:
@@ -58,7 +64,7 @@ services:
 
   frontend:
     build: ./frontend
-    container_name: re_frontend
+    container_name: ws_frontend
     command: npm run dev -- --host 0.0.0.0
     environment:
       VITE_API_BASE: http://localhost:8000/api
